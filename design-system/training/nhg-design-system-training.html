@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NHG Design System — Đào tạo nội bộ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet" />
+<style>
+/* ============ NHG TOKENS (rút gọn từ styles/nhg-tokens.css) ============ */
+:root{
+  --nhg-green-50:#E8F4ED;--nhg-green-100:#C5E4D1;--nhg-green-400:#2C9159;--nhg-green-600:#037236;--nhg-green-700:#025E2C;
+  --nhg-red-50:#FDE8E8;--nhg-red-500:#ED2024;--nhg-red-600:#D5171B;
+  --nhg-neutral-0:#FFFFFF;--nhg-neutral-100:#EEF0F0;--nhg-neutral-200:#DEE1E1;--nhg-neutral-500:#818285;--nhg-neutral-600:#5F6668;--nhg-neutral-900:#101214;--nhg-neutral-950:#050708;
+  --nhg-surface-ivory:#F8F6F1;--nhg-surface-mist:#EEF3EF;
+  --nhg-font-sans:'Be Vietnam Pro',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;
+  --nhg-radius-sm:8px;--nhg-radius-md:12px;--nhg-radius-lg:16px;--nhg-radius-xl:24px;--nhg-radius-2xl:32px;--nhg-radius-full:999px;
+  --nhg-space-1:4px;--nhg-space-2:8px;--nhg-space-3:12px;--nhg-space-4:16px;--nhg-space-5:24px;--nhg-space-6:32px;--nhg-space-7:48px;--nhg-space-8:64px;
+  --nhg-shadow-sm:0 1px 2px rgba(5,7,8,.06);--nhg-shadow-md:0 4px 12px rgba(5,7,8,.08);--nhg-shadow-lg:0 12px 32px rgba(5,7,8,.12);
+}
+[data-theme="light"]{
+  --nhg-bg-canvas:#FFFFFF;--nhg-bg-subtle:#F8F6F1;--nhg-bg-muted:#EEF3EF;
+  --nhg-surface-card:#FFFFFF;--nhg-border-default:#DEE1E1;--nhg-border-subtle:#EEF0F0;--nhg-border-brand:rgba(3,114,54,.12);
+  --nhg-text-primary:#101214;--nhg-text-secondary:#5F6668;--nhg-text-tertiary:#818285;--nhg-text-on-brand:#fff;
+  --nhg-primary:#037236;--nhg-primary-hover:#025E2C;--nhg-primary-subtle:#E8F4ED;--nhg-primary-fg:#fff;
+  --nhg-accent:#ED2024;--nhg-accent-subtle:#FDE8E8;--nhg-accent-fg:#fff;
+  --nhg-success:#037236;--nhg-warning:#B86A00;--nhg-danger:#ED2024;--nhg-info:#0A6BB8;
+  --nhg-focus-ring:rgba(3,114,54,.45);--code-bg:#0E1718;--code-fg:#E6EDEA;color-scheme:light;
+}
+[data-theme="dark"]{
+  --nhg-bg-canvas:#0A0D0E;--nhg-bg-subtle:#111618;--nhg-bg-muted:#171D1F;
+  --nhg-surface-card:#12181A;--nhg-border-default:rgba(255,255,255,.10);--nhg-border-subtle:rgba(255,255,255,.06);--nhg-border-brand:rgba(47,161,93,.28);
+  --nhg-text-primary:#ECEFEF;--nhg-text-secondary:#A8AEAF;--nhg-text-tertiary:#7E8486;--nhg-text-on-brand:#04130A;
+  --nhg-primary:#2FA15D;--nhg-primary-hover:#3FB46C;--nhg-primary-subtle:rgba(47,161,93,.16);--nhg-primary-fg:#04130A;
+  --nhg-accent:#F2585B;--nhg-accent-subtle:rgba(242,88,91,.16);--nhg-accent-fg:#1A0506;
+  --nhg-success:#2FA15D;--nhg-warning:#E0A340;--nhg-danger:#F2585B;--nhg-info:#4BA3E3;
+  --nhg-focus-ring:rgba(63,180,108,.55);--code-bg:#05090A;--code-fg:#CFE3D8;color-scheme:dark;
+}
+
+/* ============ Layout khung trình chiếu ============ */
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  font-family:var(--nhg-font-sans);background:var(--nhg-bg-muted);color:var(--nhg-text-primary);
+  -webkit-font-smoothing:antialiased;transition:background .25s ease,color .25s ease;
+}
+.deck{height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;overflow:hidden}
+.slide{
+  display:none;width:min(1100px,100%);height:min(680px,92vh);background:var(--nhg-bg-canvas);
+  border:1px solid var(--nhg-border-default);border-radius:var(--nhg-radius-2xl);box-shadow:var(--nhg-shadow-lg);
+  padding:56px 64px;overflow-y:auto;position:relative;animation:in .35s ease;
+}
+.slide.active{display:block}
+@keyframes in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* ============ Typography ============ */
+.kicker{font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--nhg-primary);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.kicker::before{content:"";width:22px;height:3px;border-radius:2px;background:var(--nhg-primary)}
+h1{font-size:50px;line-height:1.1;letter-spacing:-.02em;font-weight:800;margin:0 0 16px}
+h2{font-size:34px;line-height:1.15;letter-spacing:-.02em;font-weight:800;margin:0 0 8px}
+h3{font-size:19px;font-weight:700;margin:0 0 8px}
+p{font-size:17px;line-height:1.6;color:var(--nhg-text-secondary);margin:0 0 14px}
+.lead{font-size:20px;line-height:1.55;color:var(--nhg-text-secondary)}
+strong{color:var(--nhg-text-primary);font-weight:700}
+.muted{color:var(--nhg-text-tertiary)}
+ul{margin:0;padding:0;list-style:none}
+li{font-size:16px;line-height:1.5;color:var(--nhg-text-secondary);padding:8px 0 8px 30px;position:relative}
+li::before{content:"";position:absolute;left:4px;top:15px;width:8px;height:8px;border-radius:50%;background:var(--nhg-primary)}
+li strong{display:block;color:var(--nhg-text-primary);font-weight:600}
+
+/* ============ Tiện ích ============ */
+.grid{display:grid;gap:18px}
+.cols-2{grid-template-columns:1fr 1fr}
+.cols-3{grid-template-columns:1fr 1fr 1fr}
+.card{background:var(--nhg-bg-subtle);border:1px solid var(--nhg-border-default);border-radius:var(--nhg-radius-lg);padding:20px}
+.card.brand{background:var(--nhg-primary-subtle);border-color:var(--nhg-border-brand)}
+.tag{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;padding:5px 11px;border-radius:var(--nhg-radius-full)}
+.tag.ok{background:var(--nhg-primary-subtle);color:var(--nhg-primary)}
+.tag.no{background:var(--nhg-accent-subtle);color:var(--nhg-accent)}
+.flow{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.chip{background:var(--nhg-surface-card);border:1px solid var(--nhg-border-default);border-radius:var(--nhg-radius-md);padding:14px 18px;font-weight:600;font-size:15px;box-shadow:var(--nhg-shadow-sm)}
+.arrow{color:var(--nhg-primary);font-size:22px;font-weight:800}
+code,kbd{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px}
+.code{background:var(--code-bg);color:var(--code-fg);border-radius:var(--nhg-radius-md);padding:16px 18px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13.5px;line-height:1.65;overflow-x:auto;white-space:pre}
+.code .c{color:#6FB58E}.code .k{color:#7FC8FF}.code .v{color:#FFD479}
+kbd{background:var(--nhg-bg-muted);border:1px solid var(--nhg-border-default);border-bottom-width:2px;border-radius:6px;padding:2px 7px;font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:14.5px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--nhg-border-subtle)}
+th{color:var(--nhg-text-tertiary);font-weight:600;font-size:12.5px;text-transform:uppercase;letter-spacing:.05em}
+td{color:var(--nhg-text-secondary)}td:first-child{color:var(--nhg-text-primary);font-weight:600}
+.swatch{height:64px;border-radius:var(--nhg-radius-md);border:1px solid var(--nhg-border-default);display:flex;align-items:flex-end;padding:8px;font-size:11px;font-weight:600}
+.dot{display:inline-block;width:11px;height:11px;border-radius:50%;vertical-align:middle;margin-right:7px}
+
+/* ============ Thanh điều khiển ============ */
+.bar{position:fixed;top:0;left:0;height:4px;background:var(--nhg-primary);width:0;transition:width .3s ease;z-index:50}
+.hud{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:14px;background:var(--nhg-surface-card);border:1px solid var(--nhg-border-default);box-shadow:var(--nhg-shadow-md);border-radius:var(--nhg-radius-full);padding:8px 10px;z-index:50}
+.hud button{font-family:inherit;font-weight:600;font-size:14px;border:none;background:transparent;color:var(--nhg-text-secondary);cursor:pointer;width:34px;height:34px;border-radius:50%;display:grid;place-items:center}
+.hud button:hover{background:var(--nhg-bg-muted);color:var(--nhg-text-primary)}
+.counter{font-size:13px;font-weight:600;color:var(--nhg-text-tertiary);min-width:48px;text-align:center}
+.toggles{position:fixed;top:18px;right:18px;display:flex;gap:8px;z-index:50}
+.toggles button{font-family:inherit;font-weight:600;font-size:13px;padding:8px 14px;border-radius:var(--nhg-radius-full);border:1px solid var(--nhg-border-default);background:var(--nhg-surface-card);color:var(--nhg-text-primary);cursor:pointer;box-shadow:var(--nhg-shadow-sm)}
+.toggles button:hover{border-color:var(--nhg-primary);color:var(--nhg-primary)}
+.demo-btn{font-family:inherit;font-weight:600;font-size:14px;padding:11px 20px;border-radius:var(--nhg-radius-full);border:1px solid transparent;cursor:pointer}
+.demo-btn.p{background:var(--nhg-primary);color:var(--nhg-primary-fg)}
+.demo-btn.a{background:var(--nhg-accent);color:var(--nhg-accent-fg)}
+.demo-btn.g{background:transparent;color:var(--nhg-primary);border-color:var(--nhg-border-brand)}
+.center{height:100%;display:flex;flex-direction:column;justify-content:center}
+/* Logo always on a light plate → preserves contrast & brand colors in any theme */
+.logo-plate{display:inline-flex;align-self:flex-start;background:#fff;border:1px solid var(--nhg-border-default);border-radius:var(--nhg-radius-lg);padding:16px 22px;box-shadow:var(--nhg-shadow-sm)}
+.logo-plate img{height:44px;width:auto;display:block}
+.logo-plate.sm img{height:30px}
+@media (max-width:680px){.slide{padding:32px 24px}h1{font-size:34px}h2{font-size:26px}.cols-2,.cols-3{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+
+<div class="toggles">
+  <button id="langBtn" onclick="toggleLang()">EN</button>
+  <button id="themeBtn" onclick="toggleTheme()">🌙 Dark</button>
+</div>
+
+<div class="deck" id="deck">
+
+  <!-- 1 · COVER -->
+  <section class="slide active">
+    <div class="center">
+      <span class="logo-plate" style="margin-bottom:22px"><img src="../public/logo.png" alt="NHG — Nguyen Hoang Group" /></span>
+      <div class="kicker" data-vi="Tài liệu đào tạo nội bộ" data-en="Internal training">Tài liệu đào tạo nội bộ</div>
+      <h1>NHG Design System</h1>
+      <p class="lead" style="max-width:680px" data-vi="Một ngôn ngữ thiết kế chung — màu, chữ, khoảng cách, sáng/tối, song ngữ VN/EN — để cả team tạo ra giao diện nhất quán, nhanh và đúng chuẩn thương hiệu." data-en="One shared design language — color, type, spacing, light/dark, VN/EN — so the whole team ships consistent, fast, on-brand interfaces.">Một ngôn ngữ thiết kế chung — màu, chữ, khoảng cách, sáng/tối, song ngữ VN/EN — để cả team tạo ra giao diện nhất quán, nhanh và đúng chuẩn thương hiệu.</p>
+      <div class="flow" style="margin-top:24px">
+        <span class="tag ok">Be Vietnam Pro</span>
+        <span class="tag ok">Light + Dark</span>
+        <span class="tag ok">VN / EN</span>
+        <span class="tag ok">Token-based</span>
+      </div>
+      <p class="muted" style="margin-top:40px;font-size:14px" data-vi="Dùng phím ← → để chuyển slide · Thử nút 🌙 và EN ở góc phải" data-en="Use ← → to navigate · Try the 🌙 and EN buttons (top-right)">Dùng phím ← → để chuyển slide · Thử nút 🌙 và EN ở góc phải</p>
+    </div>
+  </section>
+
+  <!-- 2 · MỤC TIÊU -->
+  <section class="slide">
+    <div class="kicker">01 · <span data-vi="Định hướng" data-en="Orientation">Định hướng</span></div>
+    <h2 data-vi="Sau buổi này, bạn sẽ làm được gì" data-en="What you'll be able to do">Sau buổi này, bạn sẽ làm được gì</h2>
+    <p data-vi="Tài liệu xây theo nguyên tắc: hiểu mô hình trước, rồi mới đến chi tiết. Mục tiêu đo được:" data-en="Structured to teach the mental model first, then the details. Measurable goals:">Tài liệu xây theo nguyên tắc: hiểu mô hình trước, rồi mới đến chi tiết. Mục tiêu đo được:</p>
+    <div class="grid cols-2" style="margin-top:18px">
+      <div class="card"><h3>① <span data-vi="Hiểu" data-en="Understand">Hiểu</span></h3><p style="margin:0;font-size:15px" data-vi="Giải thích được token 2 lớp và vì sao luôn dùng semantic." data-en="Explain the 2-layer token model and why you always use semantic tokens.">Giải thích được token 2 lớp và vì sao luôn dùng semantic.</p></div>
+      <div class="card"><h3>② <span data-vi="Áp dụng" data-en="Apply">Áp dụng</span></h3><p style="margin:0;font-size:15px" data-vi="Dựng một component đúng màu, chữ, khoảng cách chỉ bằng token." data-en="Build a component using only tokens for color, type, spacing.">Dựng một component đúng màu, chữ, khoảng cách chỉ bằng token.</p></div>
+      <div class="card"><h3>③ <span data-vi="Chuyển theme" data-en="Theme">Chuyển theme</span></h3><p style="margin:0;font-size:15px" data-vi="Bật light/dark mà không sửa một dòng màu nào trong component." data-en="Switch light/dark without touching a single color in components.">Bật light/dark mà không sửa một dòng màu nào trong component.</p></div>
+      <div class="card"><h3>④ <span data-vi="Song ngữ" data-en="Bilingual">Song ngữ</span></h3><p style="margin:0;font-size:15px" data-vi="Thêm chuỗi VN/EN đúng chỗ, đúng quy ước next-intl." data-en="Add VN/EN strings the right way with next-intl.">Thêm chuỗi VN/EN đúng chỗ, đúng quy ước next-intl.</p></div>
+    </div>
+  </section>
+
+  <!-- 3 · TẠI SAO -->
+  <section class="slide">
+    <div class="kicker">02 · <span data-vi="Bối cảnh" data-en="Context">Bối cảnh</span></div>
+    <h2 data-vi="Vì sao cần Design System" data-en="Why a Design System">Vì sao cần Design System</h2>
+    <div class="grid cols-2" style="margin-top:8px">
+      <div>
+        <h3 style="color:var(--nhg-accent)" data-vi="Không có hệ thống" data-en="Without a system">Không có hệ thống</h3>
+        <ul>
+          <li data-vi="Mỗi người tự chọn mã màu → 7 sắc xanh khác nhau" data-en="Everyone picks hex codes → 7 different greens">Mỗi người tự chọn mã màu → 7 sắc xanh khác nhau</li>
+          <li data-vi="Dark mode phải sửa tay từng màn hình" data-en="Dark mode means editing every screen by hand">Dark mode phải sửa tay từng màn hình</li>
+          <li data-vi="Sửa brand = tìm-thay khắp codebase" data-en="Rebrand = find-and-replace across the codebase">Sửa brand = tìm-thay khắp codebase</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="color:var(--nhg-primary)" data-vi="Có hệ thống" data-en="With a system">Có hệ thống</h3>
+        <ul>
+          <li data-vi="Một nguồn sự thật: token. Ai cũng lấy cùng một chỗ" data-en="One source of truth: tokens. Everyone reads the same place">Một nguồn sự thật: token. Ai cũng lấy cùng một chỗ</li>
+          <li data-vi="Dark mode bật bằng một thuộc tính" data-en="Dark mode flips with one attribute">Dark mode bật bằng một thuộc tính</li>
+          <li data-vi="Đổi token một lần → cả sản phẩm đổi theo" data-en="Change a token once → the whole product follows">Đổi token một lần → cả sản phẩm đổi theo</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card brand" style="margin-top:18px"><p style="margin:0;color:var(--nhg-text-primary)" data-vi="💡 Nguyên tắc cốt lõi: bạn không “chọn màu”, bạn “chọn vai trò”. Vai trò sẽ tự ra màu đúng theo theme." data-en="💡 Core idea: you don't pick a color, you pick a role. The role resolves to the right color per theme.">💡 Nguyên tắc cốt lõi: bạn không “chọn màu”, bạn “chọn vai trò”. Vai trò sẽ tự ra màu đúng theo theme.</p></div>
+  </section>
+
+  <!-- 4 · MÔ HÌNH 2 LỚP -->
+  <section class="slide">
+    <div class="kicker">03 · <span data-vi="Mô hình tư duy" data-en="Mental model">Mô hình tư duy</span></div>
+    <h2 data-vi="Kiến trúc token 2 lớp" data-en="The 2-layer token architecture">Kiến trúc token 2 lớp</h2>
+    <p data-vi="Đây là phần quan trọng nhất. Hiểu cái này là hiểu cả hệ thống." data-en="The most important slide. Get this and you get the whole system.">Đây là phần quan trọng nhất. Hiểu cái này là hiểu cả hệ thống.</p>
+    <div class="flow" style="margin:22px 0">
+      <div class="chip">Primitive<br><span class="muted" style="font-weight:400;font-size:12px">--nhg-green-600 = #037236</span></div>
+      <span class="arrow">→</span>
+      <div class="chip" style="border-color:var(--nhg-primary)">Semantic<br><span class="muted" style="font-weight:400;font-size:12px">--nhg-primary</span></div>
+      <span class="arrow">→</span>
+      <div class="chip">Component<br><span class="muted" style="font-weight:400;font-size:12px">.btn { background: var(--nhg-primary) }</span></div>
+    </div>
+    <div class="grid cols-2">
+      <div class="card"><h3 data-vi="Lớp 1 — Primitive (bảng màu)" data-en="Layer 1 — Primitive (palette)">Lớp 1 — Primitive (bảng màu)</h3><p style="margin:0;font-size:15px" data-vi="Giá trị thô: thang màu, cỡ chữ, khoảng cách. Cố định. Chỉ dùng để định nghĩa lớp 2." data-en="Raw values: color scales, sizes, spacing. Fixed. Only used to define layer 2.">Giá trị thô: thang màu, cỡ chữ, khoảng cách. Cố định. Chỉ dùng để định nghĩa lớp 2.</p></div>
+      <div class="card brand"><h3 data-vi="Lớp 2 — Semantic (vai trò)" data-en="Layer 2 — Semantic (role)">Lớp 2 — Semantic (vai trò)</h3><p style="margin:0;font-size:15px;color:var(--nhg-text-primary)" data-vi="Mang ý nghĩa: primary, text-primary, bg-canvas. Đổi giá trị theo light/dark. ✅ Dùng cái này." data-en="Carries meaning: primary, text-primary, bg-canvas. Re-maps per light/dark. ✅ Use these.">Mang ý nghĩa: primary, text-primary, bg-canvas. Đổi giá trị theo light/dark. ✅ Dùng cái này.</p></div>
+    </div>
+  </section>
+
+  <!-- 5 · QUY TẮC VÀNG -->
+  <section class="slide">
+    <div class="kicker">04 · <span data-vi="Quy tắc vàng" data-en="The golden rule">Quy tắc vàng</span></div>
+    <h2 data-vi="Luôn dùng token semantic" data-en="Always use semantic tokens">Luôn dùng token semantic</h2>
+    <div class="grid cols-2" style="margin-top:14px">
+      <div>
+        <span class="tag no" data-vi="✗ Tránh" data-en="✗ Avoid">✗ Tránh</span>
+        <div class="code" style="margin-top:10px"><span class="c">/* màu chết cứng, không theo theme */</span>
+.card{
+  background:<span class="v">#FFFFFF</span>;
+  color:<span class="v">#101214</span>;
+  border:1px solid <span class="v">#DEE1E1</span>;
+}</div>
+        <p style="font-size:14px;margin-top:10px" data-vi="Dark mode → chữ đen trên nền đen." data-en="Dark mode → black text on black.">Dark mode → chữ đen trên nền đen.</p>
+      </div>
+      <div>
+        <span class="tag ok" data-vi="✓ Nên" data-en="✓ Do">✓ Nên</span>
+        <div class="code" style="margin-top:10px"><span class="c">/* vai trò, tự đổi theo theme */</span>
+.card{
+  background:<span class="k">var(--nhg-surface-card)</span>;
+  color:<span class="k">var(--nhg-text-primary)</span>;
+  border:1px solid <span class="k">var(--nhg-border-default)</span>;
+}</div>
+        <p style="font-size:14px;margin-top:10px" data-vi="Một lần viết, đúng cả sáng lẫn tối." data-en="Write once, correct in light and dark.">Một lần viết, đúng cả sáng lẫn tối.</p>
+      </div>
+    </div>
+    <div class="card brand" style="margin-top:16px"><p style="margin:0;color:var(--nhg-text-primary)" data-vi="Quy ước: trong component không bao giờ thấy mã hex. Chỉ thấy var(--nhg-*) semantic." data-en="Convention: components never contain hex. Only semantic var(--nhg-*).">Quy ước: trong component không bao giờ thấy mã hex. Chỉ thấy <code>var(--nhg-*)</code> semantic.</p></div>
+  </section>
+
+  <!-- 6 · BRAND + LOGO -->
+  <section class="slide">
+    <div class="kicker">05 · <span data-vi="Nền tảng thương hiệu" data-en="Brand foundation">Nền tảng thương hiệu</span></div>
+    <h2 data-vi="Logo & màu thương hiệu" data-en="Logo & brand colors">Logo & màu thương hiệu</h2>
+    <div class="grid cols-2" style="margin-top:8px">
+      <div class="card" style="border-color:var(--nhg-accent);background:var(--nhg-accent-subtle)">
+        <div class="flow" style="gap:12px;margin-bottom:14px">
+          <span class="logo-plate sm"><img src="../public/logo.png" alt="NHG logo gốc" /></span>
+          <span class="logo-plate sm" style="padding:10px"><img src="../public/icon-logo.png" alt="NHG icon" style="height:30px" /></span>
+        </div>
+        <h3 style="color:var(--nhg-accent)">⚠︎ <span data-vi="Bất biến" data-en="Non-negotiable">Bất biến</span></h3>
+        <ul>
+          <li data-vi="Logo gốc giữ nguyên tuyệt đối: không redraw, recolor, kéo giãn" data-en="Original logo stays exactly as-is: no redraw, recolor, stretch">Logo gốc giữ nguyên tuyệt đối: không redraw, recolor, kéo giãn</li>
+          <li data-vi="Không thêm gradient/shadow lên logo chính thức" data-en="No gradient/shadow on the official logo">Không thêm gradient/shadow lên logo chính thức</li>
+          <li data-vi="Clear space ≥ chiều cao chữ “Group”" data-en="Clear space ≥ height of the “Group” wordmark">Clear space ≥ chiều cao chữ “Group”</li>
+        </ul>
+      </div>
+      <div>
+        <div class="grid cols-2" style="gap:10px">
+          <div class="swatch" style="background:#037236;color:#fff">green-600<br>#037236</div>
+          <div class="swatch" style="background:#ED2024;color:#fff">red-500<br>#ED2024</div>
+          <div class="swatch" style="background:#050708;color:#fff">black-950<br>#050708</div>
+          <div class="swatch" style="background:#818285;color:#fff">gray-500<br>#818285</div>
+          <div class="swatch" style="background:#F8F6F1;color:#101214">ivory<br>#F8F6F1</div>
+          <div class="swatch" style="background:#EEF3EF;color:#101214">mist<br>#EEF3EF</div>
+        </div>
+      </div>
+    </div>
+    <p class="muted" style="margin-top:14px;font-size:14px" data-vi="Xanh = Uy tín/giáo dục · Đỏ = điểm nhấn “Lãng mạn”, dùng tiết chế." data-en="Green = trust/education · Red = romance accent, used sparingly.">Xanh = Uy tín/giáo dục · Đỏ = điểm nhấn “Lãng mạn”, dùng tiết chế.</p>
+  </section>
+
+  <!-- 7 · COLOR TOKENS -->
+  <section class="slide">
+    <div class="kicker">06 · <span data-vi="Màu theo vai trò" data-en="Color by role">Màu theo vai trò</span></div>
+    <h2 data-vi="Semantic color tokens" data-en="Semantic color tokens">Semantic color tokens</h2>
+    <p style="font-size:15px" data-vi="Các swatch dưới đây đọc trực tiếp từ token — bấm 🌙 để thấy chúng đổi theo theme." data-en="These swatches read live from tokens — hit 🌙 to watch them change.">Các swatch dưới đây đọc trực tiếp từ token — bấm 🌙 để thấy chúng đổi theo theme.</p>
+    <div class="grid cols-3" style="margin-top:10px;gap:12px">
+      <div class="swatch" style="background:var(--nhg-primary);color:var(--nhg-primary-fg)">--nhg-primary</div>
+      <div class="swatch" style="background:var(--nhg-accent);color:var(--nhg-accent-fg)">--nhg-accent</div>
+      <div class="swatch" style="background:var(--nhg-bg-canvas);color:var(--nhg-text-primary)">--nhg-bg-canvas</div>
+      <div class="swatch" style="background:var(--nhg-bg-subtle);color:var(--nhg-text-primary)">--nhg-bg-subtle</div>
+      <div class="swatch" style="background:var(--nhg-surface-card);color:var(--nhg-text-primary)">--nhg-surface-card</div>
+      <div class="swatch" style="background:var(--nhg-primary-subtle);color:var(--nhg-primary)">--nhg-primary-subtle</div>
+    </div>
+    <table style="margin-top:16px">
+      <tr><th>Token</th><th data-vi="Dùng cho" data-en="Use for">Dùng cho</th></tr>
+      <tr><td><span class="dot" style="background:var(--nhg-primary)"></span>--nhg-primary</td><td data-vi="Nút chính, link, trạng thái tích cực" data-en="Primary buttons, links, positive state">Nút chính, link, trạng thái tích cực</td></tr>
+      <tr><td><span class="dot" style="background:var(--nhg-accent)"></span>--nhg-accent</td><td data-vi="Điểm nhấn quan trọng, CTA phụ" data-en="Key emphasis, secondary CTA">Điểm nhấn quan trọng, CTA phụ</td></tr>
+      <tr><td><span class="dot" style="background:var(--nhg-text-secondary)"></span>--nhg-text-secondary</td><td data-vi="Mô tả, phụ đề, metadata" data-en="Descriptions, captions, metadata">Mô tả, phụ đề, metadata</td></tr>
+      <tr><td><span class="dot" style="background:var(--nhg-warning)"></span>--nhg-success / warning / danger / info</td><td data-vi="4 trạng thái cho dashboard, thông báo" data-en="4 states for dashboards, alerts">4 trạng thái cho dashboard, thông báo</td></tr>
+    </table>
+  </section>
+
+  <!-- 8 · LIGHT/DARK -->
+  <section class="slide">
+    <div class="kicker">07 · <span data-vi="Sáng / Tối" data-en="Light / Dark">Sáng / Tối</span></div>
+    <h2 data-vi="Theming hoạt động thế nào" data-en="How theming works">Theming hoạt động thế nào</h2>
+    <div class="grid cols-2" style="margin-top:8px">
+      <div>
+        <p style="font-size:15px" data-vi="Cùng một token, hai bộ giá trị. Khai báo theme ở thẻ gốc:" data-en="Same token, two value sets. Declare the theme on the root element:">Cùng một token, hai bộ giá trị. Khai báo theme ở thẻ gốc:</p>
+        <div class="code"><span class="c">&lt;!-- sáng (mặc định) --&gt;</span>
+&lt;html <span class="k">data-theme</span>=<span class="v">"light"</span>&gt;
+
+<span class="c">&lt;!-- tối --&gt;</span>
+&lt;html <span class="k">data-theme</span>=<span class="v">"dark"</span>&gt;
+
+<span class="c">/* bỏ trống → tự theo OS */</span>
+@media (prefers-color-scheme:dark){…}</div>
+      </div>
+      <div>
+        <ul>
+          <li><strong data-vi="Component không đổi" data-en="Components don't change">Component không đổi</strong><span data-vi="Bạn chỉ đặt 1 thuộc tính, mọi var() tự re-map." data-en="You set one attribute; every var() re-maps.">Bạn chỉ đặt 1 thuộc tính, mọi var() tự re-map.</span></li>
+          <li><strong data-vi="Tương phản đã căn" data-en="Contrast is tuned">Tương phản đã căn</strong><span data-vi="Dark: primary sáng lên #2FA15D, accent #F2585B cho đủ độ đọc." data-en="Dark: primary brightens to #2FA15D, accent #F2585B for legibility.">Dark: primary sáng lên #2FA15D, accent #F2585B cho đủ độ đọc.</span></li>
+          <li><strong>color-scheme</strong><span data-vi="Đặt đúng để input/scrollbar native cũng theo theme." data-en="Set so native inputs/scrollbars follow the theme too.">Đặt đúng để input/scrollbar native cũng theo theme.</span></li>
+        </ul>
+        <button class="demo-btn p" onclick="toggleTheme()" style="margin-top:6px" data-vi="↺ Đổi theme ngay" data-en="↺ Toggle theme now">↺ Đổi theme ngay</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9 · TYPOGRAPHY -->
+  <section class="slide">
+    <div class="kicker">08 · <span data-vi="Chữ" data-en="Type">Chữ</span></div>
+    <h2 data-vi="Be Vietnam Pro — một typeface duy nhất" data-en="Be Vietnam Pro — one typeface">Be Vietnam Pro — một typeface duy nhất</h2>
+    <p style="font-size:15px" data-vi="VN-first, đủ dấu tiếng Việt, sạch cho tiếng Anh. Dùng class thay vì cỡ tuỳ ý." data-en="VN-first, full Vietnamese diacritics, clean for English. Use scale classes, not arbitrary sizes.">VN-first, đủ dấu tiếng Việt, sạch cho tiếng Anh. Dùng class thay vì cỡ tuỳ ý.</p>
+    <div class="grid cols-2" style="margin-top:10px;align-items:center">
+      <div>
+        <div style="font-size:46px;font-weight:800;letter-spacing:-.02em;line-height:1.1">Tập đoàn Nguyễn Hoàng</div>
+        <div style="font-size:24px;font-weight:600;margin-top:8px">AI vì Niềm tin & Sự kết nối</div>
+        <div style="font-size:16px;color:var(--nhg-text-secondary);margin-top:8px">Hãy để AI gánh phần việc lặp lại, để con người làm phần việc ý nghĩa. — The quick brown fox 0123456789</div>
+      </div>
+      <div>
+        <table>
+          <tr><th>Class</th><th>Size / Weight</th></tr>
+          <tr><td>.nhg-display</td><td>60 / 800</td></tr>
+          <tr><td>.nhg-h1 … h5</td><td>48→20 / 700–600</td></tr>
+          <tr><td>.nhg-lead</td><td>18 / 400</td></tr>
+          <tr><td>.nhg-body</td><td>16 / 400</td></tr>
+          <tr><td>.nhg-caption</td><td>12 / 500</td></tr>
+          <tr><td>.nhg-numeric</td><td>tabular-nums</td></tr>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10 · SPACING -->
+  <section class="slide">
+    <div class="kicker">09 · <span data-vi="Nhịp & hình khối" data-en="Rhythm & shape">Nhịp & hình khối</span></div>
+    <h2 data-vi="Spacing · Radius · Shadow" data-en="Spacing · Radius · Shadow">Spacing · Radius · Shadow</h2>
+    <p style="font-size:15px" data-vi="Thang khoảng cách bước 4px (4·8·12·16·24·32·48·64). Không dùng số lẻ ngoài thang." data-en="A 4px-based scale (4·8·12·16·24·32·48·64). No off-scale values.">Thang khoảng cách bước 4px (4·8·12·16·24·32·48·64). Không dùng số lẻ ngoài thang.</p>
+    <div class="flow" style="margin:16px 0;align-items:flex-end">
+      <div><div style="height:16px;width:16px;background:var(--nhg-primary);border-radius:4px"></div><span class="muted" style="font-size:11px">4</span></div>
+      <div><div style="height:16px;width:32px;background:var(--nhg-primary);border-radius:4px"></div><span class="muted" style="font-size:11px">8</span></div>
+      <div><div style="height:16px;width:48px;background:var(--nhg-primary);border-radius:4px"></div><span class="muted" style="font-size:11px">16</span></div>
+      <div><div style="height:16px;width:80px;background:var(--nhg-primary);border-radius:4px"></div><span class="muted" style="font-size:11px">24</span></div>
+      <div><div style="height:16px;width:128px;background:var(--nhg-primary);border-radius:4px"></div><span class="muted" style="font-size:11px">48</span></div>
+    </div>
+    <div class="grid cols-3" style="margin-top:8px">
+      <div class="card" style="text-align:center"><div style="height:46px;background:var(--nhg-primary-subtle);border-radius:var(--nhg-radius-sm);margin-bottom:8px"></div>radius-sm · 8</div>
+      <div class="card" style="text-align:center"><div style="height:46px;background:var(--nhg-primary-subtle);border-radius:var(--nhg-radius-lg);margin-bottom:8px"></div>radius-lg · 16</div>
+      <div class="card" style="text-align:center"><div style="height:46px;background:var(--nhg-primary-subtle);border-radius:var(--nhg-radius-xl);margin-bottom:8px"></div>radius-xl · 24 (card)</div>
+    </div>
+    <p class="muted" style="font-size:13.5px;margin-top:12px">shadow-sm → md → lg · button & pill = radius-full (999)</p>
+  </section>
+
+  <!-- 11 · ICONS -->
+  <section class="slide">
+    <div class="kicker">10 · <span data-vi="Biểu tượng" data-en="Icons">Biểu tượng</span></div>
+    <h2 data-vi="Hệ icon — chọn theo ý nghĩa" data-en="Icon system — pick by meaning">Hệ icon — chọn theo ý nghĩa</h2>
+    <p style="font-size:15px" data-vi="Chuẩn hoá trên Lucide (stroke, lưới 24px). Mỗi hành động ↔ một icon cố định. Màu theo currentColor → tự đúng light/dark; bấm 🌙 để thấy." data-en="Standardized on Lucide (stroke, 24px grid). One action ↔ one fixed icon. Color follows currentColor → correct in light/dark; hit 🌙.">Chuẩn hoá trên Lucide (stroke, lưới 24px). Mỗi hành động ↔ một icon cố định. Màu theo <code>currentColor</code> → tự đúng light/dark; bấm 🌙 để thấy.</p>
+    <div class="grid cols-2" style="margin-top:12px;align-items:start">
+      <div>
+        <div class="card">
+          <div class="muted" style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px" data-vi="Size tokens" data-en="Size tokens">Size tokens</div>
+          <div class="flow" style="align-items:flex-end;gap:18px">
+            <span style="color:var(--nhg-text-primary)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg><div class="muted" style="font-size:11px;text-align:center">16</div></span>
+            <span style="color:var(--nhg-text-primary)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg><div class="muted" style="font-size:11px;text-align:center">20</div></span>
+            <span style="color:var(--nhg-text-primary)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg><div class="muted" style="font-size:11px;text-align:center">24</div></span>
+            <span style="color:var(--nhg-text-primary)"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg><div class="muted" style="font-size:11px;text-align:center">32</div></span>
+            <span style="color:var(--nhg-text-primary)"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg><div class="muted" style="font-size:11px;text-align:center">48</div></span>
+          </div>
+        </div>
+        <div class="card" style="margin-top:12px">
+          <div class="muted" style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px" data-vi="Màu theo role" data-en="Color by role">Màu theo role</div>
+          <div class="flow" style="gap:22px">
+            <span style="color:var(--nhg-primary)" title="actions.search"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span>
+            <span style="color:var(--nhg-success)" title="status.success"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg></span>
+            <span style="color:var(--nhg-danger)" title="actions.delete"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>
+            <span style="color:var(--nhg-accent)" title="brand.ai"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0z"/></svg></span>
+            <span style="color:var(--nhg-text-tertiary)" title="actions.settings"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></span>
+          </div>
+          <p class="muted" style="font-size:12.5px;margin:12px 0 0">primary · success · danger · accent · muted</p>
+        </div>
+      </div>
+      <div>
+        <div class="code"><span class="c">// chọn theo Ý NGHĨA, không theo tên hình</span>
+&lt;Icon name=<span class="v">"actions.approve"</span>
+      className=<span class="v">"nhg-icon--success"</span> /&gt;
+&lt;Icon name=<span class="v">"navigation.dashboard"</span> /&gt;
+
+<span class="c">// icon-map.json là nguồn sự thật</span>
+{ <span class="k">"actions"</span>: { <span class="k">"approve"</span>: <span class="v">"circle-check-big"</span> } }</div>
+        <ul style="margin-top:6px">
+          <li><strong data-vi="Một nghĩa = một icon" data-en="One meaning = one icon">Một nghĩa = một icon</strong><span data-vi="Cả app dùng giống nhau, tra ở icon-map.json." data-en="Used identically app-wide, looked up in icon-map.json.">Cả app dùng giống nhau, tra ở icon-map.json.</span></li>
+          <li><strong data-vi="Không trộn bộ icon" data-en="Don't mix sets">Không trộn bộ icon</strong><span data-vi="Chỉ stroke Lucide — tránh lẫn filled/emoji." data-en="Lucide stroke only — no filled/emoji mix.">Chỉ stroke Lucide — tránh lẫn filled/emoji.</span></li>
+          <li><strong data-vi="A11y bắt buộc" data-en="A11y required">A11y bắt buộc</strong><span data-vi="Icon-only cần aria-label; vùng chạm ≥ 40px." data-en="Icon-only needs aria-label; tap target ≥ 40px.">Icon-only cần aria-label; vùng chạm ≥ 40px.</span></li>
+        </ul>
+        <p class="muted" style="font-size:13px;margin:6px 0 0" data-vi="Tra cứu đầy đủ: icons/icon-gallery.html" data-en="Full reference: icons/icon-gallery.html">Tra cứu đầy đủ: <code>icons/icon-gallery.html</code></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 12 · I18N -->
+  <section class="slide">
+    <div class="kicker">11 · <span data-vi="Song ngữ" data-en="Bilingual">Song ngữ</span></div>
+    <h2 data-vi="VN / EN với next-intl" data-en="VN / EN with next-intl">VN / EN với next-intl</h2>
+    <div class="grid cols-2" style="margin-top:8px">
+      <div>
+        <h3 data-vi="Quy ước" data-en="Conventions">Quy ước</h3>
+        <ul>
+          <li data-vi="Mặc định vi, tiếng Anh ở /en" data-en="Default vi, English under /en">Mặc định <code>vi</code>, tiếng Anh ở <code>/en</code></li>
+          <li data-vi="Không hard-code chữ trong component" data-en="Never hard-code text in components">Không hard-code chữ trong component</li>
+          <li data-vi="vi.json và en.json phải khớp key 1–1" data-en="vi.json and en.json must match keys 1-to-1">vi.json và en.json phải khớp key 1–1</li>
+          <li data-vi="Font đã nạp subset vietnamese → dấu chuẩn" data-en="Font loads the vietnamese subset → correct diacritics">Font đã nạp subset <code>vietnamese</code> → dấu chuẩn</li>
+        </ul>
+      </div>
+      <div>
+        <div class="code"><span class="c">// messages/vi.json & en.json</span>
+{ <span class="k">"actions"</span>: { <span class="k">"primary"</span>: <span class="v">"Bắt đầu"</span> } }
+{ <span class="k">"actions"</span>: { <span class="k">"primary"</span>: <span class="v">"Get started"</span> } }
+
+<span class="c">// trong component</span>
+<span class="k">const</span> t = useTranslations(<span class="v">'actions'</span>);
+&lt;button&gt;{ t(<span class="v">'primary'</span>) }&lt;/button&gt;</div>
+        <button class="demo-btn g" onclick="toggleLang()" style="margin-top:14px" data-vi="↺ Đổi ngôn ngữ slide" data-en="↺ Toggle slide language">↺ Đổi ngôn ngữ slide</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 12 · ÁP DỤNG -->
+  <section class="slide">
+    <div class="kicker">12 · <span data-vi="Thực hành" data-en="Hands-on">Thực hành</span></div>
+    <h2 data-vi="Quy trình dựng 1 component" data-en="Workflow to build a component">Quy trình dựng 1 component</h2>
+    <div class="flow" style="margin:14px 0">
+      <div class="chip">1 · <span data-vi="Vai trò?" data-en="Roles?">Vai trò?</span></div><span class="arrow">→</span>
+      <div class="chip">2 · <span data-vi="Token semantic" data-en="Semantic tokens">Token semantic</span></div><span class="arrow">→</span>
+      <div class="chip">3 · <span data-vi="Spacing thang" data-en="Scale spacing">Spacing thang</span></div><span class="arrow">→</span>
+      <div class="chip">4 · <span data-vi="Thử dark + EN" data-en="Check dark + EN">Thử dark + EN</span></div>
+    </div>
+    <div class="grid cols-2" style="margin-top:6px">
+      <div class="code">.story-card{
+  background:<span class="k">var(--nhg-surface-card)</span>;
+  color:<span class="k">var(--nhg-text-primary)</span>;
+  border:1px solid <span class="k">var(--nhg-border-brand)</span>;
+  border-radius:<span class="k">var(--nhg-radius-xl)</span>;
+  padding:<span class="k">var(--nhg-space-5)</span>;
+  box-shadow:<span class="k">var(--nhg-shadow-sm)</span>;
+}</div>
+      <div class="card" style="border-color:var(--nhg-border-brand)">
+        <div class="kicker" style="margin-bottom:8px" data-vi="Câu chuyện" data-en="Story">Câu chuyện</div>
+        <h3 data-vi="Trước · AI hỗ trợ · Chạm con người" data-en="Before · AI · Human Touch">Trước · AI hỗ trợ · Chạm con người</h3>
+        <p style="margin:6px 0 12px;font-size:14px" data-vi="Card dựng 100% bằng token — tự đúng ở dark." data-en="Built 100% from tokens — correct in dark too.">Card dựng 100% bằng token — tự đúng ở dark.</p>
+        <button class="demo-btn p" data-vi="Xem thêm" data-en="View more">Xem thêm</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 13 · CHECKLIST -->
+  <section class="slide">
+    <div class="kicker">13 · <span data-vi="Nghiệm thu" data-en="Acceptance">Nghiệm thu</span></div>
+    <h2 data-vi="Checklist trước khi merge" data-en="Pre-merge checklist">Checklist trước khi merge</h2>
+    <div class="grid cols-2" style="margin-top:10px">
+      <div class="card" style="background:var(--nhg-primary-subtle);border-color:var(--nhg-border-brand)">
+        <h3 style="color:var(--nhg-primary)" data-vi="✓ Phải có" data-en="✓ Must have">✓ Phải có</h3>
+        <ul>
+          <li data-vi="Mọi màu là var(--nhg-*) semantic" data-en="Every color is a semantic var(--nhg-*)">Mọi màu là <code>var(--nhg-*)</code> semantic</li>
+          <li data-vi="Đã thử cả light và dark" data-en="Tested in both light and dark">Đã thử cả light và dark</li>
+          <li data-vi="Chữ dùng class type-scale" data-en="Text uses type-scale classes">Chữ dùng class type-scale</li>
+          <li data-vi="Khoảng cách nằm trong thang 4px" data-en="Spacing on the 4px scale">Khoảng cách nằm trong thang 4px</li>
+          <li data-vi="Chuỗi có ở cả vi.json và en.json" data-en="Strings exist in both vi.json & en.json">Chuỗi có ở cả vi.json và en.json</li>
+        </ul>
+      </div>
+      <div class="card" style="background:var(--nhg-accent-subtle);border-color:var(--nhg-accent)">
+        <h3 style="color:var(--nhg-accent)" data-vi="✗ Không được" data-en="✗ Never">✗ Không được</h3>
+        <ul>
+          <li data-vi="Mã hex / rgb chết trong component" data-en="Hard-coded hex / rgb in components">Mã hex / rgb chết trong component</li>
+          <li data-vi="Sửa hình dạng / màu logo gốc" data-en="Altering the original logo">Sửa hình dạng / màu logo gốc</li>
+          <li data-vi="px lẻ ngoài thang spacing" data-en="Off-scale px values">px lẻ ngoài thang spacing</li>
+          <li data-vi="Chữ hard-code trong JSX" data-en="Hard-coded text in JSX">Chữ hard-code trong JSX</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 14 · CHEAT SHEET -->
+  <section class="slide">
+    <div class="kicker">14 · <span data-vi="Tra nhanh" data-en="Quick reference">Tra nhanh</span></div>
+    <h2 data-vi="Cheat sheet & nguồn" data-en="Cheat sheet & sources">Cheat sheet & nguồn</h2>
+    <div class="grid cols-2" style="margin-top:8px">
+      <div>
+        <h3 data-vi="Token hay dùng" data-en="Tokens you'll reach for">Token hay dùng</h3>
+        <table>
+          <tr><td>--nhg-bg-canvas</td><td data-vi="nền trang" data-en="page bg">nền trang</td></tr>
+          <tr><td>--nhg-surface-card</td><td data-vi="nền thẻ" data-en="card bg">nền thẻ</td></tr>
+          <tr><td>--nhg-text-primary/secondary</td><td data-vi="chữ chính/phụ" data-en="text main/sub">chữ chính/phụ</td></tr>
+          <tr><td>--nhg-primary / -fg</td><td data-vi="nút chính / chữ trên nút" data-en="primary / fg">nút chính / chữ trên nút</td></tr>
+          <tr><td>--nhg-border-default</td><td data-vi="viền" data-en="border">viền</td></tr>
+          <tr><td>--nhg-radius-xl · -full</td><td data-vi="bo card · bo nút" data-en="card · pill">bo card · bo nút</td></tr>
+        </table>
+      </div>
+      <div>
+        <h3 data-vi="File trong repo" data-en="Files in the repo">File trong repo</h3>
+        <ul>
+          <li><strong>styles/nhg-tokens.css</strong><span data-vi="biến CSS light + dark" data-en="CSS vars light + dark">biến CSS light + dark</span></li>
+          <li><strong>styles/nhg-typography.css</strong><span data-vi="font + type scale" data-en="font + type scale">font + type scale</span></li>
+          <li><strong>tokens/tokens.json</strong><span data-vi="nguồn token cho tool/dev" data-en="token source for tooling">nguồn token cho tool/dev</span></li>
+          <li><strong>i18n/</strong><span data-vi="next-intl + messages vi/en" data-en="next-intl + vi/en messages">next-intl + messages vi/en</span></li>
+          <li><strong>README.md</strong><span data-vi="hướng dẫn tích hợp" data-en="integration guide">hướng dẫn tích hợp</span></li>
+        </ul>
+      </div>
+    </div>
+    <div class="card brand" style="margin-top:14px"><p style="margin:0;color:var(--nhg-text-primary)" data-vi="Nhớ một câu: “Chọn vai trò, không chọn màu.” — đó là toàn bộ tinh thần hệ thống." data-en="Remember one line: “Pick the role, not the color.” That's the whole system.">Nhớ một câu: <strong>“Chọn vai trò, không chọn màu.”</strong> — đó là toàn bộ tinh thần hệ thống.</p></div>
+  </section>
+
+</div>
+
+<div class="hud">
+  <button onclick="go(-1)" aria-label="prev">‹</button>
+  <span class="counter" id="counter">1 / 14</span>
+  <button onclick="go(1)" aria-label="next">›</button>
+</div>
+
+<script>
+const slides=[...document.querySelectorAll('.slide')];
+let i=0, lang='vi';
+function render(){
+  slides.forEach((s,n)=>s.classList.toggle('active',n===i));
+  document.getElementById('counter').textContent=(i+1)+' / '+slides.length;
+  document.getElementById('bar').style.width=((i+1)/slides.length*100)+'%';
+  slides[i].scrollTop=0;
+}
+function go(d){i=Math.min(slides.length-1,Math.max(0,i+d));render();}
+function toggleTheme(){
+  const r=document.documentElement;
+  const dark=r.getAttribute('data-theme')==='dark';
+  r.setAttribute('data-theme',dark?'light':'dark');
+  document.getElementById('themeBtn').textContent=dark?'🌙 Dark':'☀︎ Light';
+}
+function toggleLang(){
+  lang=lang==='vi'?'en':'vi';
+  document.documentElement.lang=lang;
+  document.getElementById('langBtn').textContent=lang==='vi'?'EN':'VI';
+  document.querySelectorAll('[data-vi]').forEach(el=>{
+    el.textContent=lang==='vi'?el.getAttribute('data-vi'):el.getAttribute('data-en');
+  });
+}
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key===' ')go(1);
+  if(e.key==='ArrowLeft')go(-1);
+  if(e.key==='Home'){i=0;render();}
+  if(e.key==='End'){i=slides.length-1;render();}
+});
+render();
+</script>
+</body>
+</html>

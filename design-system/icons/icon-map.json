@@ -1,0 +1,104 @@
+{
+  "$description": "NHG semantic icon map. Key = meaning in the product; value = Lucide icon name. Always reference by meaning, not by drawing — so the same action shows the same icon everywhere.",
+  "$library": "lucide",
+  "$grid": 24,
+  "navigation": {
+    "home": "house",
+    "dashboard": "layout-dashboard",
+    "stories": "book-open",
+    "about": "info",
+    "contact": "mail",
+    "menu": "menu",
+    "close": "x",
+    "back": "arrow-left",
+    "forward": "arrow-right",
+    "expand": "chevron-down",
+    "collapse": "chevron-up",
+    "external": "external-link",
+    "more": "ellipsis"
+  },
+  "actions": {
+    "add": "plus",
+    "create": "plus-circle",
+    "edit": "pencil",
+    "delete": "trash-2",
+    "save": "check",
+    "cancel": "x",
+    "confirm": "check-circle",
+    "approve": "circle-check-big",
+    "reject": "circle-x",
+    "search": "search",
+    "filter": "list-filter",
+    "sort": "arrow-up-down",
+    "refresh": "refresh-cw",
+    "download": "download",
+    "upload": "upload",
+    "share": "share-2",
+    "copy": "copy",
+    "settings": "settings",
+    "logout": "log-out"
+  },
+  "status": {
+    "success": "circle-check",
+    "warning": "triangle-alert",
+    "danger": "octagon-alert",
+    "info": "info",
+    "pending": "clock",
+    "verified": "badge-check",
+    "loading": "loader-circle",
+    "locked": "lock",
+    "unlocked": "lock-open"
+  },
+  "data": {
+    "metric": "trending-up",
+    "decline": "trending-down",
+    "chartBar": "chart-column",
+    "chartLine": "chart-line",
+    "chartPie": "chart-pie",
+    "table": "table",
+    "report": "file-text",
+    "calendar": "calendar",
+    "time": "clock",
+    "target": "target",
+    "insight": "lightbulb"
+  },
+  "communication": {
+    "message": "message-square",
+    "comment": "message-circle",
+    "notification": "bell",
+    "email": "mail",
+    "phone": "phone",
+    "send": "send"
+  },
+  "user": {
+    "user": "user",
+    "users": "users",
+    "profile": "circle-user",
+    "team": "users-round",
+    "addUser": "user-plus"
+  },
+  "media": {
+    "image": "image",
+    "file": "file",
+    "folder": "folder",
+    "attachment": "paperclip",
+    "play": "play",
+    "pause": "pause",
+    "link": "link"
+  },
+  "theme": {
+    "light": "sun",
+    "dark": "moon",
+    "system": "monitor",
+    "language": "languages"
+  },
+  "brand": {
+    "trust": "shield-check",
+    "romance": "heart-handshake",
+    "human": "users-round",
+    "ai": "sparkles",
+    "future": "rocket",
+    "integrity": "badge-check",
+    "education": "graduation-cap"
+  }
+}

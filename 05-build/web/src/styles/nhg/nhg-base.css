@@ -1,0 +1,83 @@
+/* =====================================================================
+   NHG Design System — Base layer
+   Minimal, opinionated reset wired to the token layer.
+   Import order:  nhg-tokens.css → nhg-typography.css → nhg-base.css
+   ===================================================================== */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--nhg-font-sans);
+  font-size: var(--nhg-text-base);
+  line-height: var(--nhg-leading-normal);
+  font-weight: var(--nhg-weight-regular);
+  color: var(--nhg-text-primary);
+  background-color: var(--nhg-bg-canvas);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Smooth theme transitions (respect reduced motion) */
+body, .nhg-surface, [data-theme] {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+h1, h2, h3, h4, h5, h6, p, figure { margin: 0; }
+
+a {
+  color: var(--nhg-primary);
+  text-decoration: none;
+}
+a:hover { color: var(--nhg-primary-hover); text-decoration: underline; }
+
+img, svg, video { max-width: 100%; height: auto; display: block; }
+
+:focus-visible {
+  outline: 2px solid var(--nhg-primary);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--nhg-focus-ring);
+  border-radius: var(--nhg-radius-sm);
+}
+
+::selection {
+  background: var(--nhg-primary-subtle);
+  color: var(--nhg-text-primary);
+}
+
+/* ---- A couple of ready-to-use surface helpers ---- */
+.nhg-surface {
+  background: var(--nhg-surface-card);
+  border: 1px solid var(--nhg-border-default);
+  border-radius: var(--nhg-radius-xl);
+  box-shadow: var(--nhg-shadow-sm);
+}
+.nhg-surface--muted { background: var(--nhg-bg-muted); }
+
+/* ---- Button primitives (optional starter) ---- */
+.nhg-btn {
+  font-family: var(--nhg-font-sans);
+  font-weight: var(--nhg-weight-semibold);
+  font-size: var(--nhg-text-sm);
+  line-height: 1;
+  padding: var(--nhg-space-3) var(--nhg-space-5);
+  border-radius: var(--nhg-radius-full);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.nhg-btn--primary { background: var(--nhg-primary); color: var(--nhg-primary-fg); }
+.nhg-btn--primary:hover { background: var(--nhg-primary-hover); }
+.nhg-btn--accent  { background: var(--nhg-accent);  color: var(--nhg-accent-fg); }
+.nhg-btn--accent:hover { background: var(--nhg-accent-hover); }
+.nhg-btn--ghost   { background: transparent; color: var(--nhg-primary); border-color: var(--nhg-border-brand); }
+.nhg-btn--ghost:hover { background: var(--nhg-primary-subtle); }

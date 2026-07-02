@@ -1,0 +1,25 @@
+# ===== Node / Next.js build =====
+node_modules/
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+.env*.local
+.vercel/
+
+# ===== Tooling / OS / editor =====
+.claude/
+.DS_Store
+Thumbs.db
+*.log
+
+# ===== Tài liệu nội bộ — KHÔNG đưa lên repo code (mật/scoping) =====
+00-boi-canh/
+01-nghien-cuu/
+02-dac-ta/
+03-ke-hoach-ngan-sach/
+04-pitch/
+STATUS.md
+/README.md
+memory/

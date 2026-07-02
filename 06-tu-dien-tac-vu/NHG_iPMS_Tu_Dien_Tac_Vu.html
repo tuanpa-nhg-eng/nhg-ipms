@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NHG iPMS — Từ điển Tác vụ (Task Dictionary)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --green:#037236; --green-d:#025E2C; --green-50:#E8F4ED;
+    --red:#ED2024; --red-50:#FDE8E8;
+    --ink:#101214; --ink-2:#5F6668; --ink-3:#818285;
+    --bg:#F8F6F1; --card:#fff; --canvas:#fff; --mist:#EEF3EF; --line:#DEE1E1; --line-2:#EEF0F0;
+    --info:#0A6BB8; --info-50:#E2F0FB; --amber:#B86A00; --amber-50:#FBEFD9; --ai:#6D28A8; --ai-50:#F1E9FA;
+    --shadow:0 4px 12px rgba(5,7,8,.07);
+  }
+  [data-theme="dark"]{
+    --green:#2FA15D; --green-d:#3FB46C; --green-50:rgba(47,161,93,.16);
+    --red:#F2585B; --red-50:rgba(242,88,91,.16);
+    --ink:#ECEFEF; --ink-2:#A8AEAF; --ink-3:#7E8486;
+    --bg:#0A0D0E; --card:#12181A; --canvas:#12181A; --mist:#0E1416; --line:rgba(255,255,255,.10); --line-2:rgba(255,255,255,.06);
+    --info:#4BA3E3; --info-50:rgba(75,163,227,.16); --amber:#E0A340; --amber-50:rgba(224,163,64,.16); --ai:#B98BE0; --ai-50:rgba(185,139,224,.16);
+    --shadow:0 4px 14px rgba(0,0,0,.45);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{font-family:'Be Vietnam Pro',system-ui,sans-serif; background:var(--bg); color:var(--ink); -webkit-font-smoothing:antialiased;}
+  .numeric{font-variant-numeric:tabular-nums;}
+  button{font-family:inherit; cursor:pointer;}
+
+  header.top{display:flex; align-items:center; gap:14px; padding:12px 22px; background:var(--canvas); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:10;}
+  header.top .logo{height:30px;}
+  header.top .ttl b{font-size:15px; font-weight:800; letter-spacing:-.2px;}
+  header.top .ttl b span{color:var(--green);}
+  header.top .ttl .s{font-size:10.5px; color:var(--ink-3);}
+  .spacer{flex:1;}
+  .iconbtn{display:inline-flex; align-items:center; gap:6px; height:34px; min-width:34px; padding:0 11px; border-radius:10px; border:1px solid var(--line); background:transparent; color:var(--ink-2); font-size:12.5px; font-weight:600; transition:.15s;}
+  .iconbtn:hover{background:var(--green); color:#fff; border-color:transparent;}
+
+  .stats{display:grid; grid-template-columns:repeat(5,1fr); gap:10px; padding:14px 22px 4px;}
+  .chip{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 13px;}
+  .chip .k{font-size:20px; font-weight:800; color:var(--green); line-height:1;}
+  .chip .l{font-size:9.5px; color:var(--ink-3); margin-top:4px; font-weight:500; line-height:1.35;}
+
+  .wrap{display:grid; grid-template-columns:380px 1fr; gap:14px; padding:12px 22px 28px; align-items:start;}
+  @media(max-width:980px){ .wrap{grid-template-columns:1fr;} .stats{grid-template-columns:repeat(2,1fr);} }
+
+  .panel{background:var(--card); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow);}
+  .panel.tree{position:sticky; top:74px; max-height:calc(100vh - 90px); display:flex; flex-direction:column;}
+
+  .toolbar{padding:12px 13px; border-bottom:1px solid var(--line-2);}
+  .search{display:flex; align-items:center; gap:8px; background:var(--mist); border:1px solid var(--line-2); border-radius:10px; padding:8px 11px;}
+  .search input{border:0; background:transparent; outline:none; font-family:inherit; font-size:13px; color:var(--ink); width:100%;}
+  .filters{display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;}
+  .fchip{font-size:10.5px; font-weight:700; padding:4px 10px; border-radius:99px; border:1px solid var(--line); background:transparent; color:var(--ink-2);}
+  .fchip.lvl-manual.active{background:var(--ink-3); color:#fff; border-color:transparent;}
+  .fchip.lvl-assisted.active{background:var(--ai); color:#fff; border-color:transparent;}
+  .fchip.lvl-automated.active{background:var(--amber); color:#fff; border-color:transparent;}
+  .fchip.lvl-auto.active{background:var(--green); color:#fff; border-color:transparent;}
+
+  .tree-scroll{overflow-y:auto; padding:8px 8px 12px;}
+  .group>.ghead{display:flex; align-items:center; gap:8px; padding:9px 9px; border-radius:9px; cursor:pointer; font-weight:800; font-size:12.5px;}
+  .group>.ghead:hover{background:var(--bg);}
+  .group .gcode{font-size:9px; color:var(--ink-3); font-weight:700;}
+  .chev{margin-left:auto; transition:transform .18s; color:var(--ink-3);}
+  .group.collapsed .chev{transform:rotate(-90deg);}
+  .group.collapsed .cluster{display:none;}
+  .cluster{margin:2px 0 6px 10px; padding-left:8px; border-left:2px solid var(--line-2);}
+  .clabel{font-size:9px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-3); font-weight:700; padding:6px 8px 3px;}
+  .cell{display:flex; align-items:center; gap:9px; padding:8px 9px; border-radius:9px; cursor:pointer; font-size:12.5px; transition:background .12s;}
+  .cell:hover{background:var(--bg);}
+  .cell.active{background:var(--green-50); color:var(--green); font-weight:600;}
+  .cell .dot{width:8px; height:8px; border-radius:99px; flex:0 0 auto;}
+  .cell .cc{font-size:9px; color:var(--ink-3); margin-left:auto; font-weight:700;}
+  .cell.hidden{display:none;}
+
+  .detail{padding:20px 22px;}
+  .dhead .code{font-size:11px; font-weight:800; color:var(--green); letter-spacing:.03em;}
+  .dhead h1{font-size:22px; font-weight:800; letter-spacing:-.3px; margin:5px 0 2px;}
+  .dhead .en{font-size:12.5px; color:var(--ink-3); font-style:italic;}
+  .dhead .desc{font-size:12.5px; color:var(--ink-2); margin-top:8px; line-height:1.55;}
+  .dhead .path{font-size:11px; color:var(--ink-3); margin-top:8px;}
+  .badges{display:flex; flex-wrap:wrap; gap:7px; margin:13px 0 4px;}
+  .badge{display:inline-flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; padding:3px 10px; border-radius:99px;}
+  .b-gray{background:var(--mist); color:var(--ink-2);} .b-green{background:var(--green-50); color:var(--green);}
+  .b-info{background:var(--info-50); color:var(--info);} .b-amber{background:var(--amber-50); color:var(--amber);}
+  .b-ai{background:var(--ai-50); color:var(--ai);} .b-red{background:var(--red-50); color:var(--red);}
+
+  .sec{margin-top:12px; border:1px solid var(--line-2); border-radius:12px; overflow:hidden;}
+  .sec>.shead{display:flex; align-items:center; gap:8px; padding:11px 14px; cursor:pointer; font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--green); background:var(--bg);}
+  .sec.ai>.shead{color:var(--ai);}
+  .sec .scount{margin-left:auto; font-size:9px; color:var(--ink-3); font-weight:700;}
+  .sec .schev{transition:transform .18s; color:var(--ink-3);}
+  .sec.closed .schev{transform:rotate(-90deg);}
+  .sec.closed .sbody{display:none;}
+  .sbody{padding:13px 15px;}
+  .dl{display:grid; grid-template-columns:172px 1fr; gap:9px 16px;}
+  @media(max-width:560px){ .dl{grid-template-columns:1fr;} .dl dt{margin-top:6px;} }
+  .dl dt{font-size:11px; color:var(--ink-3); font-weight:600;}
+  .dl dd{font-size:12.5px; color:var(--ink); line-height:1.5;}
+  .dl dd b{font-weight:700;}
+  .raci{display:grid; grid-template-columns:repeat(2,1fr); gap:8px;}
+  .raci .r{border:1px solid var(--line-2); border-radius:9px; padding:8px 10px;}
+  .raci .r .t{font-size:9px; font-weight:800; letter-spacing:.04em; color:var(--ink-3); text-transform:uppercase;}
+  .raci .r .v{font-size:12.5px; font-weight:600; margin-top:2px;}
+  .tags{display:flex; flex-wrap:wrap; gap:5px;}
+  .tag{font-size:10px; background:var(--mist); color:var(--ink-2); padding:2px 8px; border-radius:6px;}
+  .impact .bar{height:10px; border-radius:99px; background:var(--mist); overflow:hidden; margin-top:5px;}
+  .impact .bar>span{display:block; height:100%; border-radius:99px; background:linear-gradient(90deg,var(--ai),var(--green));}
+  .aibox{background:var(--ai-50); border:1px solid var(--ai); border-radius:12px; padding:12px 14px; margin-top:11px;}
+  .aibox .ahead{display:flex; align-items:center; gap:8px; color:var(--ai); font-weight:800; font-size:12.5px; margin-bottom:5px;}
+  .aibox p{font-size:11.5px; line-height:1.55; color:var(--ink);}
+
+  .empty{padding:60px 22px; text-align:center; color:var(--ink-3);}
+  .footer{padding:10px 22px; font-size:9.5px; color:var(--ink-3); border-top:1px solid var(--line-2); display:flex; justify-content:space-between;}
+  .footer b{color:var(--green);}
+
+  /* tabs */
+  .tabs{display:flex; gap:7px; padding:12px 22px 0; flex-wrap:wrap;}
+  .tab{font-size:13px; font-weight:700; padding:9px 16px; border-radius:11px; border:1px solid var(--line); background:transparent; color:var(--ink-2); transition:.15s;}
+  .tab:hover{color:var(--ink);}
+  .tab.active{background:var(--green); color:#fff; border-color:transparent;}
+
+  /* backlog / workmap shared */
+  .panel2{background:var(--card); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); padding:18px 20px; margin:14px 22px 28px;}
+  .panel2 h2{font-size:16px; font-weight:800; letter-spacing:-.2px;}
+  .panel2 .sub{font-size:11.5px; color:var(--ink-3); margin:4px 0 14px; line-height:1.5;}
+  .legend{display:flex; gap:14px; flex-wrap:wrap; font-size:10.5px; color:var(--ink-3); margin-bottom:10px;}
+  .legend i{display:inline-block; width:9px; height:9px; border-radius:3px; margin-right:4px; vertical-align:middle;}
+  table.t{width:100%; border-collapse:collapse; font-size:12px;}
+  table.t thead th{text-align:left; font-size:9.5px; text-transform:uppercase; letter-spacing:.03em; color:var(--ink-3); font-weight:700; padding:8px 10px; border-bottom:2px solid var(--line);}
+  table.t tbody td{padding:9px 10px; border-bottom:1px solid var(--line-2); vertical-align:middle;}
+  table.t tbody tr:hover{background:var(--bg);}
+  table.t .rt{text-align:right;}
+  .minibar{height:8px; width:84px; border-radius:99px; background:var(--mist); overflow:hidden; display:inline-block; vertical-align:middle; margin-right:6px;}
+  .minibar>span{display:block; height:100%; background:linear-gradient(90deg,var(--ai),var(--green));}
+  .rank{font-weight:800; color:var(--green); font-variant-numeric:tabular-nums;}
+
+  .wmgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:14px; padding:14px 22px 28px;}
+  .wmcard{background:var(--card); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); padding:16px 18px;}
+  .wmcard h3{font-size:15px; font-weight:800;}
+  .wmcard .role-sub{font-size:11px; color:var(--ink-3); margin-bottom:8px;}
+  .stack{display:flex; height:9px; border-radius:99px; overflow:hidden; margin:8px 0 10px; background:var(--mist);}
+  .stack>span{display:block; height:100%;}
+  .celllist{font-size:11.5px; line-height:1.6; margin-top:8px;}
+  .celllist .ci{display:flex; gap:8px; align-items:center; padding:3px 0; border-top:1px solid var(--line-2);}
+  .celllist .ci .kc{margin-left:auto; font-size:9px; color:var(--ink-3); font-weight:700;}
+
+  /* strategy lineage (trong cell detail) */
+  .lineage{display:flex; flex-wrap:wrap; align-items:center; gap:7px; margin-top:13px; padding:10px 13px; border-radius:11px; background:var(--green-50); border:1px solid var(--green); font-size:11px;}
+  .lineage .lb{font-size:8.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--green); width:100%; margin-bottom:1px;}
+  .lineage .ln{font-weight:700;}
+  .lineage .okr{color:var(--green);} .lineage .kgi{color:var(--info);} .lineage .kpi{color:var(--ai);} .lineage .cell{color:var(--ink);}
+  .lineage .arr{color:var(--ink-3);}
+  .lineage.warn{background:var(--amber-50); border-color:var(--amber); color:var(--amber);}
+
+  /* cây mục tiêu (tab) */
+  .okrnode{border:1px solid var(--green); border-radius:13px; overflow:hidden;}
+  .okrhead{background:var(--green); color:#fff; font-weight:800; font-size:13.5px; padding:12px 15px;}
+  .kginode{border-top:1px solid var(--line-2); padding:11px 15px 11px 20px;}
+  .kgihead{font-weight:800; font-size:12.5px; color:var(--info); margin-bottom:5px;}
+  .kgihead .cnt, .kpinode .cnt{font-size:10px; color:var(--ink-3); font-weight:600; margin-left:6px;}
+  .kpinode{font-size:12px; padding:5px 0 5px 18px; color:var(--ink); border-left:2px solid var(--line-2); margin-left:4px;}
+  .kpinode .kpc{font-weight:700; color:var(--ai); font-size:10.5px;}
+  .kpinode.gap{color:var(--amber);}
+  .gapw{color:var(--amber); font-weight:700; font-size:10.5px;}
+  .gapbox{margin-top:13px; background:var(--amber-50); color:var(--amber); border-radius:10px; padding:10px 13px; font-size:11.5px; font-weight:600;}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <img class="logo" src="../design-system/public/logo.png" alt="NHG" onerror="this.onerror=null;this.src='../design-system/nhg-design-system-assets/logo.png'">
+  <div class="ttl">
+    <b>i<span>PMS</span> · Từ điển Tác vụ</b>
+    <div class="s">Task Dictionary — đơn vị nhỏ nhất: <b>Task Cell</b> · 7 nhóm thuộc tính · Domain mẫu: Tuyển sinh</div>
+  </div>
+  <div class="spacer"></div>
+  <button class="iconbtn" id="expandBtn" title="Mở/gập tất cả mục">⤢</button>
+  <button class="iconbtn" id="langBtn" title="Ngôn ngữ">EN</button>
+  <button class="iconbtn" id="themeBtn" title="Giao diện">☾</button>
+</header>
+
+<div class="stats" id="stats"></div>
+
+<div class="tabs" id="tabs">
+  <button class="tab active" data-v="dict">📖 Từ điển</button>
+  <button class="tab" data-v="backlog">⚙️ Backlog tự động hoá</button>
+  <button class="tab" data-v="workmap">👥 WorkMap theo vai trò</button>
+  <button class="tab" data-v="goals">🎯 Cây mục tiêu</button>
+</div>
+
+<div id="view-dict" class="vbody">
+<div class="wrap">
+  <div class="panel tree">
+    <div class="toolbar">
+      <div class="search">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="search" placeholder="Tìm tác vụ, mã, vai trò, KPI…">
+      </div>
+      <div class="filters" id="filters">
+        <button class="fchip lvl-manual" data-lvl="manual">Thủ công</button>
+        <button class="fchip lvl-assisted" data-lvl="assisted">AI hỗ trợ</button>
+        <button class="fchip lvl-automated" data-lvl="automated">AI tự động·duyệt</button>
+        <button class="fchip lvl-auto" data-lvl="auto">Tự động</button>
+      </div>
+    </div>
+    <div class="tree-scroll" id="tree"></div>
+  </div>
+
+  <div class="panel">
+    <div id="detail"></div>
+    <div class="footer">
+      <span>NHG iPMS · Task Dictionary — <b>chuẩn hoá tác vụ → KPI → bằng chứng → AI</b></span>
+      <span>One Data · One Platform · One NHG</span>
+    </div>
+  </div>
+</div>
+</div><!-- /view-dict -->
+
+<div id="view-backlog" class="vbody" hidden></div>
+<div id="view-workmap" class="vbody" hidden></div>
+<div id="view-goals" class="vbody" hidden></div>
+
+<script>
+/* ===== AI level ===== */
+const AI = {
+  manual:{label:"Thủ công",en:"Manual",cls:"b-gray"},
+  assisted:{label:"AI hỗ trợ",en:"AI-assisted",cls:"b-ai"},
+  automated:{label:"AI tự động · người duyệt",en:"AI-automated (review)",cls:"b-amber"},
+  auto:{label:"Tự động hoàn toàn",en:"Fully automated",cls:"b-green"},
+};
+const DOT={manual:"var(--ink-3)",assisted:"var(--ai)",automated:"var(--amber)",auto:"var(--green)"};
+const TT={routine:"Định kỳ",project:"Dự án",adhoc:"Phát sinh"};
+const NAT={core:"Lõi",support:"Hỗ trợ"};
+const VAL={value:"Tạo giá trị",necessary:"Cần thiết",waste:"Rà soát (ít giá trị)"};
+const STAGE={now:"Ngay (Now)",next:"Kế tiếp (Next)",later:"Sau (Later)"};
+const RISK={Cao:"b-red","TB":"b-amber","Thấp":"b-gray"};
+
+/* ===== Defaults (chuẩn chính sách — override theo tác vụ) ===== */
+const DEFAULTS = {
+  desc:"", taskType:"routine", nature:"support", value:"necessary", sop:"SOP Tuyển sinh (DMS)", tags:[], source:"Task Architecture",
+  accountable:"Trưởng phòng Tuyển sinh", consulted:"—", informed:"Trưởng nhóm", approver:"Trưởng phòng Tuyển sinh",
+  competency:"—", tools:"CRM",
+  trigger:"—", precond:"—", outputFormat:"—", consumer:"—", predecessor:"—", successor:"—",
+  effort:"—", volume:"—", complexity:"TB", measureMethod:"Đếm tự động từ hệ thống nguồn", errorDef:"—",
+  humanCheckpoint:"Người phụ trách duyệt kết quả trước khi ghi nhận", aiData:"—", aiDataPII:false, autoStage:"next",
+  aiRisk:"Theo AI guardrail chung (không tự quyết KPI/đãi ngộ)",
+  riskLevel:"TB", kri:"—", compliance:"—", controlPoint:"—", retention:"Theo phân loại dữ liệu",
+  effectiveDate:"01/09/2026", reviewCycle:"6 tháng/lần", reviewNext:"01/03/2027", approvedBy:"B1 — Chính sách Nhân sự",
+};
+
+/* ===== DATA (Tuyển sinh) ===== */
+const RAW = [
+ {code:"TS-G01",name:"Quản lý phễu & lead",en:"Funnel & Lead Management",clusters:[
+  {code:"C01",name:"Thu hút & tạo lead",cells:[
+   {code:"TS-G01-C01-T001",name:"Chạy chiến dịch quảng cáo tuyển sinh",en:"Run admissions ad campaign",
+    desc:"Lập kế hoạch, thiết lập và vận hành chiến dịch quảng cáo để tạo nguồn lead chất lượng cho phễu tuyển sinh.",
+    owner:"CV Marketing",support:"CV Tuyển sinh",goal:"Tạo nguồn lead chất lượng, đúng chân dung",
+    taskType:"project",nature:"core",value:"value",tags:["lead-gen","marketing","doanh thu"],source:"#012/372",
+    accountable:"Trưởng phòng Marketing",consulted:"P. Tài chính (ngân sách)",informed:"Trưởng nhóm Tuyển sinh",approver:"Trưởng phòng Marketing",
+    competency:"Digital marketing, phân tích dữ liệu",tools:"Ad platform · CRM · GA4",
+    trigger:"Bắt đầu kỳ tuyển sinh / kế hoạch duyệt",input:"Kế hoạch chiến dịch + ngân sách duyệt",precond:"Ngân sách & nội dung được duyệt",
+    output:"Chiến dịch chạy + báo cáo lead/chi phí",outputFormat:"Dashboard + báo cáo CPL",consumer:"P. Tuyển sinh (nhận lead)",
+    dod:"Đạt ≥ số lead mục tiêu với CPL trong ngưỡng",predecessor:"—",successor:"TS-G01-C01-T002",
+    freq:"Theo đợt",effort:"~20 giờ/đợt",volume:"3–5 đợt/kỳ",complexity:"Cao",sla:"Theo lịch chiến dịch",unit:"lead / CPL",
+    kpi:"Số lead · Cost-per-lead",measureMethod:"Đếm lead & chi phí từ ad platform + CRM",errorDef:"Lead sai chân dung, CPL vượt ngưỡng",
+    evSource:"system",connector:"CRM · Ad platform",
+    aiLevel:"assisted",aiImpact:55,autoPot:"TB",agent:"Content draft Agent (gợi ý nội dung/biến thể quảng cáo)",
+    humanCheckpoint:"Marketer duyệt nội dung & ngân sách trước khi chạy",aiData:"Nội dung quảng cáo, dữ liệu hiệu suất (không PII)",aiDataPII:false,autoStage:"next",
+    aiRisk:"Tránh nội dung sai lệch/thổi phồng — cần người duyệt",
+    riskLevel:"TB",kri:"Lãng phí ngân sách nếu nhắm sai",compliance:"Quảng cáo giáo dục đúng quy định",controlPoint:"Duyệt ngân sách + nội dung",retention:"2 năm",
+    dataClass:"Internal",deps:"—",status:"approved",version:"v1.0",ownerOrg:"B1 + OpCo"},
+   {code:"TS-G01-C01-T002",name:"Nhập & chuẩn hoá lead vào CRM",en:"Capture & normalize leads in CRM",
+    desc:"Tiếp nhận lead từ mọi nguồn, đưa vào CRM với đủ trường bắt buộc, loại trùng và chuẩn hoá.",
+    owner:"CV Tuyển sinh",support:"—",goal:"Mọi lead vào hệ thống, đủ trường, không trùng",
+    taskType:"routine",nature:"core",value:"value",tags:["data","crm","phễu"],source:"#013/372",
+    accountable:"Trưởng nhóm Tuyển sinh",consulted:"B3 Data",informed:"—",approver:"Trưởng nhóm",
+    competency:"Thao tác CRM, vệ sinh dữ liệu",tools:"CRM · Salesforce",
+    trigger:"Lead mới từ form/sự kiện/ad",input:"Lead thô đa nguồn",precond:"Connector nguồn hoạt động",
+    output:"Bản ghi lead chuẩn trong CRM",outputFormat:"Record CRM chuẩn",consumer:"CV chăm sóc lead",
+    dod:"100% lead đủ trường bắt buộc, đã dedup",predecessor:"—",successor:"TS-G01-C02-T005",
+    freq:"Hằng ngày",effort:"~2 phút/lead",volume:"~80 lead/ngày",complexity:"Thấp",sla:"Trong 4h",unit:"lead",
+    kpi:"Data hygiene CRM (%)",measureMethod:"% bản ghi đủ trường / tổng lead",errorDef:"Thiếu trường, trùng bản ghi",
+    evSource:"system",connector:"CRM · Salesforce",
+    aiLevel:"automated",aiImpact:78,autoPot:"Cao",agent:"Evidence Collector (tự gom + chuẩn hoá, người duyệt)",
+    humanCheckpoint:"CV duyệt các bản ghi AI gắn cờ nghi ngờ",aiData:"Thông tin lead (PII): tên, SĐT, email",aiDataPII:true,autoStage:"now",
+    aiRisk:"PII — phải mask khi đưa AI; theo phân loại Confidential",
+    riskLevel:"TB",kri:"Lead thất lạc → mất cơ hội doanh thu",compliance:"Bảo vệ dữ liệu cá nhân",controlPoint:"Kiểm tra dedup",retention:"3 năm",
+    dataClass:"Confidential",deps:"—",status:"approved",version:"v1.1",ownerOrg:"B1 + B3"},
+  ]},
+  {code:"C02",name:"Chăm sóc & chuyển đổi lead",cells:[
+   {code:"TS-G01-C02-T005",name:"Gọi tư vấn lead mới trong 24h",en:"Call new lead within 24h",
+    desc:"Liên hệ lead mới được phân công trong vòng 24h để tư vấn và cập nhật trạng thái.",
+    owner:"CV Tuyển sinh",support:"—",goal:"Tiếp cận sớm để tăng tỷ lệ chuyển đổi",
+    taskType:"routine",nature:"core",value:"value",tags:["chuyển đổi","sla","phễu"],source:"#018/372",
+    accountable:"Trưởng nhóm Tuyển sinh",consulted:"—",informed:"—",approver:"Trưởng nhóm",
+    competency:"Kỹ năng tư vấn, xử lý phản đối",tools:"CRM · Tổng đài YB",
+    trigger:"Lead mới gán cho CV",input:"Lead mới trong CRM",precond:"Lead đã chuẩn hoá",
+    output:"Cuộc gọi + ghi chú kết quả",outputFormat:"Call log + trạng thái lead",consumer:"Phễu chuyển đổi",
+    dod:"Gọi trong 24h, cập nhật trạng thái lead",predecessor:"TS-G01-C01-T002",successor:"TS-G01-C02-T007",
+    freq:"Hằng ngày",effort:"~10 phút/lead",volume:"~30 lead/ngày",complexity:"TB",sla:"≤ 24h",unit:"lead",
+    kpi:"Tỷ lệ liên hệ 24h · Lead-to-enrollment",measureMethod:"% lead gọi trong 24h",errorDef:"Quá 24h chưa liên hệ",
+    evSource:"system",connector:"CRM · Tổng đài YB",
+    aiLevel:"assisted",aiImpact:45,autoPot:"TB",agent:"Coaching Agent (gợi kịch bản gọi theo hồ sơ lead)",
+    humanCheckpoint:"CV thực hiện cuộc gọi (AI chỉ gợi ý)",aiData:"Hồ sơ lead (PII)",aiDataPII:true,autoStage:"next",
+    aiRisk:"Không để AI tự gọi/chốt — chỉ hỗ trợ kịch bản",
+    riskLevel:"TB",kri:"Lead nguội nếu chậm liên hệ",compliance:"Tôn trọng quy định gọi điện",controlPoint:"Theo dõi SLA 24h",retention:"3 năm",
+    dataClass:"Confidential",deps:"—",status:"approved",version:"v1.0",ownerOrg:"B1"},
+   {code:"TS-G01-C02-T006",name:"Gửi chuỗi email nuôi dưỡng lead",en:"Send lead nurture email sequence",
+    desc:"Tự động gửi chuỗi email theo phân khúc để giữ tương tác và dẫn lead xuống cuối phễu.",
+    owner:"CV Marketing",support:"CV Tuyển sinh",goal:"Giữ tương tác, dẫn lead xuống cuối phễu",
+    taskType:"routine",nature:"support",value:"value",tags:["nurture","automation","email"],source:"#019/372",
+    accountable:"Trưởng phòng Marketing",consulted:"—",informed:"CV Tuyển sinh",approver:"Trưởng phòng Marketing",
+    competency:"Marketing automation",tools:"CRM · Email tool",
+    trigger:"Lead vào phân khúc nurture",input:"Phân khúc lead",precond:"Mẫu email duyệt",
+    output:"Email gửi + tỷ lệ mở/click",outputFormat:"Chiến dịch email + báo cáo",consumer:"Phễu chuyển đổi",
+    dod:"Gửi đúng phân khúc, đo được tương tác",predecessor:"TS-G01-C01-T002",successor:"TS-G01-C02-T007",
+    freq:"Hằng tuần",effort:"~1 giờ/tuần (giám sát)",volume:"~500 email/tuần",complexity:"TB",sla:"Theo lịch",unit:"email",
+    kpi:"Open/Click rate · chuyển đổi giữa phễu",measureMethod:"Tỷ lệ mở/click từ email tool",errorDef:"Gửi sai phân khúc, spam",
+    evSource:"system",connector:"CRM · Email tool",
+    aiLevel:"auto",aiImpact:85,autoPot:"Cao",agent:"Lead Nurture Agent (soạn + gửi theo trigger)",
+    humanCheckpoint:"Duyệt mẫu & quy tắc trigger định kỳ",aiData:"Email, hành vi tương tác (PII hạn chế)",aiDataPII:true,autoStage:"now",
+    aiRisk:"Tần suất gửi & nội dung phải có guardrail chống spam",
+    riskLevel:"Thấp",kri:"Tỷ lệ huỷ đăng ký tăng",compliance:"Tuân thủ opt-in/opt-out",controlPoint:"Giới hạn tần suất gửi",retention:"2 năm",
+    dataClass:"Internal",deps:"—",status:"draft",version:"v0.9",ownerOrg:"B1 + B3"},
+   {code:"TS-G01-C02-T007",name:"Đặt lịch & tư vấn trực tiếp",en:"Schedule & conduct consultation",
+    desc:"Tư vấn sâu cho lead quan tâm, xử lý băn khoăn và xác định bước tiếp theo.",
+    owner:"CV Tuyển sinh",support:"—",goal:"Tư vấn sâu, xử lý băn khoăn, tiến tới chốt",
+    taskType:"routine",nature:"core",value:"value",tags:["tư vấn","chuyển đổi"],source:"#021/372",
+    accountable:"Trưởng nhóm Tuyển sinh",consulted:"P. Học vụ (chuyên môn)",informed:"—",approver:"Trưởng nhóm",
+    competency:"Tư vấn chuyên sâu, hiểu chương trình",tools:"CRM · Lịch hẹn",
+    trigger:"Lead quan tâm, đồng ý gặp",input:"Lead đã liên hệ",precond:"Đã có cuộc gọi tư vấn ban đầu",
+    output:"Buổi tư vấn + biên bản + bước tiếp",outputFormat:"Biên bản tư vấn",consumer:"Khâu chốt nhập học",
+    dod:"Hoàn thành buổi tư vấn, ghi nhận kết quả",predecessor:"TS-G01-C02-T005",successor:"TS-G01-C02-T008",
+    freq:"Hằng ngày",effort:"~45 phút/buổi",volume:"~6 buổi/ngày",complexity:"TB",sla:"Theo lịch hẹn",unit:"buổi",
+    kpi:"Show rate · Service NPS",measureMethod:"% buổi diễn ra / đặt lịch",errorDef:"No-show, biên bản thiếu",
+    evSource:"manual",connector:"CRM (ghi nhận)",
+    aiLevel:"assisted",aiImpact:35,autoPot:"Thấp",agent:"Review Drafting (tóm tắt biên bản tư vấn)",
+    humanCheckpoint:"CV ghi nhận & xác nhận biên bản",aiData:"Ghi chú tư vấn (PII)",aiDataPII:true,autoStage:"later",
+    aiRisk:"Biên bản AI tóm tắt phải được người xác nhận",
+    riskLevel:"TB",kri:"Mất cơ hội nếu tư vấn kém",compliance:"—",controlPoint:"Kiểm biên bản",retention:"3 năm",
+    dataClass:"Confidential",deps:"—",status:"approved",version:"v1.0",ownerOrg:"B1"},
+   {code:"TS-G01-C02-T008",name:"Chốt nhập học",en:"Close enrollment",
+    desc:"Chuyển lead đã đồng ý thành học viên nhập học và khởi tạo hồ sơ.",
+    owner:"CV Tuyển sinh",support:"P. Học vụ",goal:"Chuyển lead thành học viên nhập học",
+    taskType:"routine",nature:"core",value:"value",tags:["chốt","doanh thu"],source:"#022/372",
+    accountable:"Trưởng nhóm Tuyển sinh",consulted:"P. Học vụ",informed:"P. Tài chính",approver:"Trưởng phòng Tuyển sinh",
+    competency:"Chốt sale, quy trình nhập học",tools:"CRM · SIS",
+    trigger:"Lead đồng ý nhập học",input:"Lead đã tư vấn, đồng ý",precond:"Đủ điều kiện nhập học",
+    output:"Hồ sơ nhập học khởi tạo",outputFormat:"Bản ghi enrolled + hồ sơ",consumer:"Khâu hồ sơ & học phí",
+    dod:"Lead chuyển trạng thái 'enrolled'",predecessor:"TS-G01-C02-T007",successor:"TS-G02-C01-T010",
+    freq:"Hằng ngày",effort:"~20 phút/ca",volume:"~5 ca/ngày",complexity:"TB",sla:"—",unit:"học viên",
+    kpi:"Lead-to-enrollment conversion",measureMethod:"% lead chuyển enrolled",errorDef:"Hồ sơ chốt thiếu thông tin",
+    evSource:"system",connector:"CRM · SIS",
+    aiLevel:"manual",aiImpact:15,autoPot:"Thấp",agent:"—",
+    humanCheckpoint:"CV & Học vụ xác nhận đủ điều kiện",aiData:"—",aiDataPII:false,autoStage:"later",
+    aiRisk:"—",
+    riskLevel:"Cao",kri:"Chốt sai → tranh chấp / hoàn phí",compliance:"Điều kiện nhập học theo quy chế",controlPoint:"Đối chiếu điều kiện",retention:"5 năm",
+    dataClass:"Confidential",deps:"—",status:"approved",version:"v1.0",ownerOrg:"B1"},
+  ]},
+ ]},
+ {code:"TS-G02",name:"Hồ sơ & nhập học",en:"Records & Admission",clusters:[
+  {code:"C01",name:"Tiếp nhận & số hoá hồ sơ",cells:[
+   {code:"TS-G02-C01-T010",name:"Kiểm tra & số hoá hồ sơ đầu vào",en:"Verify & digitize intake records",
+    desc:"Kiểm tra tính hợp lệ, đầy đủ của hồ sơ và số hoá lưu trữ.",
+    owner:"CV Tuyển sinh",support:"P. Hành chính",goal:"Hồ sơ đầy đủ, hợp lệ, lưu số hoá",
+    taskType:"routine",nature:"core",value:"necessary",tags:["hồ sơ","ocr","số hoá"],source:"#031/372",
+    accountable:"Trưởng phòng Tuyển sinh",consulted:"P. Pháp chế",informed:"P. Học vụ",approver:"Trưởng phòng",
+    competency:"Nghiệp vụ hồ sơ, kiểm tra pháp lý",tools:"DMS · OCR",
+    trigger:"Học viên nộp hồ sơ",input:"Hồ sơ giấy/điện tử",precond:"Đã chốt nhập học",
+    output:"Hồ sơ số hoá + đánh dấu thiếu/sai",outputFormat:"Hồ sơ số trong DMS",consumer:"Khâu hợp đồng & học vụ",
+    dod:"Đủ giấy tờ bắt buộc, OCR & lưu đúng chỗ",predecessor:"TS-G01-C02-T008",successor:"TS-G02-C02-T013",
+    freq:"Hằng ngày",effort:"~15 phút/hồ sơ",volume:"~5 hồ sơ/ngày",complexity:"TB",sla:"≤ 48h",unit:"hồ sơ",
+    kpi:"Số văn bản phát hành lỗi/tháng (ngược)",measureMethod:"Đếm lỗi hồ sơ / tổng",errorDef:"Thiếu giấy tờ, sai thông tin",
+    evSource:"system",connector:"DMS · OCR",
+    aiLevel:"automated",aiImpact:72,autoPot:"Cao",agent:"Evidence Collector (OCR + phân loại, người duyệt)",
+    humanCheckpoint:"CV duyệt kết quả OCR & tính hợp lệ",aiData:"Giấy tờ cá nhân (PII)",aiDataPII:true,autoStage:"now",
+    aiRisk:"PII nhạy cảm — mã hoá & phân quyền chặt",
+    riskLevel:"Cao",kri:"Hồ sơ sai → rủi ro pháp lý",compliance:"Lưu trữ hồ sơ theo quy định",controlPoint:"Checklist hồ sơ bắt buộc",retention:"5 năm",
+    dataClass:"Confidential",deps:"—",status:"approved",version:"v1.0",ownerOrg:"B1 + B3"},
+  ]},
+  {code:"C02",name:"Thủ tục nhập học & học phí",cells:[
+   {code:"TS-G02-C02-T013",name:"Lập hợp đồng đào tạo",en:"Create training contract",
+    desc:"Soạn và hoàn tất hợp đồng đào tạo đúng mẫu, đủ điều khoản, đủ chữ ký.",
+    owner:"CV Tuyển sinh",support:"P. Pháp chế",goal:"Hợp đồng đúng mẫu, đủ điều khoản",
+    taskType:"routine",nature:"core",value:"necessary",tags:["hợp đồng","pháp lý"],source:"#034/372",
+    accountable:"Trưởng phòng Tuyển sinh",consulted:"B5 Pháp chế",informed:"P. Tài chính",approver:"P. Pháp chế (B5)",
+    competency:"Nghiệp vụ hợp đồng",tools:"Bravo · DMS",
+    trigger:"Hồ sơ hợp lệ",input:"Hồ sơ nhập học hợp lệ",precond:"Hồ sơ đã số hoá & kiểm",
+    output:"Hợp đồng ký",outputFormat:"Hợp đồng theo template NHG",consumer:"Khâu thu học phí",
+    dod:"Đúng template NHG, đủ chữ ký",predecessor:"TS-G02-C01-T010",successor:"TS-G02-C02-T014",
+    freq:"Hằng ngày",effort:"~25 phút/HĐ",volume:"~5 HĐ/ngày",complexity:"TB",sla:"≤ 24h",unit:"hợp đồng",
+    kpi:"Tỷ lệ hợp đồng đúng chuẩn",measureMethod:"% HĐ đúng template/đủ chữ ký",errorDef:"Sai điều khoản, thiếu chữ ký",
+    evSource:"system",connector:"Bravo · DMS",
+    aiLevel:"assisted",aiImpact:50,autoPot:"TB",agent:"Draft hợp đồng theo template (người duyệt)",
+    humanCheckpoint:"Pháp chế duyệt điều khoản trước khi ký",aiData:"Thông tin HĐ (PII)",aiDataPII:true,autoStage:"next",
+    aiRisk:"Điều khoản pháp lý phải do người duyệt",
+    riskLevel:"Cao",kri:"Sai điều khoản → tranh chấp",compliance:"Bộ luật Lao động/Dân sự liên quan",controlPoint:"Pháp chế phê duyệt",retention:"7 năm",
+    dataClass:"Confidential",deps:"—",status:"approved",version:"v1.0",ownerOrg:"B1 + B5"},
+   {code:"TS-G02-C02-T014",name:"Thu học phí đợt 1 & đối soát",en:"Collect first tuition & reconcile",
+    desc:"Thu học phí đợt đầu, phát hành biên lai và đối soát với kế toán.",
+    owner:"CV Tuyển sinh",support:"P. Tài chính",goal:"Thu đúng, đủ, đối soát với kế toán",
+    taskType:"routine",nature:"core",value:"necessary",tags:["học phí","tài chính"],source:"#035/372",
+    accountable:"Trưởng phòng Tuyển sinh",consulted:"B2 Tài chính",informed:"Kế toán",approver:"P. Tài chính (B2)",
+    competency:"Nghiệp vụ thu/đối soát",tools:"Bravo (ERP)",
+    trigger:"Hợp đồng ký",input:"Hợp đồng đã ký",precond:"HĐ hợp lệ",
+    output:"Biên lai + bản ghi thu",outputFormat:"Phiếu thu + bút toán Bravo",consumer:"Kế toán / báo cáo doanh thu",
+    dod:"Khớp số tiền, đối soát Bravo",predecessor:"TS-G02-C02-T013",successor:"—",
+    freq:"Hằng ngày",effort:"~15 phút/GD",volume:"~5 GD/ngày",complexity:"TB",sla:"Theo lịch thu",unit:"giao dịch",
+    kpi:"Tỷ lệ thu đúng hạn",measureMethod:"% GD khớp đối soát",errorDef:"Lệch số, thu sai",
+    evSource:"system",connector:"Bravo (ERP)",
+    aiLevel:"manual",aiImpact:20,autoPot:"Thấp",agent:"—",
+    humanCheckpoint:"Kế toán đối soát & xác nhận",aiData:"—",aiDataPII:false,autoStage:"later",
+    aiRisk:"—",
+    riskLevel:"Cao",kri:"Sai sót tài chính → rủi ro kiểm toán",compliance:"Quy định tài chính/thuế",controlPoint:"Đối soát kế toán bắt buộc",retention:"10 năm",
+    dataClass:"Restricted",deps:"—",status:"approved",version:"v1.0",ownerOrg:"B1 + B2"},
+  ]},
+ ]},
+ {code:"TS-G03",name:"Chất lượng & báo cáo",en:"Quality & Reporting",clusters:[
+  {code:"C01",name:"Chất lượng dịch vụ",cells:[
+   {code:"TS-G03-C01-T020",name:"Khảo sát NPS phụ huynh/học viên",en:"Run parent/student NPS survey",
+    desc:"Đo trải nghiệm dịch vụ tuyển sinh qua khảo sát NPS định kỳ.",
+    owner:"CV Tuyển sinh",support:"P. CTSV",goal:"Đo trải nghiệm dịch vụ tuyển sinh",
+    taskType:"routine",nature:"support",value:"value",tags:["nps","chất lượng"],source:"#041/372",
+    accountable:"Trưởng phòng Tuyển sinh",consulted:"P. CTSV",informed:"Ban giám hiệu",approver:"Trưởng phòng",
+    competency:"Thiết kế khảo sát, phân tích",tools:"Survey tool",
+    trigger:"Định kỳ tháng / sau nhập học",input:"Danh sách đã tư vấn/nhập học",precond:"Có dữ liệu liên hệ",
+    output:"Kết quả NPS + phản hồi",outputFormat:"Báo cáo NPS",consumer:"Lãnh đạo / cải tiến",
+    dod:"Đạt ≥ tỷ lệ phản hồi mục tiêu",predecessor:"—",successor:"TS-G03-C01-T021",
+    freq:"Hằng tháng",effort:"~3 giờ/đợt",volume:"1 đợt/tháng",complexity:"Thấp",sla:"Theo đợt",unit:"khảo sát",
+    kpi:"Service NPS",measureMethod:"Tính NPS từ kết quả khảo sát",errorDef:"Tỷ lệ phản hồi thấp, mẫu lệch",
+    evSource:"system",connector:"Survey tool",
+    aiLevel:"automated",aiImpact:68,autoPot:"Cao",agent:"AI tổng hợp & phân loại phản hồi (người duyệt)",
+    humanCheckpoint:"Duyệt phân loại & insight AI",aiData:"Phản hồi khảo sát (ẩn danh hoá)",aiDataPII:false,autoStage:"now",
+    aiRisk:"Tránh suy diễn quá mức từ phản hồi nhỏ",
+    riskLevel:"Thấp",kri:"Bỏ sót tín hiệu bất mãn",compliance:"—",controlPoint:"Kiểm mẫu khảo sát",retention:"3 năm",
+    dataClass:"Internal",deps:"—",status:"approved",version:"v1.0",ownerOrg:"B1"},
+   {code:"TS-G03-C01-T021",name:"Xử lý khiếu nại tuyển sinh",en:"Handle admissions complaints",
+    desc:"Tiếp nhận, xử lý khiếu nại đúng SLA và ghi nhận bài học cải tiến.",
+    owner:"CV Tuyển sinh",support:"Trưởng phòng",goal:"Giải quyết khiếu nại đúng hạn, ghi nhận bài học",
+    taskType:"adhoc",nature:"support",value:"necessary",tags:["khiếu nại","dịch vụ"],source:"#042/372",
+    accountable:"Trưởng phòng Tuyển sinh",consulted:"B5 Pháp chế (nếu cần)",informed:"Ban giám hiệu",approver:"Trưởng phòng",
+    competency:"Xử lý xung đột, giao tiếp",tools:"Ticket/CRM",
+    trigger:"Khiếu nại tiếp nhận",input:"Khiếu nại từ kênh tiếp nhận",precond:"—",
+    output:"Phương án xử lý + đóng case",outputFormat:"Ticket đóng + biên bản",consumer:"Khách hàng / cải tiến",
+    dod:"Đóng case trong SLA, có rationale",predecessor:"—",successor:"—",
+    freq:"Khi phát sinh",effort:"~1 giờ/case",volume:"~5 case/tháng",complexity:"TB",sla:"≤ 72h",unit:"case",
+    kpi:"Complaint resolution time",measureMethod:"Thời gian đóng case trung bình",errorDef:"Quá SLA, tái khiếu nại",
+    evSource:"manual",connector:"Ticket/CRM",
+    aiLevel:"assisted",aiImpact:40,autoPot:"TB",agent:"Bias/wording check + gợi phản hồi",
+    humanCheckpoint:"Người phụ trách quyết phương án xử lý",aiData:"Nội dung khiếu nại (PII)",aiDataPII:true,autoStage:"next",
+    aiRisk:"Không để AI tự phản hồi khách — chỉ gợi ý",
+    riskLevel:"Cao",kri:"Khiếu nại lan rộng → rủi ro thương hiệu",compliance:"Quy định bảo vệ người tiêu dùng",controlPoint:"Theo dõi SLA + escalation",retention:"5 năm",
+    dataClass:"Confidential",deps:"—",status:"approved",version:"v1.0",ownerOrg:"B1"},
+  ]},
+  {code:"C02",name:"Dữ liệu & báo cáo",cells:[
+   {code:"TS-G03-C02-T025",name:"Làm sạch dữ liệu CRM định kỳ",en:"Periodic CRM data cleansing",
+    desc:"Rà soát, sửa và chuẩn hoá dữ liệu CRM định kỳ để KPI & AI đáng tin.",
+    owner:"CV Tuyển sinh",support:"B3 Data",goal:"Giữ dữ liệu sạch để KPI & AI đáng tin",
+    taskType:"routine",nature:"support",value:"value",tags:["data quality","crm"],source:"#045/372",
+    accountable:"Trưởng nhóm Tuyển sinh",consulted:"B3 Data",informed:"—",approver:"Trưởng nhóm",
+    competency:"Vệ sinh dữ liệu, phân tích",tools:"CRM · IDP",
+    trigger:"Lịch tuần",input:"Dữ liệu CRM",precond:"—",
+    output:"Báo cáo chất lượng + bản ghi đã sửa",outputFormat:"Báo cáo data quality",consumer:"KPI · dashboard · AI",
+    dod:"Đạt ≥ 95% hồ sơ đầy đủ",predecessor:"—",successor:"TS-G03-C02-T026",
+    freq:"Hằng tuần",effort:"~2 giờ/tuần",volume:"toàn bộ CRM",complexity:"TB",sla:"—",unit:"% hồ sơ",
+    kpi:"Data hygiene CRM",measureMethod:"% bản ghi đạt chuẩn",errorDef:"Bản ghi thiếu/trùng/cũ",
+    evSource:"system",connector:"CRM · IDP",
+    aiLevel:"automated",aiImpact:80,autoPot:"Cao",agent:"Evidence Collector + Anomaly detection (người duyệt)",
+    humanCheckpoint:"Duyệt thay đổi AI đề xuất trước khi áp",aiData:"Dữ liệu CRM (PII)",aiDataPII:true,autoStage:"now",
+    aiRisk:"Không để AI tự xoá/ghi đè không kiểm soát",
+    riskLevel:"TB",kri:"Dữ liệu bẩn → KPI & AI sai",compliance:"Bảo vệ dữ liệu cá nhân",controlPoint:"Duyệt batch thay đổi",retention:"3 năm",
+    dataClass:"Confidential",deps:"—",status:"approved",version:"v1.1",ownerOrg:"B1 + B3"},
+   {code:"TS-G03-C02-T026",name:"Báo cáo phễu tuyển sinh tuần",en:"Weekly admissions funnel report",
+    desc:"Tổng hợp dữ liệu phễu tuần thành báo cáo có insight & đề xuất cho lãnh đạo.",
+    owner:"Trưởng nhóm Tuyển sinh",support:"—",goal:"Cung cấp bức tranh phễu cho lãnh đạo",
+    taskType:"routine",nature:"support",value:"value",tags:["báo cáo","insight"],source:"#046/372",
+    accountable:"Trưởng phòng Tuyển sinh",consulted:"B3 Data",informed:"Ban điều hành",approver:"Trưởng phòng",
+    competency:"Phân tích & kể chuyện dữ liệu",tools:"CRM · Superset",
+    trigger:"Sáng thứ 2 hằng tuần",input:"Dữ liệu CRM tuần",precond:"Dữ liệu đã làm sạch",
+    output:"Báo cáo phễu + điểm nghẽn",outputFormat:"Dashboard + bản tóm tắt",consumer:"Ban điều hành",
+    dod:"Đúng hạn, có insight & đề xuất",predecessor:"TS-G03-C02-T025",successor:"—",
+    freq:"Hằng tuần",effort:"~1.5 giờ/tuần",volume:"1 báo cáo/tuần",complexity:"TB",sla:"Thứ 2 hằng tuần",unit:"báo cáo",
+    kpi:"Tỷ lệ báo cáo đúng hạn",measureMethod:"Đúng hạn / tổng kỳ",errorDef:"Trễ hạn, thiếu insight",
+    evSource:"system",connector:"CRM · Superset",
+    aiLevel:"auto",aiImpact:88,autoPot:"Cao",agent:"Executive Briefing Agent (tự tổng hợp, người duyệt)",
+    humanCheckpoint:"Trưởng nhóm duyệt báo cáo trước khi gửi",aiData:"Dữ liệu phễu tổng hợp (không PII chi tiết)",aiDataPII:false,autoStage:"now",
+    aiRisk:"Số liệu phải truy vết được nguồn",
+    riskLevel:"Thấp",kri:"Quyết định sai nếu báo cáo lệch",compliance:"—",controlPoint:"Đối chiếu nguồn số liệu",retention:"3 năm",
+    dataClass:"Internal",deps:"—",status:"draft",version:"v0.8",ownerOrg:"B1 + B3"},
+  ]},
+ ]},
+];
+
+/* ===== Mã KPI (Task Cell → KPI code; sau map sang KPI Library iPMS) ===== */
+const KPI_MAP = {
+  "TS-G01-C01-T001":"KPI-TS-001", "TS-G01-C01-T002":"KPI-TS-002",
+  "TS-G01-C02-T005":"KPI-TS-003", "TS-G01-C02-T006":"KPI-TS-005",
+  "TS-G01-C02-T007":"KPI-TS-006", "TS-G01-C02-T008":"KPI-TS-003",
+  "TS-G02-C01-T010":"KPI-TS-008", "TS-G02-C02-T013":"KPI-TS-009",
+  "TS-G02-C02-T014":"KPI-TS-010", "TS-G03-C01-T020":"KPI-TS-007",
+  "TS-G03-C01-T021":"KPI-TS-011", "TS-G03-C02-T025":"KPI-TS-002",
+  "TS-G03-C02-T026":"KPI-TS-012",
+};
+
+/* ===== OKR → KGI → KPI (cascade chiến lược) ===== */
+const OKR={code:"OKR-2026",name:"Tăng trưởng bền vững hệ sinh thái giáo dục 2026",en:"Sustainable growth of the education ecosystem 2026"};
+const KGI={
+  "KGI-01":{name:"Mở rộng quy mô tuyển sinh +15%",en:"Scale admissions +15%",okr:"OKR-2026"},
+  "KGI-02":{name:"Nâng chất lượng & tuân thủ dịch vụ tuyển sinh",en:"Raise service quality & compliance",okr:"OKR-2026"},
+  "KGI-03":{name:"Vận hành dữ liệu & tài chính minh bạch",en:"Transparent data & finance operations",okr:"OKR-2026"},
+};
+const KPI_GOAL={
+  "KPI-TS-001":"KGI-01","KPI-TS-003":"KGI-01","KPI-TS-005":"KGI-01","KPI-TS-006":"KGI-01",
+  "KPI-TS-007":"KGI-02","KPI-TS-008":"KGI-02","KPI-TS-009":"KGI-02","KPI-TS-011":"KGI-02",
+  "KPI-TS-002":"KGI-03","KPI-TS-010":"KGI-03","KPI-TS-012":"KGI-03",
+};
+
+/* ===== flatten + merge defaults ===== */
+const allCells=[];
+RAW.forEach(g=>g.clusters.forEach(cl=>cl.cells.forEach(c=>allCells.push({...DEFAULTS,...c,kpiCode:KPI_MAP[c.code]||"—",gname:g.name,gen:g.en,gcode:g.code,clname:cl.name}))));
+
+/* KPI registry: kpiCode → {name, cells[]} */
+const KPI_REG={};
+allCells.forEach(c=>{ if(!KPI_REG[c.kpiCode]) KPI_REG[c.kpiCode]={name:c.kpi,cells:[]}; KPI_REG[c.kpiCode].cells.push(c); });
+
+/* ===== state ===== */
+let lang="vi", activeCode=null, query=""; const activeLvls=new Set(); let allOpen=true;
+
+/* ===== i18n chrome ===== */
+const T={vi:{search:"Tìm tác vụ, mã, vai trò, KPI…",empty:"Chọn một tác vụ (Task Cell) ở cây bên trái để xem chi tiết.",path:"thuộc",
+  A:"A · Định danh & phân loại",B:"B · Con người & năng lực (RACI)",C:"C · Luồng việc (I/O)",D:"D · Đo lường & định mức",E:"E · Chiều AI",F:"F · Governance & rủi ro",G:"G · Vòng đời & meta",
+  desc:"Mô tả",goal:"Mục tiêu (why)",ttype:"Loại tác vụ",nature:"Tính chất",val:"Giá trị",sop:"SOP / quy trình",tags:"Từ khoá",source:"Nguồn (Task Architecture)",
+  R:"Responsible (chủ trì)",Acc:"Accountable (chịu trách nhiệm)",Con:"Consulted (tham vấn)",Inf:"Informed (thông báo)",approver:"Người duyệt",comp:"Năng lực yêu cầu",tools:"Công cụ / hệ thống",
+  trigger:"Trigger (kích hoạt)",input:"Đầu vào",precond:"Điều kiện tiên quyết",output:"Đầu ra",ofmt:"Định dạng/mẫu đầu ra",consumer:"Khách hàng đầu ra",dod:"Tiêu chuẩn hoàn thành",pre:"Tác vụ trước",suc:"Tác vụ sau",
+  freq:"Tần suất",effort:"Định mức thời gian",volume:"Khối lượng/kỳ",cplx:"Độ phức tạp",sla:"SLA",unit:"Đơn vị đo",kpi:"KPI liên kết",mm:"Cách đo / công thức",err:"Định nghĩa lỗi / chất lượng",ev:"Nguồn bằng chứng",
+  lvl:"Mức AI",impact:"AI Impact Score",autop:"Tiềm năng tự động hoá",stage:"Lộ trình tự động hoá",agent:"Agent gợi ý",hcp:"Điểm con người duyệt",aidata:"Dữ liệu đưa vào AI",airisk:"Rủi ro AI / guardrail",
+  dclass:"Phân loại dữ liệu",risk:"Mức rủi ro",kri:"Rủi ro nếu sai (KRI)",comp2:"Liên quan pháp lý/tuân thủ",ctrl:"Điểm kiểm soát",ret:"Lưu trữ",
+  status:"Trạng thái",version:"Phiên bản",oorg:"Chủ sở hữu",eff:"Ngày hiệu lực",rcyc:"Chu kỳ rà soát",rnext:"Review tiếp theo",apprBy:"Người duyệt chuẩn hoá",pii:"có PII"},
+ en:{search:"Search task, code, role, KPI…",empty:"Select a Task Cell to see details.",path:"in",
+  A:"A · Identity & classification",B:"B · People & skills (RACI)",C:"C · Workflow (I/O)",D:"D · Measurement & norms",E:"E · AI dimension",F:"F · Governance & risk",G:"G · Lifecycle & meta",
+  desc:"Description",goal:"Goal (why)",ttype:"Task type",nature:"Nature",val:"Value",sop:"SOP / process",tags:"Tags",source:"Source (Task Architecture)",
+  R:"Responsible",Acc:"Accountable",Con:"Consulted",Inf:"Informed",approver:"Approver",comp:"Required competency",tools:"Tools / systems",
+  trigger:"Trigger",input:"Input",precond:"Preconditions",output:"Output",ofmt:"Output format/template",consumer:"Output consumer",dod:"Definition of Done",pre:"Predecessor",suc:"Successor",
+  freq:"Frequency",effort:"Effort/occurrence",volume:"Volume/period",cplx:"Complexity",sla:"SLA",unit:"Unit",kpi:"Linked KPI",mm:"Measure method",err:"Error/quality definition",ev:"Evidence source",
+  lvl:"AI level",impact:"AI Impact Score",autop:"Automation potential",stage:"Automation roadmap",agent:"Suggested agent",hcp:"Human checkpoint",aidata:"Data sent to AI",airisk:"AI risk / guardrail",
+  dclass:"Data classification",risk:"Risk level",kri:"Risk if wrong (KRI)",comp2:"Legal/compliance",ctrl:"Control point",ret:"Retention",
+  status:"Status",version:"Version",oorg:"Owner",eff:"Effective date",rcyc:"Review cycle",rnext:"Next review",apprBy:"Approved by",pii:"has PII"}};
+const t=k=>T[lang][k];
+
+/* ===== render ===== */
+function renderStats(){
+  const by={manual:0,assisted:0,automated:0,auto:0}; allCells.forEach(c=>by[c.aiLevel]++);
+  const avg=Math.round(allCells.reduce((a,c)=>a+c.aiImpact,0)/allCells.length);
+  const autoable=allCells.filter(c=>c.autoPot==="Cao"||c.autoPot==="TB").length;
+  const items=[{k:allCells.length,l:"Task Cell · 40+ thuộc tính/cell"},{k:RAW.length,l:"Task Group"},{k:avg+"%",l:"AI Impact trung bình"},{k:(by.auto+by.automated),l:"Tác vụ AI tự động hoá"},{k:Math.round(autoable/allCells.length*100)+"%",l:"Tiềm năng tự động hoá"}];
+  document.getElementById("stats").innerHTML=items.map(i=>`<div class="chip"><div class="k numeric">${i.k}</div><div class="l">${i.l}</div></div>`).join("");
+}
+function matchCell(c){ if(activeLvls.size&&!activeLvls.has(c.aiLevel))return false; if(!query)return true;
+  return [c.code,c.name,c.en,c.owner,c.kpi,(c.tags||[]).join(" ")].join(" ").toLowerCase().includes(query.toLowerCase()); }
+function renderTree(){
+  const tree=document.getElementById("tree");
+  tree.innerHTML=RAW.map(g=>{
+    const clusters=g.clusters.map(cl=>{
+      const cells=cl.cells.map(c=>{const on=matchCell(c);const act=c.code===activeCode?" active":"";
+        return `<div class="cell${act}${on?"":" hidden"}" data-code="${c.code}"><span class="dot" style="background:${DOT[c.aiLevel]}"></span><span>${lang==="vi"?c.name:c.en}</span><span class="cc">${c.code.split("-").pop()}</span></div>`;}).join("");
+      return `<div class="cluster"><div class="clabel">${cl.code} · ${cl.name}</div>${cells}</div>`;}).join("");
+    return `<div class="group" data-g="${g.code}"><div class="ghead"><span>${lang==="vi"?g.name:g.en}</span><span class="gcode">${g.code}</span><svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg></div>${clusters}</div>`;}).join("");
+  tree.querySelectorAll(".ghead").forEach(h=>h.onclick=()=>h.parentElement.classList.toggle("collapsed"));
+  tree.querySelectorAll(".cell").forEach(el=>el.onclick=()=>{activeCode=el.dataset.code;renderTree();renderDetail();});
+}
+const bdg=(cls,txt)=>`<span class="badge ${cls}">${txt}</span>`;
+function row(label,val){ return `<dt>${label}</dt><dd>${val||"—"}</dd>`; }
+function sec(id,title,bodyHtml,isAI){ return `<div class="sec${isAI?" ai":""}${allOpen?"":" closed"}"><div class="shead"><span>${title}</span><svg class="schev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg></div><div class="sbody">${bodyHtml}</div></div>`; }
+
+function renderDetail(){
+  const c=allCells.find(x=>x.code===activeCode); const d=document.getElementById("detail");
+  if(!c){ d.innerHTML=`<div class="empty"><svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg><p style="margin-top:12px">${t("empty")}</p></div>`; return; }
+  const a=AI[c.aiLevel];
+  const dcCls={Public:"b-gray",Internal:"b-info",Confidential:"b-amber",Restricted:"b-red"}[c.dataClass]||"b-gray";
+  const statusBadge=c.status==="approved"?bdg("b-green","✓ Đã chuẩn hoá"):bdg("b-amber","Bản nháp");
+  const kgiCode=KPI_GOAL[c.kpiCode]; const kgi=kgiCode?KGI[kgiCode]:null;
+  const lineage = kgi ? `<div class="lineage"><span class="lb">Liên kết chiến lược (cascade)</span>
+      <span class="ln okr">${OKR.code} · ${lang==="vi"?OKR.name:OKR.en}</span><span class="arr">▸</span>
+      <span class="ln kgi">${kgiCode} · ${lang==="vi"?kgi.name:kgi.en}</span><span class="arr">▸</span>
+      <span class="ln kpi">${c.kpiCode} · ${c.kpi}</span><span class="arr">▸</span>
+      <span class="ln cell">${lang==="vi"?c.name:c.en}</span></div>`
+    : `<div class="lineage warn">⚠ Task Cell chưa gắn KGI/OKR (gap)</div>`;
+
+  const secA=`<dl class="dl">
+    ${row(t("goal"),"<b>"+c.goal+"</b>")}${row(t("ttype"),TT[c.taskType])}${row(t("nature"),NAT[c.nature]+" · "+VAL[c.value])}
+    ${row(t("sop"),c.sop)}${row(t("tags"),`<div class="tags">${(c.tags||[]).map(x=>`<span class="tag">${x}</span>`).join("")||"—"}</div>`)}${row(t("source"),c.source)}</dl>`;
+
+  const secB=`<div class="raci">
+    <div class="r"><div class="t">R · ${lang==='vi'?'Chủ trì':'Responsible'}</div><div class="v">${c.owner}</div></div>
+    <div class="r"><div class="t">A · ${lang==='vi'?'Chịu trách nhiệm':'Accountable'}</div><div class="v">${c.accountable}</div></div>
+    <div class="r"><div class="t">C · ${lang==='vi'?'Tham vấn':'Consulted'}</div><div class="v">${c.consulted!=='—'?c.consulted:(c.support||'—')}</div></div>
+    <div class="r"><div class="t">I · ${lang==='vi'?'Thông báo':'Informed'}</div><div class="v">${c.informed}</div></div>
+   </div><dl class="dl" style="margin-top:10px">${row(t("approver"),c.approver)}${row(t("comp"),c.competency)}${row(t("tools"),c.tools)}</dl>`;
+
+  const secC=`<dl class="dl">${row(t("trigger"),c.trigger)}${row(t("input"),c.input)}${row(t("precond"),c.precond)}
+    ${row(t("output"),"<b>"+c.output+"</b>")}${row(t("ofmt"),c.outputFormat)}${row(t("consumer"),c.consumer)}${row(t("dod"),c.dod)}
+    ${row(t("pre"),c.predecessor)}${row(t("suc"),c.successor)}</dl>`;
+
+  const secD=`<dl class="dl">${row(t("freq"),c.freq)}${row(t("effort"),c.effort)}${row(t("volume"),c.volume)}${row(t("cplx"),c.complexity)}
+    ${row(t("sla"),c.sla)}${row(t("unit"),c.unit)}${row(t("kpi"),bdg("b-green",c.kpiCode)+" <b>"+c.kpi+"</b>")}${row(t("mm"),c.measureMethod)}${row(t("err"),c.errorDef)}
+    ${row(t("ev"),(c.evSource==="system"?bdg("b-info","System"):bdg("b-gray","Manual"))+' <span style="color:var(--ink-3)">'+c.connector+'</span>')}</dl>`;
+
+  const secE=`<dl class="dl">${row(t("lvl"),bdg(a.cls,lang==="vi"?a.label:a.en))}
+    ${row(t("impact"),`<div class="impact"><b class="numeric">${c.aiImpact}/100</b><div class="bar"><span style="width:${c.aiImpact}%"></span></div></div>`)}
+    ${row(t("autop"),c.autoPot)}${row(t("stage"),STAGE[c.autoStage])}${row(t("agent"),c.agent)}${row(t("hcp"),c.humanCheckpoint)}
+    ${row(t("aidata"),c.aiData+(c.aiDataPII?" "+bdg("b-red","⚠ "+t("pii")):""))}${row(t("airisk"),c.aiRisk)}</dl>
+    <div class="aibox"><div class="ahead">✦ Human-in-the-loop</div><p>AI ở mức <b>${lang==="vi"?a.label:a.en}</b> (impact ${c.aiImpact}%). Mọi output AI có provenance + log; <b>người quyết định cuối</b>, không để AI tự chốt KPI/đãi ngộ.</p></div>`;
+
+  const secF=`<dl class="dl">${row(t("dclass"),bdg(dcCls,c.dataClass))}${row(t("risk"),bdg(RISK[c.riskLevel]||"b-gray",c.riskLevel))}
+    ${row(t("kri"),c.kri)}${row(t("comp2"),c.compliance)}${row(t("ctrl"),c.controlPoint)}${row(t("ret"),c.retention)}</dl>`;
+
+  const secG=`<dl class="dl">${row(t("status"),statusBadge)}${row(t("version"),c.version)}${row(t("oorg"),c.ownerOrg)}
+    ${row(t("eff"),c.effectiveDate)}${row(t("rcyc"),c.reviewCycle)}${row(t("rnext"),c.reviewNext)}${row(t("apprBy"),c.approvedBy)}</dl>`;
+
+  d.innerHTML=`<div class="detail">
+    <div class="dhead">
+      <div class="code">${c.code}</div>
+      <h1>${lang==="vi"?c.name:c.en}</h1>
+      <div class="en">${lang==="vi"?c.en:c.name}</div>
+      <div class="desc">${c.desc}</div>
+      <div class="path">${t("path")}: ${lang==="vi"?c.gname:c.gen} › ${c.clname}</div>
+      <div class="badges">${bdg(a.cls,"AI: "+(lang==="vi"?a.label:a.en))}${bdg(dcCls,c.dataClass)}${bdg(RISK[c.riskLevel]||"b-gray","Rủi ro: "+c.riskLevel)}${bdg("b-gray",TT[c.taskType])}${statusBadge}${bdg("b-gray",c.version)}</div>
+      ${lineage}
+    </div>
+    ${sec("A",t("A"),secA)}${sec("B",t("B"),secB)}${sec("C",t("C"),secC)}${sec("D",t("D"),secD)}${sec("E",t("E"),secE,true)}${sec("F",t("F"),secF)}${sec("G",t("G"),secG)}
+  </div>`;
+  d.querySelectorAll(".sec .shead").forEach(h=>h.onclick=()=>h.parentElement.classList.toggle("closed"));
+}
+
+/* ===== events ===== */
+document.getElementById("search").addEventListener("input",e=>{query=e.target.value;renderTree();});
+document.querySelectorAll(".fchip").forEach(b=>b.onclick=()=>{const lv=b.dataset.lvl;b.classList.toggle("active");activeLvls.has(lv)?activeLvls.delete(lv):activeLvls.add(lv);renderTree();});
+const themeBtn=document.getElementById("themeBtn");
+themeBtn.onclick=()=>{const dk=document.documentElement.getAttribute("data-theme")==="dark";document.documentElement.setAttribute("data-theme",dk?"light":"dark");themeBtn.textContent=dk?"☾":"☀";};
+const langBtn=document.getElementById("langBtn");
+langBtn.onclick=()=>{lang=lang==="vi"?"en":"vi";langBtn.textContent=lang==="vi"?"EN":"VI";document.getElementById("search").placeholder=t("search");document.documentElement.lang=lang;renderTree();renderDetail();
+  if(!document.getElementById("view-backlog").hidden)renderBacklog(); if(!document.getElementById("view-workmap").hidden)renderWorkmap(); if(!document.getElementById("view-goals").hidden)renderGoals();};
+const expandBtn=document.getElementById("expandBtn");
+expandBtn.onclick=()=>{allOpen=!allOpen;document.querySelectorAll(".sec").forEach(s=>s.classList.toggle("closed",!allOpen));};
+
+/* ===== Backlog tự động hoá ===== */
+const POT={"Cao":1,"TB":0.6,"Thấp":0.3}; const STG={now:3,next:2,later:1};
+const stageBdg=s=>bdg(s==="now"?"b-green":s==="next"?"b-amber":"b-gray",STAGE[s]);
+function renderBacklog(){
+  const rows=allCells.map(c=>({c,score:Math.round(c.aiImpact*(POT[c.autoPot]||0.5))}))
+    .sort((a,b)=>(STG[b.c.autoStage]-STG[a.c.autoStage])||(b.score-a.score));
+  const cNow=allCells.filter(c=>c.autoStage==="now").length, cNext=allCells.filter(c=>c.autoStage==="next").length, cLater=allCells.filter(c=>c.autoStage==="later").length;
+  document.getElementById("view-backlog").innerHTML=`<div class="panel2">
+    <h2>⚙️ Backlog tự động hoá</h2>
+    <div class="sub">Xếp hạng tác vụ nên tự động hoá trước = <b>Lộ trình (Now/Next/Later)</b> rồi tới <b>Điểm ưu tiên</b> (AI Impact × hệ số tiềm năng). Hỗ trợ "agent recommendation" cho đội AI.</div>
+    <div class="legend"><span><b>Now</b>: ${cNow}</span><span><b>Next</b>: ${cNext}</span><span><b>Later</b>: ${cLater}</span></div>
+    <table class="t"><thead><tr><th>#</th><th>Tác vụ</th><th>Nhóm</th><th>Mức AI hiện tại</th><th>AI Impact</th><th>Tiềm năng</th><th>Lộ trình</th><th>Agent gợi ý</th><th class="rt">Ưu tiên</th></tr></thead><tbody>
+    ${rows.map((r,i)=>{const c=r.c,a=AI[c.aiLevel];return `<tr>
+      <td class="rank">${i+1}</td>
+      <td><b>${lang==="vi"?c.name:c.en}</b><div style="color:var(--ink-3);font-size:10px">${c.code} · ${c.kpiCode}</div></td>
+      <td>${c.gcode}</td>
+      <td>${bdg(a.cls,lang==="vi"?a.label:a.en)}</td>
+      <td><span class="minibar"><span style="width:${c.aiImpact}%"></span></span><span class="numeric">${c.aiImpact}</span></td>
+      <td>${c.autoPot}</td>
+      <td>${stageBdg(c.autoStage)}</td>
+      <td style="font-size:11px;color:var(--ink-2)">${c.agent}</td>
+      <td class="rt"><b class="numeric">${r.score}</b></td></tr>`;}).join("")}
+    </tbody></table></div>`;
+}
+
+/* ===== WorkMap theo vai trò ===== */
+function renderWorkmap(){
+  const byRole={}; allCells.forEach(c=>{(byRole[c.owner]=byRole[c.owner]||[]).push(c);});
+  const cards=Object.entries(byRole).sort((a,b)=>b[1].length-a[1].length).map(([role,cells])=>{
+    const kpis=[...new Set(cells.map(c=>c.kpiCode))];
+    const dist={manual:0,assisted:0,automated:0,auto:0}; cells.forEach(c=>dist[c.aiLevel]++);
+    const total=cells.length;
+    const stack=Object.keys(dist).map(k=>dist[k]?`<span style="width:${dist[k]/total*100}%;background:${DOT[k]}" title="${AI[k].label}: ${dist[k]}"></span>`:"").join("");
+    const list=cells.map(c=>`<div class="ci"><span class="dot" style="width:7px;height:7px;border-radius:99px;background:${DOT[c.aiLevel]}"></span><span>${lang==="vi"?c.name:c.en}</span><span class="kc">${c.kpiCode}</span></div>`).join("");
+    return `<div class="wmcard">
+      <h3>${role}</h3>
+      <div class="role-sub">${total} Task Cell · ${kpis.length} KPI đo lường · gợi ý nền Role Scorecard</div>
+      <div class="stack">${stack}</div>
+      <div><b style="font-size:10.5px;color:var(--ink-3)">KPI gắn:</b> <div class="tags" style="margin-top:5px">${kpis.map(k=>`<span class="tag">${k}</span>`).join("")}</div></div>
+      <div class="celllist">${list}</div>
+    </div>`;
+  }).join("");
+  document.getElementById("view-workmap").innerHTML=`<div class="panel2" style="margin-bottom:0"><h2>👥 WorkMap theo vai trò</h2><div class="sub">Lật từ điển theo vị trí: mỗi vai trò gồm những Task Cell nào, đo bằng KPI nào, phân bố mức AI ra sao → nền để suy ra <b>Role Scorecard</b> & tính tải trong iPMS.</div></div><div class="wmgrid">${cards}</div>`;
+}
+
+/* ===== Cây mục tiêu (OKR → KGI → KPI → Task Cell) ===== */
+function renderGoals(){
+  const kgiKeys=Object.keys(KGI);
+  const kgiKpis={}; kgiKeys.forEach(k=>kgiKpis[k]=[]);
+  Object.entries(KPI_GOAL).forEach(([kpi,kgi])=>{ if(kgiKpis[kgi]) kgiKpis[kgi].push(kpi); });
+  const unmapped=Object.keys(KPI_REG).filter(k=>k!=="—"&&!KPI_GOAL[k]);
+  const totalCells=allCells.length;
+  const tree=`<div class="okrnode">
+    <div class="okrhead">${OKR.code} · ${lang==="vi"?OKR.name:OKR.en} <span style="font-weight:600;font-size:10px;opacity:.85">· ${kgiKeys.length} KGI · ${totalCells} Task Cell</span></div>
+    ${kgiKeys.map(k=>{
+      const kpis=kgiKpis[k];
+      const cellCount=kpis.reduce((a,kp)=>a+(KPI_REG[kp]?KPI_REG[kp].cells.length:0),0);
+      const body = kpis.length ? kpis.map(kp=>{
+        const reg=KPI_REG[kp]; const nm=reg?reg.name:"(chưa có Task Cell)"; const cc=reg?reg.cells.length:0;
+        return `<div class="kpinode ${cc?"":"gap"}"><span class="kpc">${kp}</span> ${nm} <span class="cnt">${cc} cell</span>${cc?"":' <span class="gapw">⚠ chưa có Task Cell</span>'}</div>`;
+      }).join("") : `<div class="kpinode gap"><span class="gapw">⚠ KGI chưa có KPI</span></div>`;
+      return `<div class="kginode"><div class="kgihead">${k} · ${lang==="vi"?KGI[k].name:KGI[k].en} <span class="cnt">${kpis.length} KPI · ${cellCount} Task Cell</span></div>${body}</div>`;
+    }).join("")}
+  </div>`;
+  const gap = unmapped.length ? `<div class="gapbox">⚠ ${unmapped.length} KPI có Task Cell nhưng chưa gắn KGI: ${unmapped.join(", ")}</div>` : "";
+  document.getElementById("view-goals").innerHTML=`<div class="panel2">
+    <h2>🎯 Cây mục tiêu — OKR → KGI → KPI → Task Cell</h2>
+    <div class="sub">Cascade chiến lược: từ mục tiêu lớn truy xuống tận tác vụ. Đo <b>xuôi</b> (lãnh đạo giao xuống) &amp; <b>ngược</b> (roll-up từ Task Cell qua KPI lên KGI/OKR). Cảnh báo gap nếu mục tiêu chưa có chỉ số/tác vụ.</div>
+    ${tree}${gap}</div>`;
+}
+
+/* ===== chuyển tab ===== */
+document.querySelectorAll(".tab").forEach(tb=>tb.onclick=()=>{
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active")); tb.classList.add("active");
+  const v=tb.dataset.v;
+  document.getElementById("view-dict").hidden=v!=="dict";
+  document.getElementById("view-backlog").hidden=v!=="backlog";
+  document.getElementById("view-workmap").hidden=v!=="workmap";
+  document.getElementById("view-goals").hidden=v!=="goals";
+  if(v==="backlog") renderBacklog();
+  if(v==="workmap") renderWorkmap();
+  if(v==="goals") renderGoals();
+});
+
+/* init */
+activeCode=allCells[0].code;   // tự mở Task Cell đầu tiên để thấy ngay lineage
+renderStats();renderTree();renderDetail();
+</script>
+</body>
+</html>

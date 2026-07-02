@@ -1,0 +1,265 @@
+/* =====================================================================
+   NHG Design System — Token layer (CSS custom properties)
+   Light = :root  |  Dark = [data-theme="dark"] or .dark
+   Auto-follows OS when no [data-theme] is set (prefers-color-scheme).
+   ===================================================================== */
+
+:root {
+  /* ---- Primitive: brand green ---- */
+  --nhg-green-50:  #E8F4ED;
+  --nhg-green-100: #C5E4D1;
+  --nhg-green-200: #94CCAB;
+  --nhg-green-300: #5FB082;
+  --nhg-green-400: #2C9159;
+  --nhg-green-500: #0A8040;
+  --nhg-green-600: #037236; /* brand */
+  --nhg-green-700: #025E2C;
+  --nhg-green-800: #024A23;
+  --nhg-green-900: #013317;
+
+  /* ---- Primitive: brand red ---- */
+  --nhg-red-50:  #FDE8E8;
+  --nhg-red-100: #FAC6C7;
+  --nhg-red-200: #F59698;
+  --nhg-red-300: #F26669;
+  --nhg-red-400: #EF3E42;
+  --nhg-red-500: #ED2024; /* brand */
+  --nhg-red-600: #D5171B;
+  --nhg-red-700: #B11216;
+  --nhg-red-800: #8C0E11;
+  --nhg-red-900: #5F090B;
+
+  /* ---- Primitive: neutral ---- */
+  --nhg-neutral-0:   #FFFFFF;
+  --nhg-neutral-50:  #F7F8F8;
+  --nhg-neutral-100: #EEF0F0;
+  --nhg-neutral-200: #DEE1E1;
+  --nhg-neutral-300: #C4C8C9;
+  --nhg-neutral-400: #A0A4A5;
+  --nhg-neutral-500: #818285; /* brand gray */
+  --nhg-neutral-600: #5F6668;
+  --nhg-neutral-700: #3F4547;
+  --nhg-neutral-800: #24292B;
+  --nhg-neutral-900: #101214;
+  --nhg-neutral-950: #050708; /* brand black */
+
+  --nhg-surface-ivory: #F8F6F1;
+  --nhg-surface-mist:  #EEF3EF;
+
+  /* ---- Typography primitives ---- */
+  --nhg-font-sans: 'Be Vietnam Pro', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  --nhg-font-mono: ui-monospace, 'SFMono-Regular', 'Cascadia Code', Menlo, Consolas, monospace;
+
+  --nhg-weight-thin: 100;
+  --nhg-weight-light: 300;
+  --nhg-weight-regular: 400;
+  --nhg-weight-medium: 500;
+  --nhg-weight-semibold: 600;
+  --nhg-weight-bold: 700;
+  --nhg-weight-extrabold: 800;
+
+  --nhg-text-xs: 0.75rem;
+  --nhg-text-sm: 0.875rem;
+  --nhg-text-base: 1rem;
+  --nhg-text-lg: 1.125rem;
+  --nhg-text-xl: 1.25rem;
+  --nhg-text-2xl: 1.5rem;
+  --nhg-text-3xl: 1.875rem;
+  --nhg-text-4xl: 2.25rem;
+  --nhg-text-5xl: 3rem;
+  --nhg-text-6xl: 3.75rem;
+
+  --nhg-leading-tight: 1.15;
+  --nhg-leading-snug: 1.3;
+  --nhg-leading-normal: 1.5;
+  --nhg-leading-relaxed: 1.7;
+
+  --nhg-tracking-tight: -0.02em;
+  --nhg-tracking-normal: 0em;
+  --nhg-tracking-wide: 0.04em;
+
+  /* ---- Radius ---- */
+  --nhg-radius-sm: 8px;
+  --nhg-radius-md: 12px;
+  --nhg-radius-lg: 16px;
+  --nhg-radius-xl: 24px;
+  --nhg-radius-2xl: 32px;
+  --nhg-radius-full: 999px;
+
+  /* ---- Spacing ---- */
+  --nhg-space-0: 0px;
+  --nhg-space-1: 4px;
+  --nhg-space-2: 8px;
+  --nhg-space-3: 12px;
+  --nhg-space-4: 16px;
+  --nhg-space-5: 24px;
+  --nhg-space-6: 32px;
+  --nhg-space-7: 48px;
+  --nhg-space-8: 64px;
+  --nhg-space-9: 96px;
+
+  /* ---- Shadows ---- */
+  --nhg-shadow-sm: 0 1px 2px rgba(5,7,8,0.06);
+  --nhg-shadow-md: 0 4px 12px rgba(5,7,8,0.08);
+  --nhg-shadow-lg: 0 12px 32px rgba(5,7,8,0.12);
+
+  /* ---- Z-index ---- */
+  --nhg-z-base: 0;
+  --nhg-z-dropdown: 1000;
+  --nhg-z-sticky: 1100;
+  --nhg-z-overlay: 1200;
+  --nhg-z-modal: 1300;
+  --nhg-z-toast: 1400;
+
+  /* =========================================================
+     SEMANTIC — LIGHT (default)
+     Always reference these in app/component code, not primitives.
+     ========================================================= */
+  --nhg-bg-canvas: var(--nhg-neutral-0);
+  --nhg-bg-subtle: var(--nhg-surface-ivory);
+  --nhg-bg-muted:  var(--nhg-surface-mist);
+
+  --nhg-surface-card:     var(--nhg-neutral-0);
+  --nhg-surface-raised:   var(--nhg-neutral-0);
+  --nhg-surface-inverted: var(--nhg-neutral-900);
+
+  --nhg-border-default: var(--nhg-neutral-200);
+  --nhg-border-subtle:  var(--nhg-neutral-100);
+  --nhg-border-strong:  var(--nhg-neutral-300);
+  --nhg-border-brand:   rgba(3,114,54,0.12);
+
+  --nhg-text-primary:   var(--nhg-neutral-900);
+  --nhg-text-secondary: var(--nhg-neutral-600);
+  --nhg-text-tertiary:  var(--nhg-neutral-500);
+  --nhg-text-inverted:  var(--nhg-neutral-0);
+  --nhg-text-on-brand:  var(--nhg-neutral-0);
+
+  --nhg-primary:        var(--nhg-green-600);
+  --nhg-primary-hover:  var(--nhg-green-700);
+  --nhg-primary-active: var(--nhg-green-800);
+  --nhg-primary-subtle: var(--nhg-green-50);
+  --nhg-primary-fg:     var(--nhg-neutral-0);
+
+  --nhg-accent:        var(--nhg-red-500);
+  --nhg-accent-hover:  var(--nhg-red-600);
+  --nhg-accent-active: var(--nhg-red-700);
+  --nhg-accent-subtle: var(--nhg-red-50);
+  --nhg-accent-fg:     var(--nhg-neutral-0);
+
+  --nhg-success:        #037236;
+  --nhg-success-subtle: #E8F4ED;
+  --nhg-success-fg:     #FFFFFF;
+  --nhg-warning:        #B86A00;
+  --nhg-warning-subtle: #FBEFD9;
+  --nhg-warning-fg:     #FFFFFF;
+  --nhg-danger:         #ED2024;
+  --nhg-danger-subtle:  #FDE8E8;
+  --nhg-danger-fg:      #FFFFFF;
+  --nhg-info:           #0A6BB8;
+  --nhg-info-subtle:    #E2F0FB;
+  --nhg-info-fg:        #FFFFFF;
+
+  --nhg-focus-ring: rgba(3,114,54,0.45);
+
+  color-scheme: light;
+}
+
+/* =========================================================
+   SEMANTIC — DARK
+   Explicit override via [data-theme="dark"] or .dark
+   ========================================================= */
+[data-theme="dark"],
+.dark {
+  --nhg-bg-canvas: #0A0D0E;
+  --nhg-bg-subtle: #111618;
+  --nhg-bg-muted:  #171D1F;
+
+  --nhg-surface-card:     #12181A;
+  --nhg-surface-raised:   #1A2123;
+  --nhg-surface-inverted: var(--nhg-neutral-0);
+
+  --nhg-border-default: rgba(255,255,255,0.10);
+  --nhg-border-subtle:  rgba(255,255,255,0.06);
+  --nhg-border-strong:  rgba(255,255,255,0.18);
+  --nhg-border-brand:   rgba(47,161,93,0.28);
+
+  --nhg-text-primary:   #ECEFEF;
+  --nhg-text-secondary: #A8AEAF;
+  --nhg-text-tertiary:  #7E8486;
+  --nhg-text-inverted:  var(--nhg-neutral-900);
+  --nhg-text-on-brand:  #04130A;
+
+  --nhg-primary:        #2FA15D;
+  --nhg-primary-hover:  #3FB46C;
+  --nhg-primary-active: #5FB082;
+  --nhg-primary-subtle: rgba(47,161,93,0.16);
+  --nhg-primary-fg:     #04130A;
+
+  --nhg-accent:        #F2585B;
+  --nhg-accent-hover:  #F47073;
+  --nhg-accent-active: #F59698;
+  --nhg-accent-subtle: rgba(242,88,91,0.16);
+  --nhg-accent-fg:     #1A0506;
+
+  --nhg-success:        #2FA15D;
+  --nhg-success-subtle: rgba(47,161,93,0.16);
+  --nhg-success-fg:     #04130A;
+  --nhg-warning:        #E0A340;
+  --nhg-warning-subtle: rgba(224,163,64,0.16);
+  --nhg-warning-fg:     #1A1205;
+  --nhg-danger:         #F2585B;
+  --nhg-danger-subtle:  rgba(242,88,91,0.16);
+  --nhg-danger-fg:      #1A0506;
+  --nhg-info:           #4BA3E3;
+  --nhg-info-subtle:    rgba(75,163,227,0.16);
+  --nhg-info-fg:        #05121C;
+
+  --nhg-focus-ring: rgba(63,180,108,0.55);
+
+  color-scheme: dark;
+}
+
+/* Auto dark when user hasn't explicitly chosen a theme */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --nhg-bg-canvas: #0A0D0E;
+    --nhg-bg-subtle: #111618;
+    --nhg-bg-muted:  #171D1F;
+    --nhg-surface-card:     #12181A;
+    --nhg-surface-raised:   #1A2123;
+    --nhg-surface-inverted: var(--nhg-neutral-0);
+    --nhg-border-default: rgba(255,255,255,0.10);
+    --nhg-border-subtle:  rgba(255,255,255,0.06);
+    --nhg-border-strong:  rgba(255,255,255,0.18);
+    --nhg-border-brand:   rgba(47,161,93,0.28);
+    --nhg-text-primary:   #ECEFEF;
+    --nhg-text-secondary: #A8AEAF;
+    --nhg-text-tertiary:  #7E8486;
+    --nhg-text-inverted:  var(--nhg-neutral-900);
+    --nhg-text-on-brand:  #04130A;
+    --nhg-primary:        #2FA15D;
+    --nhg-primary-hover:  #3FB46C;
+    --nhg-primary-active: #5FB082;
+    --nhg-primary-subtle: rgba(47,161,93,0.16);
+    --nhg-primary-fg:     #04130A;
+    --nhg-accent:        #F2585B;
+    --nhg-accent-hover:  #F47073;
+    --nhg-accent-active: #F59698;
+    --nhg-accent-subtle: rgba(242,88,91,0.16);
+    --nhg-accent-fg:     #1A0506;
+    --nhg-success:        #2FA15D;
+    --nhg-success-subtle: rgba(47,161,93,0.16);
+    --nhg-success-fg:     #04130A;
+    --nhg-warning:        #E0A340;
+    --nhg-warning-subtle: rgba(224,163,64,0.16);
+    --nhg-warning-fg:     #1A1205;
+    --nhg-danger:         #F2585B;
+    --nhg-danger-subtle:  rgba(242,88,91,0.16);
+    --nhg-danger-fg:      #1A0506;
+    --nhg-info:           #4BA3E3;
+    --nhg-info-subtle:    rgba(75,163,227,0.16);
+    --nhg-info-fg:        #05121C;
+    --nhg-focus-ring: rgba(63,180,108,0.55);
+    color-scheme: dark;
+  }
+}

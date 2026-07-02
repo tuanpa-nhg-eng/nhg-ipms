@@ -1,0 +1,112 @@
+/* =====================================================================
+   NHG Design System — Typography (Be Vietnam Pro)
+   ---------------------------------------------------------------------
+   Be Vietnam Pro is a Vietnamese-first geometric sans → full diacritics
+   coverage for VN, clean for EN. Single typeface across the whole system.
+
+   Loading options (pick one):
+   1) Google Fonts <link> — simplest:
+      <link rel="preconnect" href="https://fonts.googleapis.com">
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+      <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@100;300;400;500;600;700;800&display=swap" rel="stylesheet">
+   2) next/font (recommended for Next.js) — see i18n/README.md.
+   3) Self-host woff2 and uncomment the @font-face block below.
+   ===================================================================== */
+
+/* @import keeps this file self-contained if you don't use <link>/next/font. */
+@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,100;0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap');
+
+/* ---- Self-host alternative (uncomment + drop woff2 into /fonts) ----
+@font-face {
+  font-family: 'Be Vietnam Pro';
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url('/fonts/BeVietnamPro-Variable.woff2') format('woff2');
+}
+-------------------------------------------------------------------- */
+
+/* =========================================================
+   Type scale — utility classes mapped to semantic roles
+   ========================================================= */
+.nhg-display {
+  font-family: var(--nhg-font-sans);
+  font-size: var(--nhg-text-6xl);
+  line-height: var(--nhg-leading-tight);
+  letter-spacing: var(--nhg-tracking-tight);
+  font-weight: var(--nhg-weight-extrabold);
+}
+.nhg-h1 {
+  font-family: var(--nhg-font-sans);
+  font-size: var(--nhg-text-5xl);
+  line-height: var(--nhg-leading-tight);
+  letter-spacing: var(--nhg-tracking-tight);
+  font-weight: var(--nhg-weight-bold);
+}
+.nhg-h2 {
+  font-family: var(--nhg-font-sans);
+  font-size: var(--nhg-text-4xl);
+  line-height: var(--nhg-leading-snug);
+  letter-spacing: var(--nhg-tracking-tight);
+  font-weight: var(--nhg-weight-bold);
+}
+.nhg-h3 {
+  font-family: var(--nhg-font-sans);
+  font-size: var(--nhg-text-3xl);
+  line-height: var(--nhg-leading-snug);
+  font-weight: var(--nhg-weight-semibold);
+}
+.nhg-h4 {
+  font-family: var(--nhg-font-sans);
+  font-size: var(--nhg-text-2xl);
+  line-height: var(--nhg-leading-snug);
+  font-weight: var(--nhg-weight-semibold);
+}
+.nhg-h5 {
+  font-family: var(--nhg-font-sans);
+  font-size: var(--nhg-text-xl);
+  line-height: var(--nhg-leading-normal);
+  font-weight: var(--nhg-weight-semibold);
+}
+.nhg-lead {
+  font-family: var(--nhg-font-sans);
+  font-size: var(--nhg-text-lg);
+  line-height: var(--nhg-leading-relaxed);
+  font-weight: var(--nhg-weight-regular);
+  color: var(--nhg-text-secondary);
+}
+.nhg-body {
+  font-family: var(--nhg-font-sans);
+  font-size: var(--nhg-text-base);
+  line-height: var(--nhg-leading-normal);
+  font-weight: var(--nhg-weight-regular);
+}
+.nhg-body-sm {
+  font-family: var(--nhg-font-sans);
+  font-size: var(--nhg-text-sm);
+  line-height: var(--nhg-leading-normal);
+  font-weight: var(--nhg-weight-regular);
+}
+.nhg-caption {
+  font-family: var(--nhg-font-sans);
+  font-size: var(--nhg-text-xs);
+  line-height: var(--nhg-leading-normal);
+  letter-spacing: var(--nhg-tracking-wide);
+  font-weight: var(--nhg-weight-medium);
+  color: var(--nhg-text-tertiary);
+}
+.nhg-overline {
+  font-family: var(--nhg-font-sans);
+  font-size: var(--nhg-text-xs);
+  line-height: var(--nhg-leading-normal);
+  letter-spacing: var(--nhg-tracking-wide);
+  font-weight: var(--nhg-weight-semibold);
+  text-transform: uppercase;
+  color: var(--nhg-text-tertiary);
+}
+/* Numeric/data — tabular figures for dashboards & tables */
+.nhg-numeric {
+  font-family: var(--nhg-font-sans);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}

@@ -1,0 +1,60 @@
+{
+  "brand": {
+    "name": "Tập đoàn Nguyễn Hoàng",
+    "short": "NHG",
+    "tagline": "AI vì Niềm tin & Sự kết nối"
+  },
+  "common": {
+    "language": "Ngôn ngữ",
+    "theme": "Giao diện",
+    "themeLight": "Sáng",
+    "themeDark": "Tối",
+    "themeSystem": "Theo hệ thống",
+    "search": "Tìm kiếm",
+    "menu": "Menu",
+    "close": "Đóng",
+    "next": "Tiếp tục",
+    "back": "Quay lại",
+    "viewMore": "Xem thêm",
+    "loading": "Đang tải…"
+  },
+  "nav": {
+    "home": "Trang chủ",
+    "dashboard": "Bảng điều khiển",
+    "stories": "Câu chuyện",
+    "about": "Giới thiệu",
+    "contact": "Liên hệ"
+  },
+  "actions": {
+    "primary": "Bắt đầu",
+    "secondary": "Tìm hiểu thêm",
+    "approve": "Phê duyệt",
+    "reject": "Từ chối",
+    "save": "Lưu",
+    "cancel": "Hủy"
+  },
+  "status": {
+    "success": "Thành công",
+    "warning": "Cảnh báo",
+    "danger": "Lỗi",
+    "info": "Thông tin",
+    "approved": "Đã phê duyệt",
+    "pending": "Đang chờ",
+    "verified": "Đã xác minh"
+  },
+  "voice": {
+    "let_ai_carry": "Hãy để AI gánh phần việc lặp lại, để con người làm phần việc ý nghĩa.",
+    "use_data_with_care": "Dùng dữ liệu cẩn trọng. Tạo ra insight có trách nhiệm.",
+    "next_step": "Tiến thêm một bước trong hành trình AI của bạn."
+  },
+  "card": {
+    "data": "Dữ liệu",
+    "insight": "Insight",
+    "recommendedAction": "Hành động đề xuất",
+    "before": "Trước đây",
+    "aiIntervention": "AI hỗ trợ",
+    "humanTouch": "Chạm con người",
+    "impact": "Tác động",
+    "quote": "Trích dẫn"
+  }
+}

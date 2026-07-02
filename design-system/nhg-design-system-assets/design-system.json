@@ -1,0 +1,111 @@
+{
+  "brand": {
+    "name": "NHG Group — AI for Trust & Romance",
+    "principle": "Preserve the uploaded original logo. Do not redraw, recolor, or alter proportions.",
+    "assets": {
+      "logo": "logo.png",
+      "iconLogo": "icon-logo.png"
+    },
+    "colors": {
+      "green": {
+        "hex": "#037236",
+        "usage": "Primary brand / trust / education"
+      },
+      "red": {
+        "hex": "#ED2024",
+        "usage": "Accent / romance / highlight"
+      },
+      "black": {
+        "hex": "#050708",
+        "usage": "Authority / high contrast"
+      },
+      "gray": {
+        "hex": "#818285",
+        "usage": "Secondary text / metadata"
+      },
+      "white": {
+        "hex": "#FFFFFF",
+        "usage": "Clean background"
+      },
+      "ivory": {
+        "hex": "#F8F6F1",
+        "usage": "Warm editorial background"
+      },
+      "mist": {
+        "hex": "#EEF3EF",
+        "usage": "Soft cards and calm sections"
+      }
+    },
+    "typography": {
+      "headline": [
+        "Playfair Display",
+        "Cormorant Garamond",
+        "Georgia",
+        "serif"
+      ],
+      "body": [
+        "Inter",
+        "IBM Plex Sans",
+        "Arial",
+        "sans-serif"
+      ],
+      "data": [
+        "Inter",
+        "IBM Plex Sans",
+        "Arial",
+        "sans-serif"
+      ]
+    },
+    "radii": {
+      "card": "24px",
+      "button": "999px",
+      "panel": "32px"
+    },
+    "spacing": {
+      "logoClearSpace": "max(height of Group wordmark, 12% of logo height)",
+      "pagePaddingDesktop": "48px-72px",
+      "sectionGap": "64px-96px"
+    },
+    "components": {
+      "buttonPrimary": {
+        "background": "brand.green",
+        "text": "brand.white"
+      },
+      "buttonAccent": {
+        "background": "brand.red",
+        "text": "brand.white"
+      },
+      "card": {
+        "background": "brand.white or ivory",
+        "border": "rgba(3,114,54,0.12)",
+        "radius": "24px"
+      },
+      "dashboardCardPattern": [
+        "Data",
+        "Insight",
+        "Recommended Action"
+      ],
+      "storyCardPattern": [
+        "Before",
+        "AI Intervention",
+        "Human Touch",
+        "Impact",
+        "Quote"
+      ]
+    },
+    "doNot": [
+      "Do not redraw the logo",
+      "Do not recolor the logo",
+      "Do not stretch the logo",
+      "Do not add gradients/shadows to official logo assets",
+      "Do not replace the uploaded logo with AI-generated variations"
+    ],
+    "keywords": [
+      "Trust",
+      "Romance",
+      "Human",
+      "Future",
+      "Integrity"
+    ]
+  }
+}

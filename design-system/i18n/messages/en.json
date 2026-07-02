@@ -1,0 +1,60 @@
+{
+  "brand": {
+    "name": "Nguyen Hoang Group",
+    "short": "NHG",
+    "tagline": "AI for Trust & Connection"
+  },
+  "common": {
+    "language": "Language",
+    "theme": "Theme",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System",
+    "search": "Search",
+    "menu": "Menu",
+    "close": "Close",
+    "next": "Continue",
+    "back": "Back",
+    "viewMore": "View more",
+    "loading": "Loading…"
+  },
+  "nav": {
+    "home": "Home",
+    "dashboard": "Dashboard",
+    "stories": "Stories",
+    "about": "About",
+    "contact": "Contact"
+  },
+  "actions": {
+    "primary": "Get started",
+    "secondary": "Learn more",
+    "approve": "Approve",
+    "reject": "Reject",
+    "save": "Save",
+    "cancel": "Cancel"
+  },
+  "status": {
+    "success": "Success",
+    "warning": "Warning",
+    "danger": "Error",
+    "info": "Info",
+    "approved": "Approved",
+    "pending": "Pending",
+    "verified": "Verified"
+  },
+  "voice": {
+    "let_ai_carry": "Let AI carry the repetitive work, so people can carry the meaningful work.",
+    "use_data_with_care": "Use data with care. Generate insight with responsibility.",
+    "next_step": "Take the next step in your AI journey."
+  },
+  "card": {
+    "data": "Data",
+    "insight": "Insight",
+    "recommendedAction": "Recommended Action",
+    "before": "Before",
+    "aiIntervention": "AI Intervention",
+    "humanTouch": "Human Touch",
+    "impact": "Impact",
+    "quote": "Quote"
+  }
+}

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NHG Icon Gallery</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+[data-theme="light"]{
+  --bg:#F8F6F1;--canvas:#fff;--card:#fff;--border:#DEE1E1;--muted:#EEF3EF;
+  --text:#101214;--text2:#5F6668;--text3:#818285;--primary:#037236;--primary-sub:#E8F4ED;--accent:#ED2024;color-scheme:light;
+}
+[data-theme="dark"]{
+  --bg:#0A0D0E;--canvas:#0A0D0E;--card:#12181A;--border:rgba(255,255,255,.10);--muted:#171D1F;
+  --text:#ECEFEF;--text2:#A8AEAF;--text3:#7E8486;--primary:#2FA15D;--primary-sub:rgba(47,161,93,.16);--accent:#F2585B;color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Be Vietnam Pro',system-ui,sans-serif;background:var(--bg);color:var(--text);transition:background .25s,color .25s}
+.wrap{max-width:1100px;margin:0 auto;padding:40px 28px 80px}
+header{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap;margin-bottom:8px}
+.kicker{font-size:12.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--primary)}
+h1{font-size:34px;font-weight:800;letter-spacing:-.02em;margin:6px 0 4px}
+p.sub{color:var(--text2);margin:0;font-size:15px;max-width:560px}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.toolbar button,.toolbar input{font-family:inherit;font-weight:600;font-size:13px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:999px;padding:9px 14px;cursor:pointer}
+.toolbar input{cursor:text;min-width:200px;font-weight:400}
+.toolbar button.on,.toolbar button:hover{border-color:var(--primary);color:var(--primary)}
+.seg{display:flex;border:1px solid var(--border);border-radius:999px;overflow:hidden}
+.seg button{border:none;border-radius:0;padding:9px 13px}
+.group{margin-top:34px}
+.group h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin:0 0 14px;font-weight:700}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.tile{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px 12px 12px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;cursor:pointer;transition:border-color .15s,transform .1s}
+.tile:hover{border-color:var(--primary);transform:translateY(-2px)}
+.tile .ico{display:grid;place-items:center;height:42px;color:var(--text)}
+.tile svg{width:var(--gsize,24px);height:var(--gsize,24px);stroke-width:2}
+.tile .meaning{font-size:13px;font-weight:600;color:var(--text)}
+.tile .lname{font-size:11px;color:var(--text3);font-family:ui-monospace,Menlo,monospace}
+.toggles{position:fixed;top:16px;right:16px;display:flex;gap:8px;z-index:10}
+.toggles button{font-family:'Be Vietnam Pro';font-weight:600;font-size:13px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:999px;padding:8px 14px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--primary);color:#fff;padding:10px 18px;border-radius:999px;font-size:13px;font-weight:600;opacity:0;transition:.25s;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.empty{color:var(--text3);font-size:15px;margin-top:30px}
+</style>
+</head>
+<body>
+<div class="toggles"><button id="themeBtn" onclick="toggleTheme()">🌙 Dark</button></div>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="kicker">NHG Design System</div>
+      <h1>Icon Gallery</h1>
+      <p class="sub">Bộ icon chuẩn (Lucide). Chọn theo <strong>ý nghĩa</strong>, không theo hình. Bấm vào ô để copy tên Lucide. Đổi size & theme để xem icon phản ứng.</p>
+    </div>
+    <div class="toolbar">
+      <input id="q" placeholder="Tìm: approve, dashboard, chart…" oninput="render()" />
+      <div class="seg" id="sizeSeg">
+        <button data-s="16">16</button>
+        <button data-s="20">20</button>
+        <button data-s="24" class="on">24</button>
+        <button data-s="32">32</button>
+        <button data-s="48">48</button>
+      </div>
+    </div>
+  </header>
+  <div id="out"></div>
+</div>
+<div class="toast" id="toast">Đã copy</div>
+
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>
+const MAP = {
+  navigation:{home:"house",dashboard:"layout-dashboard",stories:"book-open",about:"info",contact:"mail",menu:"menu",close:"x",back:"arrow-left",forward:"arrow-right",expand:"chevron-down",collapse:"chevron-up",external:"external-link",more:"ellipsis"},
+  actions:{add:"plus",create:"plus-circle",edit:"pencil",delete:"trash-2",save:"check",cancel:"x",confirm:"check-circle",approve:"circle-check-big",reject:"circle-x",search:"search",filter:"list-filter",sort:"arrow-up-down",refresh:"refresh-cw",download:"download",upload:"upload",share:"share-2",copy:"copy",settings:"settings",logout:"log-out"},
+  status:{success:"circle-check",warning:"triangle-alert",danger:"octagon-alert",info:"info",pending:"clock",verified:"badge-check",loading:"loader-circle",locked:"lock",unlocked:"lock-open"},
+  data:{metric:"trending-up",decline:"trending-down",chartBar:"chart-column",chartLine:"chart-line",chartPie:"chart-pie",table:"table",report:"file-text",calendar:"calendar",time:"clock",target:"target",insight:"lightbulb"},
+  communication:{message:"message-square",comment:"message-circle",notification:"bell",email:"mail",phone:"phone",send:"send"},
+  user:{user:"user",users:"users",profile:"circle-user",team:"users-round",addUser:"user-plus"},
+  media:{image:"image",file:"file",folder:"folder",attachment:"paperclip",play:"play",pause:"pause",link:"link"},
+  theme:{light:"sun",dark:"moon",system:"monitor",language:"languages"},
+  brand:{trust:"shield-check",romance:"heart-handshake",human:"users-round",ai:"sparkles",future:"rocket",integrity:"badge-check",education:"graduation-cap"}
+};
+const LABEL={navigation:"Điều hướng",actions:"Hành động",status:"Trạng thái",data:"Dữ liệu & biểu đồ",communication:"Giao tiếp",user:"Người dùng",media:"Tệp & media",theme:"Theme & ngôn ngữ",brand:"Khái niệm thương hiệu"};
+
+function render(){
+  const q=(document.getElementById('q').value||'').toLowerCase().trim();
+  const out=document.getElementById('out'); out.innerHTML='';
+  let total=0;
+  for(const g of Object.keys(MAP)){
+    const items=Object.entries(MAP[g]).filter(([k,v])=>!q||k.toLowerCase().includes(q)||v.includes(q)||g.includes(q));
+    if(!items.length) continue;
+    total+=items.length;
+    const sec=document.createElement('div'); sec.className='group';
+    sec.innerHTML=`<h2>${LABEL[g]} · ${g}</h2>`;
+    const grid=document.createElement('div'); grid.className='grid';
+    for(const [meaning,lname] of items){
+      const t=document.createElement('div'); t.className='tile';
+      t.title='Copy: '+lname;
+      t.onclick=()=>copy(lname);
+      t.innerHTML=`<div class="ico"><i data-lucide="${lname}"></i></div>`+
+        `<div class="meaning">${g}.${meaning}</div><div class="lname">${lname}</div>`;
+      grid.appendChild(t);
+    }
+    sec.appendChild(grid); out.appendChild(sec);
+  }
+  if(!total) out.innerHTML='<p class="empty">Không tìm thấy icon nào khớp.</p>';
+  lucide.createIcons();
+}
+function setSize(px){
+  document.documentElement.style.setProperty('--gsize',px+'px');
+  document.querySelectorAll('#sizeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.s===px));
+}
+document.querySelectorAll('#sizeSeg button').forEach(b=>b.onclick=()=>setSize(b.dataset.s));
+function toggleTheme(){
+  const r=document.documentElement, dark=r.getAttribute('data-theme')==='dark';
+  r.setAttribute('data-theme',dark?'light':'dark');
+  document.getElementById('themeBtn').textContent=dark?'🌙 Dark':'☀︎ Light';
+}
+let tt;
+function copy(s){
+  navigator.clipboard?.writeText(s);
+  const el=document.getElementById('toast'); el.textContent='Đã copy: '+s; el.classList.add('show');
+  clearTimeout(tt); tt=setTimeout(()=>el.classList.remove('show'),1300);
+}
+setSize('24'); render();
+</script>
+</body>
+</html>

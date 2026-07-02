@@ -1,0 +1,63 @@
+/* =====================================================================
+   NHG Design System — Icon layer
+   Stroke icons on a 24px grid. Color follows text via `currentColor`,
+   so icons automatically respect light/dark + semantic text tokens.
+   Pairs with the Lucide icon set (see icons/icon-system.md).
+   ===================================================================== */
+
+:root{
+  /* Size tokens — keep icons on this scale, no arbitrary px */
+  --nhg-icon-xs: 16px;   /* dense tables, inline-with-12–14px text */
+  --nhg-icon-sm: 20px;   /* default UI: buttons, menu items, inputs */
+  --nhg-icon-md: 24px;   /* comfortable / touch targets, toolbars */
+  --nhg-icon-lg: 32px;   /* section headers, empty states */
+  --nhg-icon-xl: 48px;   /* feature blocks, onboarding */
+
+  --nhg-icon-stroke: 2;       /* default stroke width @24 grid */
+  --nhg-icon-stroke-bold: 2.25;
+}
+
+/* Base class — apply to <svg> / <i data-lucide> */
+.nhg-icon{
+  width: var(--nhg-icon-sm);
+  height: var(--nhg-icon-sm);
+  flex: 0 0 auto;
+  stroke-width: var(--nhg-icon-stroke);
+  stroke: currentColor;            /* inherits text color token */
+  fill: none;
+  vertical-align: middle;
+  color: var(--nhg-text-secondary);/* default tone; override per role */
+}
+
+/* Sizes */
+.nhg-icon--xs{ width:var(--nhg-icon-xs); height:var(--nhg-icon-xs); }
+.nhg-icon--sm{ width:var(--nhg-icon-sm); height:var(--nhg-icon-sm); }
+.nhg-icon--md{ width:var(--nhg-icon-md); height:var(--nhg-icon-md); }
+.nhg-icon--lg{ width:var(--nhg-icon-lg); height:var(--nhg-icon-lg); }
+.nhg-icon--xl{ width:var(--nhg-icon-xl); height:var(--nhg-icon-xl); }
+
+/* Roles — map icon tone to semantic color tokens */
+.nhg-icon--primary { color: var(--nhg-primary); }
+.nhg-icon--accent  { color: var(--nhg-accent); }
+.nhg-icon--muted   { color: var(--nhg-text-tertiary); }
+.nhg-icon--strong  { color: var(--nhg-text-primary); }
+.nhg-icon--success { color: var(--nhg-success); }
+.nhg-icon--warning { color: var(--nhg-warning); }
+.nhg-icon--danger  { color: var(--nhg-danger); }
+.nhg-icon--info    { color: var(--nhg-info); }
+
+/* Icon button — square tap target around an icon */
+.nhg-icon-btn{
+  display: inline-grid; place-items: center;
+  width: 40px; height: 40px;
+  border-radius: var(--nhg-radius-full);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--nhg-text-secondary);
+  cursor: pointer;
+}
+.nhg-icon-btn:hover{ background: var(--nhg-bg-muted); color: var(--nhg-text-primary); }
+.nhg-icon-btn:focus-visible{ outline:2px solid var(--nhg-primary); outline-offset:2px; }
+
+/* Decorative icons should be hidden from a11y tree: add aria-hidden="true".
+   Meaningful icons need a label: aria-label / <title> / adjacent text. */
