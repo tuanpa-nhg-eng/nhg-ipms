@@ -16,11 +16,15 @@ import { KpiController } from './modules/kpi/kpi.controller';
 import { KpiService } from './modules/kpi/kpi.service';
 import { ScorecardController } from './modules/kpi/scorecard.controller';
 import { ScorecardService } from './modules/kpi/scorecard.service';
+import { StrategyController } from './modules/strategy/strategy.controller';
+import { StrategyService } from './modules/strategy/strategy.service';
+import { GoalController } from './modules/strategy/goal.controller';
+import { GoalService } from './modules/strategy/goal.service';
 
 @Module({
   controllers: [
     AuthController, TenantController, OrgController, PersonController,
-    KpiController, ScorecardController,
+    KpiController, ScorecardController, StrategyController, GoalController,
   ],
   providers: [
     PrismaService,
@@ -28,6 +32,8 @@ import { ScorecardService } from './modules/kpi/scorecard.service';
     PersonService,
     KpiService,
     ScorecardService,
+    StrategyService,
+    GoalService,
     // Guard pipeline TDD §11: Jwt → Tenant → Permission (Scope Phase 0 = tenant-level)
     { provide: APP_GUARD, useClass: JwtGuard },
     { provide: APP_GUARD, useClass: TenantGuard },

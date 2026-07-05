@@ -11,6 +11,9 @@ export const PERMISSIONS = [
   // Phase 1 — KPI & Scorecard
   'kpi:read', 'kpi:write', 'kpi:approve',
   'scorecard:read', 'scorecard:write',
+  // Phase 1 — Strategy & Goal
+  'strategy:read', 'strategy:write',
+  'goal:read', 'goal:write',
 ] as const;
 export type PermissionCode = (typeof PERMISSIONS)[number];
 

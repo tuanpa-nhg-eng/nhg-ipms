@@ -20,19 +20,23 @@ const PERMISSIONS = [
   // Phase 1 — KPI & Scorecard
   'kpi:read', 'kpi:write', 'kpi:approve',
   'scorecard:read', 'scorecard:write',
+  // Phase 1 — Strategy & Goal
+  'strategy:read', 'strategy:write',
+  'goal:read', 'goal:write',
 ];
 
 // Role toàn cục (tenant_id = null) + permission mặc định
 const GLOBAL_ROLES: Record<string, string[]> = {
-  employee: ['tenant:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read'],
-  manager: ['tenant:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read'],
+  employee: ['tenant:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read', 'goal:write'],
+  manager: ['tenant:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read', 'goal:write'],
   hrbp: [
     'tenant:read', 'org:read', 'org:write', 'person:read', 'person:write', 'user:read',
     'kpi:read', 'kpi:write', 'kpi:approve', 'scorecard:read', 'scorecard:write',
+    'strategy:read', 'strategy:write', 'goal:read', 'goal:write',
   ],
   tenant_admin: PERMISSIONS.filter((p) => p !== 'audit:read'),
-  auditor: ['tenant:read', 'audit:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read'],
-  exec_viewer: ['tenant:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read'],
+  auditor: ['tenant:read', 'audit:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read'],
+  exec_viewer: ['tenant:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read'],
 };
 
 async function main() {
