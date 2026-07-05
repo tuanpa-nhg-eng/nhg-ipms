@@ -29,6 +29,12 @@ import { ReviewService } from './modules/review/review.service';
 import { CalibrationController } from './modules/review/calibration.controller';
 import { CalibrationService } from './modules/review/calibration.service';
 import { ExportController } from './modules/review/export.controller';
+import { ConfigController } from './modules/config/config.controller';
+import { ConfigService } from './modules/config/config.service';
+import { BrandController } from './modules/config/brand.controller';
+import { OrgFunctionController } from './modules/config/org-function.controller';
+import { DerivationController } from './modules/derivation/derivation.controller';
+import { DerivationService } from './modules/derivation/derivation.service';
 
 @Module({
   controllers: [
@@ -36,6 +42,7 @@ import { ExportController } from './modules/review/export.controller';
     KpiController, ScorecardController, StrategyController, GoalController,
     EvidenceController, CheckinController, ReviewController, CalibrationController,
     ExportController,
+    ConfigController, BrandController, OrgFunctionController, DerivationController,
   ],
   providers: [
     PrismaService,
@@ -49,6 +56,8 @@ import { ExportController } from './modules/review/export.controller';
     CheckinService,
     ReviewService,
     CalibrationService,
+    ConfigService,
+    DerivationService,
     // Guard pipeline TDD §11: Jwt → Tenant → Permission (Scope Phase 0 = tenant-level)
     { provide: APP_GUARD, useClass: JwtGuard },
     { provide: APP_GUARD, useClass: TenantGuard },

@@ -31,6 +31,12 @@ const PERMISSIONS = [
   'review:read', 'review:write', 'review:manage', 'rating:approve',
   'calibration:run',
   'payroll:export',
+  // Phase 3 — Configuration Studio
+  'config:read', 'config:write', 'config:publish',
+  'brand:write',
+  'org:design',
+  'derivation:run',
+  'taskcell:read', 'taskcell:write',
 ];
 
 // Role toàn cục (tenant_id = null) + permission mặc định
@@ -54,6 +60,13 @@ const GLOBAL_ROLES: Record<string, string[]> = {
     'calibration:run', 'payroll:export',
   ],
   tenant_admin: PERMISSIONS.filter((p) => p !== 'audit:read'),
+  // Config Studio §12 — SoD Designer (sửa) ⟂ Approver (duyệt)
+  config_designer: [
+    'tenant:read', 'org:read', 'person:read',
+    'config:read', 'config:write', 'brand:write', 'org:design', 'derivation:run',
+    'taskcell:read', 'taskcell:write', 'kpi:read', 'scorecard:read', 'flag:read',
+  ],
+  config_approver: ['tenant:read', 'org:read', 'config:read', 'config:publish', 'scorecard:read', 'kpi:read'],
   auditor: ['tenant:read', 'audit:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read'],
   exec_viewer: ['tenant:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read'],
 };
@@ -176,6 +189,38 @@ async function main() {
         },
       });
     }
+
+    // Config Studio: Designer + Approver (SoD — 2 người khác nhau)
+    async function seedStudioUser(prefix: string, roleCode: string) {
+      const p = await prisma.person.upsert({
+        where: { tenantId_employeeCode: { tenantId: tenant.id, employeeCode: `${code}-${prefix.toUpperCase()}` } },
+        update: {},
+        create: {
+          id: uuidv7(), tenantId: tenant.id, employeeCode: `${code}-${prefix.toUpperCase()}`,
+          fullName: `${roleCode} (${code})`,
+          email: `${prefix}@${code.toLowerCase().replace('.', '')}.nhg.local`,
+          status: 'active', orgUnitId: root.id,
+        },
+      });
+      const u = await prisma.appUser.upsert({
+        where: { tenantId_email: { tenantId: tenant.id, email: p.email! } },
+        update: {},
+        create: { id: uuidv7(), tenantId: tenant.id, personId: p.id, email: p.email!, status: 'active' },
+      });
+      const existing = await prisma.userRole.findFirst({
+        where: { tenantId: tenant.id, appUserId: u.id, roleId: roleIds[roleCode] },
+      });
+      if (!existing) {
+        await prisma.userRole.create({
+          data: {
+            id: uuidv7(), tenantId: tenant.id, appUserId: u.id,
+            roleId: roleIds[roleCode], scopeType: 'tenant',
+          },
+        });
+      }
+    }
+    await seedStudioUser('designer', 'config_designer');
+    await seedStudioUser('approver', 'config_approver');
     return tenant;
   }
 

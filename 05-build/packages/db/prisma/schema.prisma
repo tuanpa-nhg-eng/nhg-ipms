@@ -44,6 +44,8 @@ model OrgUnit {
   nameVi    String   @map("name_vi")
   nameEn    String?  @map("name_en")
   level     String // group|bu|department|team
+  configVersionId String? @map("config_version_id") @db.Uuid // Config Studio §4.3
+  grade           String? // cấp bậc đơn vị (tuỳ chọn)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   createdBy String?  @map("created_by") @db.Uuid
@@ -483,6 +485,266 @@ model Scorecard {
   @@map("scorecard")
 }
 
+// ===== Phase 3 — Configuration Studio (Spec_Configuration_Studio §4) =====
+
+enum ConfigStatus {
+  draft
+  preview
+  published
+  archived
+
+  @@map("config_status")
+}
+
+model ConfigVersion {
+  id          String       @id @db.Uuid
+  tenantId    String       @map("tenant_id") @db.Uuid
+  label       String
+  status      ConfigStatus @default(draft)
+  basedOnId   String?      @map("based_on_id") @db.Uuid
+  note        String?
+  publishedAt DateTime?    @map("published_at") @db.Timestamptz(6)
+  publishedBy String?      @map("published_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  basedOn ConfigVersion?  @relation("ConfigLineage", fields: [basedOnId], references: [id])
+  clones  ConfigVersion[] @relation("ConfigLineage")
+  changes ConfigChange[]
+
+  @@unique([tenantId, label])
+  @@index([tenantId, status])
+  @@map("config_version")
+}
+
+model ConfigChange {
+  id              String  @id @db.Uuid
+  tenantId        String  @map("tenant_id") @db.Uuid
+  configVersionId String  @map("config_version_id") @db.Uuid
+  entityType      String  @map("entity_type") // brand|org_function|derivation_rule|scorecard|task_cell...
+  entityId        String? @map("entity_id") @db.Uuid
+  op              String // create|update|delete|move
+  before          Json?
+  after           Json?
+  seq             Int
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  configVersion ConfigVersion @relation(fields: [configVersionId], references: [id])
+
+  @@index([configVersionId, seq])
+  @@map("config_change")
+}
+
+model BrandKit {
+  id              String       @id @db.Uuid
+  tenantId        String       @map("tenant_id") @db.Uuid
+  configVersionId String?      @map("config_version_id") @db.Uuid
+  displayName     String?      @map("display_name")
+  logoLightUri    String?      @map("logo_light_uri")
+  logoDarkUri     String?      @map("logo_dark_uri")
+  faviconUri      String?      @map("favicon_uri")
+  customDomain    String?      @map("custom_domain")
+  tokens          Json         @default("{}")
+  a11yChecked     Boolean      @default(false) @map("a11y_checked")
+  status          ConfigStatus @default(draft)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@index([tenantId, configVersionId])
+  @@map("brand_kit")
+}
+
+model OrgFunction {
+  id       String  @id @db.Uuid
+  tenantId String  @map("tenant_id") @db.Uuid
+  code     String
+  nameVi   String  @map("name_vi")
+  nameEn   String? @map("name_en")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  orgUnitFunctions OrgUnitFunction[]
+
+  @@unique([tenantId, code])
+  @@map("org_function")
+}
+
+model OrgUnitFunction {
+  tenantId   String   @map("tenant_id") @db.Uuid
+  orgUnitId  String   @map("org_unit_id") @db.Uuid
+  functionId String   @map("function_id") @db.Uuid
+  weight     Decimal? @db.Decimal(5, 2)
+
+  function OrgFunction @relation(fields: [functionId], references: [id])
+
+  @@id([orgUnitId, functionId])
+  @@index([tenantId, functionId])
+  @@map("org_unit_function")
+}
+
+model SodRule {
+  id          String @id @db.Uuid
+  tenantId    String @map("tenant_id") @db.Uuid
+  permissionA String @map("permission_a")
+  permissionB String @map("permission_b")
+  severity    String @default("high")
+  note        String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, permissionA, permissionB])
+  @@map("sod_rule")
+}
+
+model KpiTemplate {
+  id              String   @id @db.Uuid
+  tenantId        String?  @map("tenant_id") @db.Uuid // null = template dùng chung
+  code            String
+  nameVi          String   @map("name_vi")
+  nameEn          String?  @map("name_en")
+  method          String?
+  direction       String?
+  unit            String?
+  frequency       String?
+  formulaExpr     String?  @map("formula_expr")
+  defaultTier     Json?    @map("default_tier")
+  functionTags    String[] @map("function_tags")
+  roleFamilyCodes String[] @map("role_family_codes")
+  taskCellRefs    String[] @map("task_cell_refs")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, code])
+  @@map("kpi_template")
+}
+
+model TaskCell {
+  id              String  @id @db.Uuid
+  tenantId        String  @map("tenant_id") @db.Uuid
+  configVersionId String? @map("config_version_id") @db.Uuid
+  code            String // 'TS-G01-C02-T005'
+  groupCode       String? @map("group_code")
+  clusterCode     String? @map("cluster_code")
+  nameVi          String  @map("name_vi")
+  nameEn          String? @map("name_en")
+  responsibleRole String? @map("responsible_role")
+  accountableRole String? @map("accountable_role")
+  consulted       Json?
+  informed        Json?
+  inputs          Json?
+  outputs         Json?
+  measures        Json?
+  aiLevel         String? @map("ai_level")
+  aiDimension     Json?   @map("ai_dimension")
+  governance      Json?
+  riskLevel       String? @map("risk_level")
+  lifecycle       Json?
+  kpiRef          String? @map("kpi_ref")
+  processStepId   String? @map("process_step_id") @db.Uuid
+  attrs           Json    @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, code, configVersionId])
+  @@map("task_cell")
+}
+
+model DerivationRule {
+  id              String  @id @db.Uuid
+  tenantId        String  @map("tenant_id") @db.Uuid
+  configVersionId String? @map("config_version_id") @db.Uuid
+  priority        Int     @default(100)
+  match           Json // {function_codes[],role_family_codes[],org_level[],grade[]}
+  emit            Json // {kpi_template_codes[],task_cell_refs[],weight,group_label,tier}
+  note            String?
+  status          String  @default("active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@index([tenantId, configVersionId])
+  @@map("derivation_rule")
+}
+
+model DerivationRun {
+  id              String  @id @db.Uuid
+  tenantId        String  @map("tenant_id") @db.Uuid
+  configVersionId String? @map("config_version_id") @db.Uuid
+  trigger         String // org_change|process_change|people_change|manual
+  status          String  @default("preview") // preview|applied|discarded
+  diff            Json?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  results DerivationResult[]
+
+  @@map("derivation_run")
+}
+
+model DerivationResult {
+  id         String  @id @db.Uuid
+  tenantId   String  @map("tenant_id") @db.Uuid
+  runId      String  @map("run_id") @db.Uuid
+  targetType String  @map("target_type") // scorecard|scorecard_item|kpi|task_cell|cascade_link
+  action     String // add|remove|update|keep
+  payload    Json
+  reason     String? // explainable: rule nào khớp, vì sao
+  applied    Boolean @default(false)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  run DerivationRun @relation(fields: [runId], references: [id])
+
+  @@index([runId, targetType])
+  @@map("derivation_result")
+}
+
+model CascadeLink {
+  id              String  @id @db.Uuid
+  tenantId        String  @map("tenant_id") @db.Uuid
+  configVersionId String? @map("config_version_id") @db.Uuid
+  okrId           String? @map("okr_id") @db.Uuid
+  kgiId           String? @map("kgi_id") @db.Uuid
+  kpiId           String? @map("kpi_id") @db.Uuid
+  taskCellRef     String? @map("task_cell_ref")
+  orgUnitId       String? @map("org_unit_id") @db.Uuid
+  positionId      String? @map("position_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@index([tenantId, kpiId])
+  @@map("cascade_link")
+}
+
 // ===== Phase 2 — Check-in (TDD §6.6) =====
 
 model Checkin {
@@ -704,6 +966,8 @@ model ScorecardItem {
   groupWeight Decimal? @map("group_weight") @db.Decimal(5, 2)
   target      Decimal? @db.Decimal(14, 4) // [F26] target SERVER-SIDE — compute không nhận từ client
   base        Decimal? @db.Decimal(14, 4)
+  manualOverride Boolean @default(false) @map("manual_override") // Derivation Engine không đè chỉnh tay (§5)
+  configVersionId String? @map("config_version_id") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   version   Int      @default(1)

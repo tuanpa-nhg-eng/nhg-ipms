@@ -22,6 +22,12 @@ export const PERMISSIONS = [
   'review:read', 'review:write', 'review:manage', 'rating:approve',
   'calibration:run',
   'payroll:export',
+  // Phase 3 — Configuration Studio
+  'config:read', 'config:write', 'config:publish',
+  'brand:write',
+  'org:design',
+  'derivation:run',
+  'taskcell:read', 'taskcell:write',
 ] as const;
 export type PermissionCode = (typeof PERMISSIONS)[number];
 
