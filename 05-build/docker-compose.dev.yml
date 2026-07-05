@@ -1,0 +1,28 @@
+# NHG iPMS — hạ tầng dev local (Postgres 16 + Redis 7)
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ipms-postgres
+    environment:
+      POSTGRES_USER: ipms_owner
+      POSTGRES_PASSWORD: ipms_dev_only
+      POSTGRES_DB: ipms
+    ports:
+      - "127.0.0.1:55432:5432"   # [F10] chỉ bind loopback
+    volumes:
+      - ipms_pgdata:/var/lib/postgresql/data
+      - ./infra/dev-init.sql:/docker-entrypoint-initdb.d/10-dev-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ipms_owner -d ipms"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: ipms-redis
+    ports:
+      - "127.0.0.1:56379:6379"   # [F10] chỉ bind loopback
+
+volumes:
+  ipms_pgdata:

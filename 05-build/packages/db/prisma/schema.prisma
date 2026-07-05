@@ -1,0 +1,252 @@
+// NHG iPMS — Prisma schema (Phase 0: TDD §6.1–6.2 + audit + feature flag)
+// Quy ước TDD §5: id uuid (UUIDv7 sinh app-side), tenant_id mọi bảng nghiệp vụ,
+// audit cols created_at/updated_at/created_by/updated_by/version/deleted_at, snake_case.
+// RLS được áp qua SQL migration (Prisma không quản lý RLS) — xem migrations/0_init/migration.sql.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id        String   @id @db.Uuid
+  code      String   @unique
+  nameVi    String   @map("name_vi")
+  nameEn    String?  @map("name_en")
+  type      String // holding|opco|propco
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  orgUnits     OrgUnit[]
+  persons      Person[]
+  positions    Position[]
+  roleFamilies RoleFamily[]
+  appUsers     AppUser[]
+  userRoles    UserRole[]
+
+  @@map("tenant")
+}
+
+model OrgUnit {
+  id        String   @id @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  parentId  String?  @map("parent_id") @db.Uuid
+  code      String
+  nameVi    String   @map("name_vi")
+  nameEn    String?  @map("name_en")
+  level     String // group|bu|department|team
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  parent    OrgUnit?  @relation("OrgUnitTree", fields: [parentId], references: [id])
+  children  OrgUnit[] @relation("OrgUnitTree")
+  positions Position[]
+  persons   Person[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, parentId])
+  @@map("org_unit")
+}
+
+model RoleFamily {
+  id        String   @id @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  code      String
+  nameVi    String   @map("name_vi")
+  nameEn    String?  @map("name_en")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id])
+  positions Position[]
+
+  @@unique([tenantId, code])
+  @@map("role_family")
+}
+
+model Position {
+  id           String  @id @db.Uuid
+  tenantId     String  @map("tenant_id") @db.Uuid
+  orgUnitId    String  @map("org_unit_id") @db.Uuid
+  roleFamilyId String? @map("role_family_id") @db.Uuid
+  titleVi      String  @map("title_vi")
+  titleEn      String? @map("title_en")
+  grade        String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  tenant     Tenant      @relation(fields: [tenantId], references: [id])
+  orgUnit    OrgUnit     @relation(fields: [orgUnitId], references: [id])
+  roleFamily RoleFamily? @relation(fields: [roleFamilyId], references: [id])
+  persons    Person[]
+
+  @@map("position")
+}
+
+model Person {
+  id              String    @id @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  employeeCode    String    @map("employee_code")
+  externalId      String?   @map("external_id")
+  fullName        String    @map("full_name")
+  email           String?
+  status          String // active|leave|terminated
+  orgUnitId       String?   @map("org_unit_id") @db.Uuid
+  positionId      String?   @map("position_id") @db.Uuid
+  managerId       String?   @map("manager_id") @db.Uuid
+  hireDate        DateTime? @map("hire_date") @db.Date
+  seniorityMonths Int?      @map("seniority_months")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  orgUnit  OrgUnit?  @relation(fields: [orgUnitId], references: [id])
+  position Position? @relation(fields: [positionId], references: [id])
+  manager  Person?   @relation("Reports", fields: [managerId], references: [id])
+  reports  Person[]  @relation("Reports")
+  appUsers AppUser[]
+
+  @@unique([tenantId, employeeCode])
+  @@index([tenantId, managerId])
+  @@index([tenantId, orgUnitId])
+  @@map("person")
+}
+
+model AppUser {
+  id               String  @id @db.Uuid
+  tenantId         String  @map("tenant_id") @db.Uuid
+  personId         String? @map("person_id") @db.Uuid
+  entraOid         String? @unique @map("entra_oid")
+  email            String
+  isServiceAccount Boolean @default(false) @map("is_service_account")
+  status           String  @default("active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id])
+  person    Person?    @relation(fields: [personId], references: [id])
+  userRoles UserRole[]
+
+  @@unique([tenantId, email])
+  @@map("app_user")
+}
+
+model Role {
+  id           String  @id @db.Uuid
+  tenantId     String? @map("tenant_id") @db.Uuid // null = global role
+  code         String // employee|manager|dept_head|bu_leader|hrbp|group_hr_admin|exec_viewer|auditor|ai_service|tenant_admin
+  nameVi       String? @map("name_vi")
+  nameEn       String? @map("name_en")
+  isGroupLevel Boolean @default(false) @map("is_group_level")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+
+  @@unique([tenantId, code])
+  @@map("role")
+}
+
+model Permission {
+  id   String @id @db.Uuid
+  code String @unique // 'goal:update','rating:approve','org:read'...
+
+  rolePermissions RolePermission[]
+
+  @@map("permission")
+}
+
+model RolePermission {
+  roleId       String @map("role_id") @db.Uuid
+  permissionId String @map("permission_id") @db.Uuid
+
+  role       Role       @relation(fields: [roleId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([roleId, permissionId])
+  @@map("role_permission")
+}
+
+model UserRole {
+  id        String  @id @db.Uuid
+  tenantId  String  @map("tenant_id") @db.Uuid
+  appUserId String  @map("app_user_id") @db.Uuid
+  roleId    String  @map("role_id") @db.Uuid
+  scopeType String? @map("scope_type") // tenant|org_unit|self
+  scopeId   String? @map("scope_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  appUser AppUser @relation(fields: [appUserId], references: [id])
+  role    Role    @relation(fields: [roleId], references: [id])
+
+  @@index([tenantId, appUserId])
+  @@map("user_role")
+}
+
+model AuditLog {
+  id          BigInt   @id @default(autoincrement())
+  tenantId    String   @map("tenant_id") @db.Uuid
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  action      String // 'org_unit.create','person.update'...
+  entityType  String   @map("entity_type")
+  entityId    String?  @map("entity_id") @db.Uuid
+  before      Json?
+  after       Json?
+  ip          String?
+  at          DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([tenantId, entityType, entityId])
+  @@index([tenantId, at])
+  @@map("audit_log")
+}
+
+model FeatureFlag {
+  id        String   @id @db.Uuid
+  tenantId  String?  @map("tenant_id") @db.Uuid // null = global default
+  key       String
+  enabled   Boolean  @default(false)
+  payload   Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version   Int      @default(1)
+
+  @@unique([tenantId, key])
+  @@map("feature_flag")
+}

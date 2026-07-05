@@ -1,0 +1,19 @@
+{
+  "name": "ipms",
+  "private": true,
+  "version": "0.1.0",
+  "description": "NHG iPMS — Intelligent Performance Management System (monorepo)",
+  "scripts": {
+    "build": "pnpm -r --filter './apps/api' --filter './packages/*' build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:integration": "pnpm --filter @ipms/api test:integration",
+    "db:up": "docker compose -f docker-compose.dev.yml up -d",
+    "db:migrate": "pnpm --filter @ipms/db migrate:deploy",
+    "db:seed": "pnpm --filter @ipms/db seed",
+    "api:dev": "pnpm --filter @ipms/api start:dev"
+  },
+  "engines": { "node": ">=20" },
+  "packageManager": "pnpm@11.3.0"
+}

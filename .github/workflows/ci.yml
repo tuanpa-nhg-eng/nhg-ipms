@@ -1,0 +1,56 @@
+name: CI — iPMS monorepo
+
+on:
+  push:
+    branches: [main]
+    paths: ['05-build/**']
+  pull_request:
+    paths: ['05-build/**']
+
+defaults:
+  run:
+    working-directory: 05-build
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ipms_owner
+          POSTGRES_PASSWORD: ipms_dev_only
+          POSTGRES_DB: ipms
+        ports: ['55432:5432']
+        options: >-
+          --health-cmd "pg_isready -U ipms_owner -d ipms"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      OWNER_DATABASE_URL: postgresql://ipms_owner:ipms_dev_only@localhost:55432/ipms?schema=public
+      DATABASE_URL: postgresql://ipms_app:ipms_app_dev_only@localhost:55432/ipms?schema=public
+      ALLOW_DEV_TOKEN: 'true'
+      DEV_JWT_SECRET: ci-only-jwt-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 11 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm, cache-dependency-path: 05-build/pnpm-lock.yaml }
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @ipms/shared --filter @ipms/db build
+      - run: pnpm -r typecheck
+      - run: pnpm -r lint
+      - name: Unit tests
+        run: pnpm --filter @ipms/api test
+
+      - name: Create runtime DB role (dev password — CI only)
+        run: PGPASSWORD=ipms_dev_only psql -h localhost -p 55432 -U ipms_owner -d ipms -f infra/dev-init.sql
+
+      - name: Migrate + seed (owner)
+        run: |
+          DATABASE_URL="$OWNER_DATABASE_URL" pnpm --filter @ipms/db migrate:deploy
+          DATABASE_URL="$OWNER_DATABASE_URL" pnpm --filter @ipms/db seed
+
+      - name: Integration tests — tenant isolation (RLS)
+        run: pnpm --filter @ipms/api test:integration

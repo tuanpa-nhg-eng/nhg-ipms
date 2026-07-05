@@ -1,0 +1,138 @@
+/**
+ * Seed Phase 0 — chạy bằng OWNER connection (bypass RLS như table owner).
+ * Tạo: catalog permission + role toàn cục · tenant H.01 (pilot) · tenant T2 (test cô lập)
+ * · org unit · person · app_user admin mỗi tenant.
+ * Idempotent: upsert theo khóa tự nhiên.
+ */
+import { PrismaClient } from '@prisma/client';
+import { uuidv7 } from 'uuidv7';
+
+const prisma = new PrismaClient(); // DATABASE_URL = owner
+
+// Catalog permission Phase 0 (mở rộng dần theo TDD §8.3)
+const PERMISSIONS = [
+  'tenant:read',
+  'org:read', 'org:write',
+  'person:read', 'person:write',
+  'user:read', 'user:write', 'role:assign',
+  'audit:read',
+  'flag:read', 'flag:write',
+];
+
+// Role toàn cục (tenant_id = null) + permission mặc định
+const GLOBAL_ROLES: Record<string, string[]> = {
+  employee: ['tenant:read', 'org:read', 'person:read'],
+  manager: ['tenant:read', 'org:read', 'person:read'],
+  hrbp: ['tenant:read', 'org:read', 'org:write', 'person:read', 'person:write', 'user:read'],
+  tenant_admin: PERMISSIONS.filter((p) => p !== 'audit:read'),
+  auditor: ['tenant:read', 'audit:read', 'org:read', 'person:read'],
+  exec_viewer: ['tenant:read', 'org:read', 'person:read'],
+};
+
+async function main() {
+  // 1. Permission catalog
+  const permIds: Record<string, string> = {};
+  for (const code of PERMISSIONS) {
+    const p = await prisma.permission.upsert({
+      where: { code },
+      update: {},
+      create: { id: uuidv7(), code },
+    });
+    permIds[code] = p.id;
+  }
+
+  // 2. Global roles + role_permission
+  const roleIds: Record<string, string> = {};
+  for (const [code, perms] of Object.entries(GLOBAL_ROLES)) {
+    let role = await prisma.role.findFirst({ where: { code, tenantId: null } });
+    if (!role) {
+      role = await prisma.role.create({
+        data: { id: uuidv7(), code, tenantId: null, nameVi: code, nameEn: code },
+      });
+    }
+    roleIds[code] = role.id;
+    for (const p of perms) {
+      await prisma.rolePermission.upsert({
+        where: { roleId_permissionId: { roleId: role.id, permissionId: permIds[p] } },
+        update: {},
+        create: { roleId: role.id, permissionId: permIds[p] },
+      });
+    }
+  }
+
+  // 3. Tenants
+  async function seedTenant(code: string, nameVi: string, type: string) {
+    const tenant = await prisma.tenant.upsert({
+      where: { code },
+      update: {},
+      create: { id: uuidv7(), code, nameVi, nameEn: nameVi, type },
+    });
+
+    const root = await prisma.orgUnit.upsert({
+      where: { tenantId_code: { tenantId: tenant.id, code: 'ROOT' } },
+      update: {},
+      create: {
+        id: uuidv7(), tenantId: tenant.id, code: 'ROOT',
+        nameVi: `${nameVi} — Đơn vị gốc`, nameEn: `${nameVi} Root`, level: 'bu',
+      },
+    });
+
+    const dept = await prisma.orgUnit.upsert({
+      where: { tenantId_code: { tenantId: tenant.id, code: 'ADMISSIONS' } },
+      update: {},
+      create: {
+        id: uuidv7(), tenantId: tenant.id, parentId: root.id, code: 'ADMISSIONS',
+        nameVi: 'Phòng Tuyển sinh', nameEn: 'Admissions', level: 'department',
+      },
+    });
+
+    const person = await prisma.person.upsert({
+      where: { tenantId_employeeCode: { tenantId: tenant.id, employeeCode: `${code}-ADMIN` } },
+      update: {},
+      create: {
+        id: uuidv7(), tenantId: tenant.id, employeeCode: `${code}-ADMIN`,
+        fullName: `Tenant Admin (${code})`, email: `admin@${code.toLowerCase().replace('.', '')}.nhg.local`,
+        status: 'active', orgUnitId: dept.id,
+      },
+    });
+
+    const user = await prisma.appUser.upsert({
+      where: { tenantId_email: { tenantId: tenant.id, email: person.email! } },
+      update: {},
+      create: {
+        id: uuidv7(), tenantId: tenant.id, personId: person.id,
+        email: person.email!, status: 'active',
+      },
+    });
+
+    const existing = await prisma.userRole.findFirst({
+      where: { tenantId: tenant.id, appUserId: user.id, roleId: roleIds['tenant_admin'] },
+    });
+    if (!existing) {
+      await prisma.userRole.create({
+        data: {
+          id: uuidv7(), tenantId: tenant.id, appUserId: user.id,
+          roleId: roleIds['tenant_admin'], scopeType: 'tenant',
+        },
+      });
+    }
+    return tenant;
+  }
+
+  const h01 = await seedTenant('H.01', 'NHG H.01 (Pilot)', 'opco');
+  const t2 = await seedTenant('T2.TEST', 'Tenant kiểm thử cô lập', 'opco');
+
+  // 4. Feature flags mặc định (global, tắt)
+  for (const key of ['config_studio', 'ai_gateway', 'integration_hub']) {
+    const found = await prisma.featureFlag.findFirst({ where: { tenantId: null, key } });
+    if (!found) {
+      await prisma.featureFlag.create({ data: { id: uuidv7(), tenantId: null, key, enabled: false } });
+    }
+  }
+
+  console.log(`Seed OK — tenants: ${h01.code} (${h01.id}), ${t2.code} (${t2.id})`);
+}
+
+main()
+  .catch((e) => { console.error(e); process.exit(1); })
+  .finally(() => prisma.$disconnect());
