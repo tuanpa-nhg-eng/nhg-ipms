@@ -250,3 +250,255 @@ model FeatureFlag {
   @@unique([tenantId, key])
   @@map("feature_flag")
 }
+
+// ===== Phase 1 — Chiến lược & mục tiêu (TDD §6.3) =====
+
+enum GoalStatus {
+  draft
+  active
+  at_risk
+  off_track
+  done
+  cancelled
+
+  @@map("goal_status")
+}
+
+enum ObjectiveKind {
+  okr
+  kgi
+
+  @@map("objective_kind")
+}
+
+model StrategicTheme {
+  id       String  @id @db.Uuid
+  tenantId String  @map("tenant_id") @db.Uuid
+  code     String?
+  nameVi   String  @map("name_vi")
+  nameEn   String? @map("name_en")
+  period   String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  objectives Objective[]
+
+  @@map("strategic_theme")
+}
+
+model Objective {
+  id        String        @id @db.Uuid
+  tenantId  String        @map("tenant_id") @db.Uuid
+  kind      ObjectiveKind
+  themeId   String?       @map("theme_id") @db.Uuid
+  parentId  String?       @map("parent_id") @db.Uuid
+  orgUnitId String?       @map("org_unit_id") @db.Uuid
+  ownerId   String?       @map("owner_id") @db.Uuid
+  nameVi    String        @map("name_vi")
+  nameEn    String?       @map("name_en")
+  period    String
+  weight    Decimal?      @db.Decimal(5, 2)
+  status    GoalStatus    @default(draft)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  theme    StrategicTheme? @relation(fields: [themeId], references: [id])
+  parent   Objective?      @relation("ObjectiveTree", fields: [parentId], references: [id])
+  children Objective[]     @relation("ObjectiveTree")
+  goals    Goal[]
+
+  @@index([tenantId, kind])
+  @@map("objective")
+}
+
+model Goal {
+  id           String     @id @db.Uuid
+  tenantId     String     @map("tenant_id") @db.Uuid
+  objectiveId  String?    @map("objective_id") @db.Uuid
+  ownerId      String     @map("owner_id") @db.Uuid
+  orgUnitId    String?    @map("org_unit_id") @db.Uuid
+  nameVi       String     @map("name_vi")
+  nameEn       String?    @map("name_en")
+  description  String?
+  period       String
+  weight       Decimal?   @db.Decimal(5, 2)
+  parentGoalId String?    @map("parent_goal_id") @db.Uuid
+  status       GoalStatus @default(draft)
+  healthScore  Decimal?   @map("health_score") @db.Decimal(5, 2)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  objective  Objective? @relation(fields: [objectiveId], references: [id])
+  parentGoal Goal?      @relation("GoalTree", fields: [parentGoalId], references: [id])
+  childGoals Goal[]     @relation("GoalTree")
+
+  @@index([tenantId, ownerId, period])
+  @@map("goal")
+}
+
+// ===== Phase 1 — KPI & Scorecard (TDD §6.4) =====
+
+model KpiCategory {
+  id       String  @id @db.Uuid
+  tenantId String  @map("tenant_id") @db.Uuid
+  parentId String? @map("parent_id") @db.Uuid
+  type     String // skill_hard|skill_soft|problem_solving|attitude|result
+  nameVi   String  @map("name_vi")
+  nameEn   String? @map("name_en")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  parent   KpiCategory?  @relation("KpiCategoryTree", fields: [parentId], references: [id])
+  children KpiCategory[] @relation("KpiCategoryTree")
+  kpis     Kpi[]
+
+  @@map("kpi_category")
+}
+
+model KpiFormula {
+  id         String  @id @db.Uuid
+  tenantId   String  @map("tenant_id") @db.Uuid
+  expression String // parser whitelist: min,max,round,clamp,if · biến: actual,target,base
+  params     Json    @default("{}")
+  version    Int     @default(1)
+  note       String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  kpis Kpi[]
+
+  @@map("kpi_formula")
+}
+
+model Kpi {
+  id               String  @id @db.Uuid
+  tenantId         String  @map("tenant_id") @db.Uuid
+  categoryId       String? @map("category_id") @db.Uuid
+  code             String
+  nameVi           String  @map("name_vi")
+  nameEn           String? @map("name_en")
+  definition       String?
+  method           String // manual | system
+  direction        String // forward | reverse
+  formulaId        String? @map("formula_id") @db.Uuid
+  dataSource       String? @map("data_source")
+  unit             String?
+  frequency        String // weekly|monthly|quarterly|yearly
+  evidenceRequired Boolean @default(true) @map("evidence_required")
+  riskLevel        String? @map("risk_level")
+  kpiVersion       Int     @default(1) @map("kpi_version")
+  status           String  @default("draft") // draft|pending_approval|active|deprecated
+  approvalOwnerId  String? @map("approval_owner_id") @db.Uuid
+  taskCellRef      String? @map("task_cell_ref")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  category       KpiCategory?       @relation(fields: [categoryId], references: [id])
+  formula        KpiFormula?        @relation(fields: [formulaId], references: [id])
+  scoreTiers     KpiScoreTier[]
+  applicability  KpiApplicability[]
+  scorecardItems ScorecardItem[]
+
+  @@unique([tenantId, code, kpiVersion])
+  @@map("kpi")
+}
+
+model KpiScoreTier {
+  id              String  @id @db.Uuid
+  tenantId        String  @map("tenant_id") @db.Uuid
+  kpiId           String? @map("kpi_id") @db.Uuid
+  scorecardItemId String? @map("scorecard_item_id") @db.Uuid
+  minPct          Decimal @map("min_pct") @db.Decimal(5, 2)
+  score           Decimal @db.Decimal(6, 2)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  kpi Kpi? @relation(fields: [kpiId], references: [id])
+
+  @@index([tenantId, kpiId])
+  @@map("kpi_score_tier")
+}
+
+model KpiApplicability {
+  id                 String  @id @db.Uuid
+  tenantId           String  @map("tenant_id") @db.Uuid
+  kpiId              String  @map("kpi_id") @db.Uuid
+  positionId         String? @map("position_id") @db.Uuid
+  roleFamilyId       String? @map("role_family_id") @db.Uuid
+  minSeniorityMonths Int?    @map("min_seniority_months")
+  personStatus       String? @map("person_status")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  kpi Kpi @relation(fields: [kpiId], references: [id])
+
+  @@map("kpi_applicability")
+}
+
+model Scorecard {
+  id           String  @id @db.Uuid
+  tenantId     String  @map("tenant_id") @db.Uuid
+  nameVi       String  @map("name_vi")
+  nameEn       String? @map("name_en")
+  roleFamilyId String? @map("role_family_id") @db.Uuid
+  orgUnitId    String? @map("org_unit_id") @db.Uuid
+  period       String?
+  status       String  @default("draft")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  items ScorecardItem[]
+
+  @@map("scorecard")
+}
+
+model ScorecardItem {
+  id          String   @id @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  scorecardId String   @map("scorecard_id") @db.Uuid
+  kpiId       String   @map("kpi_id") @db.Uuid
+  groupLabel  String?  @map("group_label")
+  weight      Decimal? @db.Decimal(5, 2)
+  groupWeight Decimal? @map("group_weight") @db.Decimal(5, 2)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  scorecard Scorecard @relation(fields: [scorecardId], references: [id])
+  kpi       Kpi       @relation(fields: [kpiId], references: [id])
+
+  @@index([tenantId, scorecardId])
+  @@map("scorecard_item")
+}
