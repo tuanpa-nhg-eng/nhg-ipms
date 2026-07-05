@@ -483,6 +483,46 @@ model Scorecard {
   @@map("scorecard")
 }
 
+// ===== Phase 1 — Task Evidence Hub (TDD §6.5) =====
+
+enum EvidenceStatus {
+  pending
+  verified
+  rejected
+  duplicated
+
+  @@map("evidence_status")
+}
+
+model Evidence {
+  id              String         @id @db.Uuid
+  tenantId        String         @map("tenant_id") @db.Uuid
+  type            String // task|milestone|document|approval|ticket|sla|feedback|metric|ai_log
+  ownerId         String?        @map("owner_id") @db.Uuid
+  relatedGoalId   String?        @map("related_goal_id") @db.Uuid
+  relatedKpiId    String?        @map("related_kpi_id") @db.Uuid
+  taskCellRef     String?        @map("task_cell_ref")
+  sourceSystem    String         @map("source_system") // notion|sis|crm|hris|manual|csv...
+  externalId      String?        @map("external_id")
+  uri             String?
+  payload         Json?
+  occurredAt      DateTime?      @map("occurred_at") @db.Timestamptz(6)
+  status          EvidenceStatus @default(pending)
+  reviewerId      String?        @map("reviewer_id") @db.Uuid
+  confidentiality String         @default("internal") // public|internal|restricted|secret
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, sourceSystem, externalId])
+  @@index([tenantId, relatedKpiId])
+  @@index([tenantId, ownerId, occurredAt])
+  @@map("evidence")
+}
+
 model ScorecardItem {
   id          String   @id @db.Uuid
   tenantId    String   @map("tenant_id") @db.Uuid

@@ -23,16 +23,20 @@ const PERMISSIONS = [
   // Phase 1 — Strategy & Goal
   'strategy:read', 'strategy:write',
   'goal:read', 'goal:write',
+  // Phase 1 — Evidence & Integration
+  'evidence:read', 'evidence:write', 'evidence:verify',
+  'integration:run',
 ];
 
 // Role toàn cục (tenant_id = null) + permission mặc định
 const GLOBAL_ROLES: Record<string, string[]> = {
-  employee: ['tenant:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read', 'goal:write'],
-  manager: ['tenant:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read', 'goal:write'],
+  employee: ['tenant:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read', 'goal:write', 'evidence:read', 'evidence:write'],
+  manager: ['tenant:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read', 'goal:write', 'evidence:read', 'evidence:write', 'evidence:verify'],
   hrbp: [
     'tenant:read', 'org:read', 'org:write', 'person:read', 'person:write', 'user:read',
     'kpi:read', 'kpi:write', 'kpi:approve', 'scorecard:read', 'scorecard:write',
     'strategy:read', 'strategy:write', 'goal:read', 'goal:write',
+    'evidence:read', 'evidence:write', 'evidence:verify', 'integration:run',
   ],
   tenant_admin: PERMISSIONS.filter((p) => p !== 'audit:read'),
   auditor: ['tenant:read', 'audit:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read'],

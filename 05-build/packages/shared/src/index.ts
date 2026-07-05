@@ -14,6 +14,9 @@ export const PERMISSIONS = [
   // Phase 1 — Strategy & Goal
   'strategy:read', 'strategy:write',
   'goal:read', 'goal:write',
+  // Phase 1 — Evidence & Integration
+  'evidence:read', 'evidence:write', 'evidence:verify',
+  'integration:run',
 ] as const;
 export type PermissionCode = (typeof PERMISSIONS)[number];
 
