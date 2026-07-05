@@ -6,7 +6,8 @@
 ---
 
 ## RED-LINE chờ duyệt
-*(trống — chưa có hành động nào chạm red-line)*
+1. **[05/07/2026] Anthropic API key + budget cho ai-gateway** — lát 4 Phase 3 (MCP server, AI Config Copilot, eval harness) và 11 AI agent cần gọi Claude API = **chi tiền thật**. Chờ chủ dự án cấp key + trần budget/tháng (đề xuất: dev/staging cap $50/tháng, model Haiku/Sonnet). Trong lúc chờ: build khung ai-gateway với **mock LLM client** (không chặn).
+2. **[05/07/2026] Token Notion/Microsoft Graph (Planner)** — connector 2 chiều cần integration token thật + đẩy dữ liệu ra hệ ngoài. Dev sẽ dùng mock connector; chỉ nối thật khi chủ dự án cấp token sandbox/workspace test.
 
 ---
 
@@ -99,6 +100,8 @@
 - **④ Auto-Derivation Engine (trái tim):** rule match (function/role_family/level/grade, wildcard, priority cao thắng) ⇒ kéo theo KPI templates ⇒ validate Σweight=100 ⇒ **preview với reason explainable từng dòng** ⇒ apply ghi scorecard/item/KPI/cascade_link vào DRAFT (KPI sinh ra vẫn `draft` — approve HITL giữ nguyên) ⇒ **không đè manual_override** ⇒ không tự publish.
 - **Lineage:** `cascade_link` KPI ▸ Task Cell ghi tự động từ template mapping.
 
-**Chưa build (lát 3+ Phase 3):** Process Designer (⑤) · Integration Hub Notion/Planner/CSV (⑥) · MCP server + AI Config Copilot + eval harness (#3/#4/#10) · access_policy Cedar (#2 mới có sod_rule — Cedar engine gắn sau) · FE canvas react-flow.
+**Lát 3 XONG (commit `1cafd0c`, 111/111 PASS):**
+- **⑤ Process Designer:** process (version-scoped, chỉ sửa trên draft) → steps (5 loại, seq unique) → edges (validate, chặn self-loop) → **generate-cells**: step type=task sinh Task Cell đủ 7 nhóm thuộc tính từ step.config, mã `<PROCESS>-Snn`, idempotent — khép mạch *quy trình kéo–thả ⇒ Task Cell ⇒ Derivation Engine kéo theo KPI*.
+- **⑥ Integration Hub (lát CSV/ETL — fallback đã chốt):** data_contract validate per-row (lỗi vào failed[], không chặn batch) · integration_run stats success/partial/failed · outbox_event pending (dispatcher BullMQ lát sau) · connection không nhận token thô (authRef → Key Vault) · idempotent theo (source, external_id).
 
-**Kế tiếp:** chờ Reviewer Phase 3 verdict → fix → Process Designer + Integration Hub (CSV trước, Notion/Planner cần token thật — RED-LINE nếu đẩy data thật).
+**Chưa build (lát 4+):** Notion/MS Planner connector 2 chiều (**cần token thật — sẽ dừng ở RED-LINE nếu đẩy data thật ra ngoài; dev dùng mock trước**) · outbox dispatcher BullMQ · MCP server + AI Config Copilot + eval harness (#3/#4/#10 — cần dựng app ai-gateway + Claude API key: **chi phí API = RED-LINE chờ chủ dự án cấp key/budget**) · Cedar access_policy · FE canvas react-flow · morning-todos job.
