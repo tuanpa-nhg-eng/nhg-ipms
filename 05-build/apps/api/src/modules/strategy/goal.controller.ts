@@ -26,7 +26,7 @@ export class GoalController {
   @Get()
   @RequirePermission('goal:read')
   list(@CurrentUser() user: RequestUser, @Query('ownerId') ownerId?: string) {
-    return this.goals.list(user.tenantId, ownerId);
+    return this.goals.list(user, ownerId);
   }
 
   @Post()

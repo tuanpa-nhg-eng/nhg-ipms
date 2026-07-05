@@ -3,6 +3,8 @@ import {
 } from '@nestjs/common';
 import { uuidv7 } from '@ipms/db';
 import { PrismaService } from '../../prisma.service';
+import { assertScope, effectiveScope } from '../../common/auth/scope.util';
+import type { RequestUser } from '../../common/auth/decorators';
 
 export interface CreateEvidenceInput {
   type: string;
@@ -32,22 +34,47 @@ export interface BulkEvidenceRecord {
 export class EvidenceService {
   constructor(private prisma: PrismaService) {}
 
-  list(tenantId: string, filter?: { kpiId?: string; status?: string }) {
-    return this.prisma.withTenant(tenantId, (tx) =>
-      tx.evidence.findMany({
+  list(user: RequestUser, filter?: { kpiId?: string; status?: string }) {
+    return this.prisma.withTenant(user.tenantId, async (tx) => {
+      // [F32] lọc theo scope: self → evidence của mình; org_unit → của người trong đơn vị
+      const scope = effectiveScope(user);
+      let scopeWhere: Record<string, unknown> = {};
+      if (scope.mode === 'scoped') {
+        const or: Record<string, unknown>[] = [];
+        if (scope.selfPersonId) or.push({ ownerId: scope.selfPersonId });
+        if (scope.orgUnitIds.length > 0) {
+          const members = await tx.person.findMany({
+            where: { orgUnitId: { in: scope.orgUnitIds }, deletedAt: null },
+            select: { id: true },
+          });
+          or.push({ ownerId: { in: members.map((m) => m.id) } });
+        }
+        scopeWhere = or.length > 0 ? { OR: or } : { ownerId: '00000000-0000-0000-0000-000000000000' };
+      }
+      return tx.evidence.findMany({
         where: {
           deletedAt: null,
+          ...scopeWhere,
           ...(filter?.kpiId ? { relatedKpiId: filter.kpiId } : {}),
           ...(filter?.status ? { status: filter.status as any } : {}),
         },
         orderBy: { occurredAt: 'desc' },
         take: 200,
-      }),
-    );
+      });
+    });
   }
 
-  create(tenantId: string, actorId: string, personId: string | undefined, input: CreateEvidenceInput) {
+  create(user: RequestUser, input: CreateEvidenceInput) {
+    const tenantId = user.tenantId;
+    const actorId = user.claims.sub;
+    const personId = user.claims.person_id;
     return this.prisma.withTenant(tenantId, async (tx) => {
+      // [F32/F22] ownerId chỉ định phải trong scope + tồn tại; mặc định là chính mình
+      if (input.ownerId && input.ownerId !== personId) {
+        const ownerPerson = await tx.person.findFirst({ where: { id: input.ownerId, deletedAt: null } });
+        if (!ownerPerson) throw new UnprocessableEntityException('Owner person not found');
+        assertScope(user, { ownerPersonId: input.ownerId, orgUnitId: ownerPerson.orgUnitId }, 'evidence:create-for');
+      }
       if (input.relatedGoalId) {
         const g = await tx.goal.findFirst({ where: { id: input.relatedGoalId, deletedAt: null } });
         if (!g) throw new UnprocessableEntityException('Goal not found');

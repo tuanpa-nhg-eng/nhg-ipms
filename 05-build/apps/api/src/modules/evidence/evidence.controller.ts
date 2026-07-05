@@ -55,14 +55,14 @@ export class EvidenceController {
     @Query('kpiId') kpiId?: string,
     @Query('status') status?: string,
   ) {
-    return this.evidence.list(user.tenantId, { kpiId, status });
+    return this.evidence.list(user, { kpiId, status });
   }
 
   @Post()
   @RequirePermission('evidence:write')
   @Audited('evidence.create')
   create(@CurrentUser() user: RequestUser, @Body() dto: CreateEvidenceDto) {
-    return this.evidence.create(user.tenantId, user.claims.sub, user.claims.person_id, dto);
+    return this.evidence.create(user, dto);
   }
 
   /** Human-in-the-loop: verify/reject. */

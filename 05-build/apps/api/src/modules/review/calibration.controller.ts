@@ -1,5 +1,5 @@
 import { Body, Controller, Post } from '@nestjs/common';
-import { IsOptional, IsString, IsUUID, Length } from 'class-validator';
+import { IsInt, IsOptional, IsString, IsUUID, Length, Min } from 'class-validator';
 import { Audited, CurrentUser, RequirePermission, RequestUser } from '../../common/auth/decorators';
 import { CalibrationService } from './calibration.service';
 
@@ -13,6 +13,7 @@ class DecisionDto {
   @IsUUID() reviewId!: string;
   @IsString() @Length(1, 20) ratingAfter!: string;
   @IsString() @Length(10, 2000) rationale!: string; // BẮT BUỘC ≥10 ký tự — explainable
+  @IsInt() @Min(1) version!: number; // [F28] optimistic lock
 }
 
 @Controller()

@@ -28,7 +28,7 @@ const PERMISSIONS = [
   'integration:run',
   // Phase 2 — Check-in, Review, Calibration, Payroll
   'checkin:read', 'checkin:write', 'checkin:review',
-  'review:read', 'review:write', 'rating:approve',
+  'review:read', 'review:write', 'review:manage', 'rating:approve',
   'calibration:run',
   'payroll:export',
 ];
@@ -50,7 +50,7 @@ const GLOBAL_ROLES: Record<string, string[]> = {
     'kpi:read', 'kpi:write', 'kpi:approve', 'scorecard:read', 'scorecard:write',
     'strategy:read', 'strategy:write', 'goal:read', 'goal:write',
     'evidence:read', 'evidence:write', 'evidence:verify', 'integration:run',
-    'checkin:read', 'checkin:review', 'review:read', 'review:write',
+    'checkin:read', 'checkin:review', 'review:read', 'review:write', 'review:manage',
     'calibration:run', 'payroll:export',
   ],
   tenant_admin: PERMISSIONS.filter((p) => p !== 'audit:read'),

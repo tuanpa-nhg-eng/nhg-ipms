@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Req } from '@nestjs/common';
 import { Type } from 'class-transformer';
 import {
-  ArrayMaxSize, ArrayMinSize, IsArray, IsInt, IsNumber, IsOptional, IsString, IsUUID,
+  ArrayMaxSize, IsArray, IsInt, IsISO8601, IsNumber, IsOptional, IsString, IsUUID,
   Length, Min, ValidateNested,
 } from 'class-validator';
 import { Audited, CurrentUser, RequirePermission, RequestUser } from '../../common/auth/decorators';
@@ -10,6 +10,8 @@ import { ReviewService } from './review.service';
 class CreateCycleDto {
   @IsString() @Length(1, 255) name!: string;
   @IsString() @Length(4, 20) period!: string;
+  @IsISO8601() startDate!: string; // [F29] bắt buộc — khung kỳ evidence
+  @IsISO8601() endDate!: string;
 }
 
 class CreateReviewDto {
@@ -27,16 +29,15 @@ class ManagerDto {
   @IsOptional() @IsString() proposedRating?: string;
 }
 
-class ComputeInputDto {
+class ManualActualDto {
   @IsUUID() kpiId!: string;
-  @IsNumber() target!: number;
-  @IsOptional() @IsNumber() actual?: number;
-  @IsOptional() @IsNumber() base?: number;
+  @IsNumber() actual!: number;
 }
 
 class ComputeScoreDto {
-  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(100) @ValidateNested({ each: true }) @Type(() => ComputeInputDto)
-  inputs!: ComputeInputDto[];
+  // [F26] client CHỈ gửi actual cho KPI manual — target/base server-side
+  @IsArray() @ArrayMaxSize(100) @ValidateNested({ each: true }) @Type(() => ManualActualDto)
+  manualActuals!: ManualActualDto[];
 }
 
 class FinalizeDto {
@@ -50,7 +51,7 @@ export class ReviewController {
   constructor(private reviews: ReviewService) {}
 
   @Post('review-cycles')
-  @RequirePermission('review:write')
+  @RequirePermission('review:manage') // [F31] quản trị cycle — hrbp/tenant_admin
   @Audited('review_cycle.create')
   createCycle(@CurrentUser() user: RequestUser, @Body() dto: CreateCycleDto) {
     return this.reviews.createCycle(user, dto);
@@ -63,7 +64,7 @@ export class ReviewController {
   }
 
   @Post('reviews')
-  @RequirePermission('review:write')
+  @RequirePermission('review:manage') // [F31] tạo review là việc quản trị — không phải employee
   @Audited('review.create')
   createReview(@CurrentUser() user: RequestUser, @Body() dto: CreateReviewDto) {
     return this.reviews.createReview(user, dto);

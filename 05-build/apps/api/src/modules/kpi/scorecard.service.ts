@@ -18,6 +18,8 @@ export interface CreateScorecardInput {
     weight?: number;
     groupLabel?: string;
     groupWeight?: number;
+    target?: number; // [F26] target server-side cho review compute
+    base?: number;
   }>;
 }
 
@@ -58,6 +60,7 @@ export class ScorecardService {
           data: {
             id: uuidv7(), tenantId, scorecardId: sc.id, kpiId: it.kpiId,
             weight: it.weight, groupLabel: it.groupLabel, groupWeight: it.groupWeight,
+            target: it.target, base: it.base,
           },
         });
       }

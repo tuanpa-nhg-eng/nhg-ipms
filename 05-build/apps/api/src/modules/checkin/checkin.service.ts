@@ -4,8 +4,23 @@ import {
 import { uuidv7 } from '@ipms/db';
 import { PrismaService } from '../../prisma.service';
 import { GoalService } from '../strategy/goal.service';
-import { assertScope } from '../../common/auth/scope.util';
+import { assertScope, effectiveScope } from '../../common/auth/scope.util';
 import type { RequestUser } from '../../common/auth/decorators';
+
+/** [F37] periodKey đúng format theo cadence. */
+function validatePeriodKey(cadence: string, periodKey: string): void {
+  const patterns: Record<string, RegExp> = {
+    weekly: /^\d{4}-W\d{2}$/,      // 2026-W26
+    monthly: /^\d{4}-\d{2}$/,      // 2026-07
+    quarterly: /^\d{4}-Q[1-4]$/,   // 2026-Q3
+    yearly: /^\d{4}$/,             // 2026
+  };
+  if (!patterns[cadence]?.test(periodKey)) {
+    throw new UnprocessableEntityException(
+      `periodKey '${periodKey}' sai format cho cadence '${cadence}' (vd: monthly=YYYY-MM, weekly=YYYY-Wnn)`,
+    );
+  }
+}
 
 export interface SubmitCheckinInput {
   cadence: string;   // weekly|monthly|quarterly|yearly
@@ -20,14 +35,29 @@ export class CheckinService {
   constructor(private prisma: PrismaService, private goals: GoalService) {}
 
   list(user: RequestUser, personId?: string) {
-    return this.prisma.withTenant(user.tenantId, (tx) =>
-      tx.checkin.findMany({
-        where: { deletedAt: null, ...(personId ? { personId } : {}) },
+    return this.prisma.withTenant(user.tenantId, async (tx) => {
+      // [F32] lọc theo scope: self → chỉ của mình; org_unit → người trong đơn vị phụ trách
+      const scope = effectiveScope(user);
+      let scopeWhere: Record<string, unknown> = {};
+      if (scope.mode === 'scoped') {
+        const or: Record<string, unknown>[] = [];
+        if (scope.selfPersonId) or.push({ personId: scope.selfPersonId });
+        if (scope.orgUnitIds.length > 0) {
+          const members = await tx.person.findMany({
+            where: { orgUnitId: { in: scope.orgUnitIds }, deletedAt: null },
+            select: { id: true },
+          });
+          or.push({ personId: { in: members.map((m) => m.id) } });
+        }
+        scopeWhere = or.length > 0 ? { OR: or } : { personId: '00000000-0000-0000-0000-000000000000' };
+      }
+      return tx.checkin.findMany({
+        where: { deletedAt: null, ...scopeWhere, ...(personId ? { personId } : {}) },
         include: { goalUpdates: { where: { deletedAt: null } } },
         orderBy: { periodKey: 'desc' },
         take: 100,
-      }),
-    );
+      });
+    });
   }
 
   /**
@@ -39,13 +69,18 @@ export class CheckinService {
     const personId = user.claims.person_id;
     if (!personId) throw new UnprocessableEntityException('Token không gắn person');
 
-    const checkin = await this.prisma.withTenant(user.tenantId, async (tx) => {
+    // [F37] validate periodKey theo cadence
+    validatePeriodKey(input.cadence, input.periodKey);
+
+    // [F34] TOÀN BỘ trong MỘT transaction: checkin + goal updates + health roll-up
+    // — không còn partial state (fail bất kỳ đâu → rollback tất cả).
+    return this.prisma.withTenant(user.tenantId, async (tx) => {
       const dup = await tx.checkin.findFirst({
         where: { personId, cadence: input.cadence, periodKey: input.periodKey, deletedAt: null },
       });
       if (dup) throw new ConflictException(`Đã có check-in ${input.cadence}/${input.periodKey}`);
+      // (double-submit song song: unique index bắn P2002 → filter map 409 — F36)
 
-      // goal phải tồn tại và là goal CỦA MÌNH (self) — kiểm trước khi ghi
       for (const gu of input.goalUpdates) {
         const goal = await tx.goal.findFirst({ where: { id: gu.goalId, deletedAt: null } });
         if (!goal) throw new UnprocessableEntityException(`Goal ${gu.goalId} not found`);
@@ -68,18 +103,10 @@ export class CheckinService {
             goalId: gu.goalId, progressPct: gu.progressPct, note: gu.note,
           },
         });
+        await this.goals.updateProgressInTx(tx, user, gu.goalId, gu.progressPct);
       }
-      return ck;
+      return tx.checkin.findFirst({ where: { id: ck.id }, include: { goalUpdates: true } });
     });
-
-    // Tiến độ chảy vào goal health (transaction riêng có advisory lock — F17)
-    for (const gu of input.goalUpdates) {
-      await this.goals.updateProgress(user, gu.goalId, gu.progressPct);
-    }
-
-    return this.prisma.withTenant(user.tenantId, (tx) =>
-      tx.checkin.findFirst({ where: { id: checkin.id }, include: { goalUpdates: true } }),
-    );
   }
 
   /** Manager nhận xét check-in (human-in-the-loop) — scope org_unit/tenant. */

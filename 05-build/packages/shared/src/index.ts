@@ -19,7 +19,7 @@ export const PERMISSIONS = [
   'integration:run',
   // Phase 2 — Check-in, Review, Calibration, Payroll
   'checkin:read', 'checkin:write', 'checkin:review',
-  'review:read', 'review:write', 'rating:approve',
+  'review:read', 'review:write', 'review:manage', 'rating:approve',
   'calibration:run',
   'payroll:export',
 ] as const;

@@ -205,7 +205,7 @@ model UserRole {
   tenantId  String  @map("tenant_id") @db.Uuid
   appUserId String  @map("app_user_id") @db.Uuid
   roleId    String  @map("role_id") @db.Uuid
-  scopeType String? @map("scope_type") // tenant|org_unit|self
+  scopeType String  @default("self") @map("scope_type") // tenant|org_unit|self — [F33] NOT NULL, default hẹp nhất (fail-closed)
   scopeId   String? @map("scope_id") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -571,6 +571,7 @@ model Review {
   developmentNeeds  String?      @map("development_needs")
   proposedRating    String?      @map("proposed_rating")
   finalRating       String?      @map("final_rating")
+  finalRationale    String?      @map("final_rationale") // [F38] explainable — lý do duyệt lưu trên review
   finalScore        Decimal?     @map("final_score") @db.Decimal(6, 2)
   ipcGrade          String?      @map("ipc_grade")
   status            ReviewStatus @default(draft)
@@ -597,6 +598,7 @@ model ReviewItemScore {
   scorecardItemId String   @map("scorecard_item_id") @db.Uuid
   raterId         String?  @map("rater_id") @db.Uuid
   actualValue     Decimal? @map("actual_value") @db.Decimal(14, 4)
+  targetValue     Decimal? @map("target_value") @db.Decimal(14, 4) // [F26/F38] snapshot target — recompute được achievedPct
   achievedPct     Decimal? @map("achieved_pct") @db.Decimal(6, 2)
   rawScore        Decimal? @map("raw_score") @db.Decimal(6, 2)
   weightedScore   Decimal? @map("weighted_score") @db.Decimal(6, 2)
@@ -700,6 +702,8 @@ model ScorecardItem {
   groupLabel  String?  @map("group_label")
   weight      Decimal? @db.Decimal(5, 2)
   groupWeight Decimal? @map("group_weight") @db.Decimal(5, 2)
+  target      Decimal? @db.Decimal(14, 4) // [F26] target SERVER-SIDE — compute không nhận từ client
+  base        Decimal? @db.Decimal(14, 4)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   version   Int      @default(1)

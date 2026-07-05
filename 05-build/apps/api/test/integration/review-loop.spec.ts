@@ -43,6 +43,10 @@ describe('Phase 2 — Review loop E2E', () => {
     emp = await ctxFor('H.01', 'emp1@');
     t2admin = await ctxFor('T2.TEST', 'admin@');
 
+    // dọn checkin cũ của EMP1 để test rerun được (owner — chỉ trong test)
+    await owner.checkinGoalUpdate.deleteMany({ where: { tenantId: admin.id } }).catch(() => {});
+    await owner.checkin.deleteMany({ where: { tenantId: admin.id, personId: emp.personId } }).catch(() => {});
+
     const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = mod.createNestApplication();
     app.setGlobalPrefix('api/v1');
@@ -86,19 +90,26 @@ describe('Phase 2 — Review loop E2E', () => {
   });
 
   // ========== CHECK-IN ==========
-  it('check-in monthly: nộp → goal health cập nhật; nộp lặp → 409', async () => {
+  it('check-in monthly: nộp → goal health cập nhật; nộp lặp → 409; periodKey sai → 422', async () => {
+    // [F37] format sai → 422
+    const bad = await api().post('/api/v1/checkins').set(as(emp)).send({
+      cadence: 'monthly', periodKey: '2026-7',
+      goalUpdates: [{ goalId: empGoal, progressPct: 75 }],
+    });
+    expect(bad.status).toBe(422);
+
     const res = await api().post('/api/v1/checkins').set(as(emp)).send({
-      cadence: 'monthly', periodKey: `2026-${uniq % 100}`,
+      cadence: 'monthly', periodKey: '2026-07',
       progressNote: 'Tháng ổn', goalUpdates: [{ goalId: empGoal, progressPct: 75 }],
     });
     expect(res.status).toBe(201);
     expect(res.body.status).toBe('submitted');
 
     const goal = await owner.goal.findFirst({ where: { id: empGoal } });
-    expect(Number(goal!.healthScore)).toBe(75);
+    expect(Number(goal!.healthScore)).toBe(75); // [F34] cùng transaction — đã cập nhật
 
     const dup = await api().post('/api/v1/checkins').set(as(emp)).send({
-      cadence: 'monthly', periodKey: `2026-${uniq % 100}`,
+      cadence: 'monthly', periodKey: '2026-07',
       goalUpdates: [{ goalId: empGoal, progressPct: 80 }],
     });
     expect(dup.status).toBe(409);
@@ -135,20 +146,49 @@ describe('Phase 2 — Review loop E2E', () => {
     });
     kpiSystem = s.body.id;
 
+    // [F26] target SERVER-SIDE trên scorecard item
     const sc = await api().post('/api/v1/scorecards').set(as(admin)).send({
       nameVi: `SC Review ${uniq}`,
-      items: [{ kpiId: kpiManual, weight: 50 }, { kpiId: kpiSystem, weight: 50 }],
+      items: [
+        { kpiId: kpiManual, weight: 50, target: 100 },
+        { kpiId: kpiSystem, weight: 50, target: 100 },
+      ],
     });
     scorecardId = sc.body.id;
 
+    // [F29] cycle bắt buộc có khung kỳ
+    const noDates = await api().post('/api/v1/review-cycles').set(as(admin))
+      .send({ name: `Cycle ${uniq}`, period: '2026-H2' });
+    expect(noDates.status).toBe(400); // thiếu startDate/endDate
+
     const cy = await api().post('/api/v1/review-cycles').set(as(admin))
-      .send({ name: `Cycle ${uniq}`, period: '2026-H1' });
+      .send({ name: `Cycle ${uniq}`, period: '2026-H2', startDate: '2026-01-01', endDate: '2026-12-31' });
+    expect(cy.status).toBe(201);
     cycleId = cy.body.id;
+
+    // [F31] employee KHÔNG tạo được cycle/review (review:manage)
+    expect((await api().post('/api/v1/review-cycles').set(as(emp))
+      .send({ name: 'x', period: '2026', startDate: '2026-01-01', endDate: '2026-12-31' })).status).toBe(403);
+    expect((await api().post('/api/v1/reviews').set(as(emp))
+      .send({ cycleId, revieweeId: emp.personId, scorecardId })).status).toBe(403);
 
     const rv = await api().post('/api/v1/reviews').set(as(admin))
       .send({ cycleId, revieweeId: emp.personId, scorecardId });
     expect(rv.status).toBe(201);
     reviewId = rv.body.id;
+  });
+
+  it('[F27] employee đọc review NGƯỜI KHÁC → 403; đọc review CỦA MÌNH → 200', async () => {
+    // tạo review cho admin person để thử đọc chéo
+    const rvAdmin = await api().post('/api/v1/reviews').set(as(admin))
+      .send({ cycleId, revieweeId: admin.personId, scorecardId });
+    expect(rvAdmin.status).toBe(201);
+
+    const denied = await api().get(`/api/v1/reviews/${rvAdmin.body.id}`).set(as(emp));
+    expect(denied.status).toBe(403);
+
+    const own = await api().get(`/api/v1/reviews/${reviewId}`).set(as(emp));
+    expect(own.status).toBe(200);
   });
 
   it('self: chỉ reviewee; admin tự self review của EMP1 → 409', async () => {
@@ -169,13 +209,35 @@ describe('Phase 2 — Review loop E2E', () => {
     expect(ok.body.status).toBe('manager_done');
   });
 
-  it('compute-score: system KPI CHƯA có evidence verified → 422', async () => {
+  it('[F26] reviewee KHÔNG tự compute-score (409); client không gửi được target', async () => {
+    const res = await api().post(`/api/v1/reviews/${reviewId}/compute-score`).set(as(emp))
+      .send({ manualActuals: [{ kpiId: kpiManual, actual: 9999 }] });
+    expect(res.status).toBe(409); // SoD — reviewee tự chấm bị chặn
+  });
+
+  it('compute-score: system KPI CHƯA có evidence verified trong kỳ → 422', async () => {
     const res = await api().post(`/api/v1/reviews/${reviewId}/compute-score`).set(as(admin))
-      .send({ inputs: [
-        { kpiId: kpiManual, target: 100, actual: 95 },
-        { kpiId: kpiSystem, target: 100 },
-      ]});
+      .send({ manualActuals: [{ kpiId: kpiManual, actual: 95 }] });
     expect(res.status).toBe(422);
+  });
+
+  it('[F29] evidence NGOÀI KỲ không được tính', async () => {
+    // evidence occurredAt 2025 (ngoài cycle 2026) — verified nhưng phải bị bỏ qua
+    await api().post('/api/v1/evidence/bulk').set(as(admin)).send({
+      sourceSystem: `rv-old-${uniq}`,
+      records: [{
+        externalId: 'OLD-1', type: 'metric', payload: { value: 100 },
+        occurredAt: '2025-06-01T00:00:00Z',
+        relatedKpiCode: `RV-SYSTEM-${uniq}`, ownerEmployeeCode: 'H.01-EMP1',
+      }],
+    });
+    const evs = await api().get(`/api/v1/evidence?kpiId=${kpiSystem}`).set(as(admin));
+    const old = evs.body.find((e: any) => e.externalId === 'OLD-1');
+    await api().post(`/api/v1/evidence/${old.id}/verify`).set(as(admin)).send({ decision: 'verified' });
+
+    const res = await api().post(`/api/v1/reviews/${reviewId}/compute-score`).set(as(admin))
+      .send({ manualActuals: [{ kpiId: kpiManual, actual: 95 }] });
+    expect(res.status).toBe(422); // vẫn thiếu evidence TRONG kỳ
   });
 
   it('nạp evidence metric (bulk) + verify → compute-score OK, LƯU snapshot', async () => {
@@ -183,18 +245,17 @@ describe('Phase 2 — Review loop E2E', () => {
       sourceSystem: `rv-${uniq}`,
       records: [{
         externalId: 'M-1', type: 'metric', payload: { value: 85 },
+        occurredAt: '2026-06-15T00:00:00Z', // TRONG kỳ 2026
         relatedKpiCode: `RV-SYSTEM-${uniq}`, ownerEmployeeCode: 'H.01-EMP1',
       }],
     });
     const evs = await api().get(`/api/v1/evidence?kpiId=${kpiSystem}`).set(as(admin));
-    await api().post(`/api/v1/evidence/${evs.body[0].id}/verify`).set(as(admin))
+    const m1 = evs.body.find((e: any) => e.externalId === 'M-1');
+    await api().post(`/api/v1/evidence/${m1.id}/verify`).set(as(admin))
       .send({ decision: 'verified' });
 
     const res = await api().post(`/api/v1/reviews/${reviewId}/compute-score`).set(as(admin))
-      .send({ inputs: [
-        { kpiId: kpiManual, target: 100, actual: 95 },
-        { kpiId: kpiSystem, target: 100 },
-      ]});
+      .send({ manualActuals: [{ kpiId: kpiManual, actual: 95 }] });
     expect(res.status).toBe(201);
     // manual 95%→tier22→88 ×50% = 44 · system 85%→tier19→76 ×50% = 38 → 82 → A
     expect(Number(res.body.review.finalScore)).toBe(82);
@@ -204,18 +265,26 @@ describe('Phase 2 — Review loop E2E', () => {
       where: { reviewId, deletedAt: null },
     });
     expect(scores).toHaveLength(2);
-    expect(scores.find((s) => s.source === 'system')).toBeDefined();
-    expect(Number(scores.find((s) => s.source === 'system')!.actualValue)).toBe(85);
+    const sys = scores.find((s) => s.source === 'system')!;
+    expect(Number(sys.actualValue)).toBe(85);
+    expect(Number(sys.targetValue)).toBe(100); // [F38] snapshot target đã lưu
   });
 
-  it('calibration: rationale bắt buộc; decide → calibrated + audit cùng transaction', async () => {
+  it('calibration: rationale bắt buộc + version (F28); decide → calibrated + audit cùng transaction', async () => {
     const ss = await api().post('/api/v1/calibration-sessions').set(as(admin)).send({ cycleId });
+    const rv = await api().get(`/api/v1/reviews/${reviewId}`).set(as(admin));
+
     const short = await api().post('/api/v1/calibration-decisions').set(as(admin))
-      .send({ sessionId: ss.body.id, reviewId, ratingAfter: 'A', rationale: 'ngắn' });
+      .send({ sessionId: ss.body.id, reviewId, ratingAfter: 'A', rationale: 'ngắn', version: rv.body.version });
     expect(short.status).toBe(400); // rationale < 10 ký tự
 
+    // [F28] version lệch → 409
+    const stale = await api().post('/api/v1/calibration-decisions').set(as(admin))
+      .send({ sessionId: ss.body.id, reviewId, ratingAfter: 'A', rationale: 'Evidence vượt trội so với mặt bằng', version: 999 });
+    expect(stale.status).toBe(409);
+
     const ok = await api().post('/api/v1/calibration-decisions').set(as(admin))
-      .send({ sessionId: ss.body.id, reviewId, ratingAfter: 'A', rationale: 'Evidence vượt trội so với mặt bằng phòng Tuyển sinh' });
+      .send({ sessionId: ss.body.id, reviewId, ratingAfter: 'A', rationale: 'Evidence vượt trội so với mặt bằng phòng Tuyển sinh', version: rv.body.version });
     expect(ok.status).toBe(201);
     expect(ok.body.ratingBefore).toBe('B');
 
@@ -263,8 +332,17 @@ describe('Phase 2 — Review loop E2E', () => {
 
     // final → khoá compute
     const locked = await api().post(`/api/v1/reviews/${reviewId}/compute-score`).set(as(admin))
-      .send({ inputs: [{ kpiId: kpiManual, target: 100, actual: 100 }, { kpiId: kpiSystem, target: 100 }] });
+      .send({ manualActuals: [{ kpiId: kpiManual, actual: 100 }] });
     expect(locked.status).toBe(409);
+
+    // [F38] rationale đã persist trên review
+    const final = await owner.review.findFirst({ where: { id: reviewId } });
+    expect(final!.finalRationale).toBe('Calibration thống nhất nâng A');
+
+    // [F28] finalize lặp lại (đã final) → 409
+    const again = await api().post(`/api/v1/reviews/${reviewId}/finalize`).set(as(admin))
+      .send({ finalRating: 'A+', rationale: 'thử ghi đè sau final', version: final!.version });
+    expect(again.status).toBe(409);
   });
 
   it('export OneOffice: chỉ review FINAL, đúng reward_ratio', async () => {

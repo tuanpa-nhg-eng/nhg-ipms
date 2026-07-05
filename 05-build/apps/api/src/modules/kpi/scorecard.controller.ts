@@ -11,6 +11,8 @@ class ScorecardItemDto {
   @IsOptional() @IsNumber() @Min(0) weight?: number;
   @IsOptional() @IsString() groupLabel?: string;
   @IsOptional() @IsNumber() @Min(0) groupWeight?: number;
+  @IsOptional() @IsNumber() target?: number; // [F26] target server-side
+  @IsOptional() @IsNumber() base?: number;
 }
 
 class CreateScorecardDto {

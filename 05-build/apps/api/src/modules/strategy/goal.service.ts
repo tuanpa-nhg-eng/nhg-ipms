@@ -3,7 +3,7 @@ import {
 } from '@nestjs/common';
 import { uuidv7, TenantTx } from '@ipms/db';
 import { PrismaService } from '../../prisma.service';
-import { assertScope } from '../../common/auth/scope.util';
+import { assertScope, effectiveScope } from '../../common/auth/scope.util';
 import type { RequestUser } from '../../common/auth/decorators';
 
 export interface CreateGoalInput {
@@ -26,13 +26,22 @@ const HEALTH_AT_RISK = 40;
 export class GoalService {
   constructor(private prisma: PrismaService) {}
 
-  list(tenantId: string, ownerId?: string) {
-    return this.prisma.withTenant(tenantId, (tx) =>
-      tx.goal.findMany({
-        where: { deletedAt: null, ...(ownerId ? { ownerId } : {}) },
+  list(user: RequestUser, ownerId?: string) {
+    return this.prisma.withTenant(user.tenantId, async (tx) => {
+      // [F32] lọc theo scope
+      const scope = effectiveScope(user);
+      let scopeWhere: Record<string, unknown> = {};
+      if (scope.mode === 'scoped') {
+        const or: Record<string, unknown>[] = [];
+        if (scope.selfPersonId) or.push({ ownerId: scope.selfPersonId });
+        if (scope.orgUnitIds.length > 0) or.push({ orgUnitId: { in: scope.orgUnitIds } });
+        scopeWhere = or.length > 0 ? { OR: or } : { ownerId: '00000000-0000-0000-0000-000000000000' };
+      }
+      return tx.goal.findMany({
+        where: { deletedAt: null, ...scopeWhere, ...(ownerId ? { ownerId } : {}) },
         orderBy: { createdAt: 'asc' },
-      }),
-    );
+      });
+    });
   }
 
   create(user: RequestUser, input: CreateGoalInput) {
@@ -71,46 +80,54 @@ export class GoalService {
    * theo ngưỡng (explainable: health + status luôn suy ra được từ tiến độ con).
    */
   updateProgress(user: RequestUser, goalId: string, progressPct: number) {
+    return this.prisma.withTenant(user.tenantId, (tx) =>
+      this.updateProgressInTx(tx, user, goalId, progressPct),
+    );
+  }
+
+  /**
+   * [F34] Bản chạy TRONG transaction có sẵn — check-in gọi để checkin + goal update
+   * atomic cùng nhau (không còn partial state).
+   */
+  async updateProgressInTx(tx: TenantTx, user: RequestUser, goalId: string, progressPct: number) {
     const tenantId = user.tenantId;
     const actorId = user.claims.sub;
-    return this.prisma.withTenant(tenantId, async (tx) => {
-      // [F17] advisory lock theo tenant goal-tree — serialize các roll-up song song,
-      // tránh lost update khi 2 goal lá anh em cập nhật cùng lúc (READ COMMITTED).
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${tenantId + ':goal-rollup'}))`;
+    // [F17] advisory lock theo tenant goal-tree — serialize các roll-up song song,
+    // tránh lost update khi 2 goal lá anh em cập nhật cùng lúc (READ COMMITTED).
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${tenantId + ':goal-rollup'}))`;
 
-      const goal = await tx.goal.findFirst({ where: { id: goalId, deletedAt: null } });
-      if (!goal) throw new NotFoundException('Goal not found');
-      // [F6] scope: employee (self) chỉ cập nhật goal của mình
-      assertScope(user, { ownerPersonId: goal.ownerId, orgUnitId: goal.orgUnitId }, 'goal:progress');
+    const goal = await tx.goal.findFirst({ where: { id: goalId, deletedAt: null } });
+    if (!goal) throw new NotFoundException('Goal not found');
+    // [F6] scope: employee (self) chỉ cập nhật goal của mình
+    assertScope(user, { ownerPersonId: goal.ownerId, orgUnitId: goal.orgUnitId }, 'goal:progress');
 
-      const children = await tx.goal.count({ where: { parentGoalId: goalId, deletedAt: null } });
-      if (children > 0) {
-        throw new UnprocessableEntityException('Goal cha nhận health từ roll-up — chỉ cập nhật tiến độ ở goal lá');
+    const children = await tx.goal.count({ where: { parentGoalId: goalId, deletedAt: null } });
+    if (children > 0) {
+      throw new UnprocessableEntityException('Goal cha nhận health từ roll-up — chỉ cập nhật tiến độ ở goal lá');
+    }
+
+    await this.applyHealth(tx, goalId, progressPct, actorId);
+
+    // roll-up tổ tiên (chặn vòng lặp: tối đa 20 tầng)
+    let current = goal.parentGoalId;
+    let hop = 0;
+    while (current && hop < 20) {
+      const siblings = await tx.goal.findMany({
+        where: { parentGoalId: current, deletedAt: null },
+        select: { healthScore: true, weight: true },
+      });
+      const scored = siblings.filter((s) => s.healthScore != null);
+      if (scored.length > 0) {
+        const totalW = scored.reduce((a, s) => a + Number(s.weight ?? 1), 0);
+        const avg = scored.reduce((a, s) => a + Number(s.healthScore) * Number(s.weight ?? 1), 0) / totalW;
+        await this.applyHealth(tx, current, Math.round(avg * 100) / 100, actorId);
       }
+      const parent = await tx.goal.findFirst({ where: { id: current }, select: { parentGoalId: true } });
+      current = parent?.parentGoalId ?? null;
+      hop++;
+    }
 
-      await this.applyHealth(tx, goalId, progressPct, actorId);
-
-      // roll-up tổ tiên (chặn vòng lặp: tối đa 20 tầng)
-      let current = goal.parentGoalId;
-      let hop = 0;
-      while (current && hop < 20) {
-        const siblings = await tx.goal.findMany({
-          where: { parentGoalId: current, deletedAt: null },
-          select: { healthScore: true, weight: true },
-        });
-        const scored = siblings.filter((s) => s.healthScore != null);
-        if (scored.length > 0) {
-          const totalW = scored.reduce((a, s) => a + Number(s.weight ?? 1), 0);
-          const avg = scored.reduce((a, s) => a + Number(s.healthScore) * Number(s.weight ?? 1), 0) / totalW;
-          await this.applyHealth(tx, current, Math.round(avg * 100) / 100, actorId);
-        }
-        const parent = await tx.goal.findFirst({ where: { id: current }, select: { parentGoalId: true } });
-        current = parent?.parentGoalId ?? null;
-        hop++;
-      }
-
-      return tx.goal.findFirst({ where: { id: goalId } });
-    });
+    return tx.goal.findFirst({ where: { id: goalId } });
   }
 
   private async applyHealth(tx: TenantTx, goalId: string, health: number, actorId: string) {
