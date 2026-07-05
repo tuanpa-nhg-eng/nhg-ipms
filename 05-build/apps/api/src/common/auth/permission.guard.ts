@@ -26,24 +26,32 @@ export class PermissionGuard implements CanActivate {
     const tenantId: string = req.ipmsTenantId;
     const userId: string = req.ipmsClaims.sub;
 
-    const permissions = await this.prisma.withTenant(tenantId, async (tx) => {
+    const { permissions, scopes } = await this.prisma.withTenant(tenantId, async (tx) => {
       // [F4] lọc cả role đã soft-delete — thu hồi role phải có hiệu lực ngay
       const roles = await tx.userRole.findMany({
         where: { appUserId: userId, deletedAt: null, role: { deletedAt: null } },
-        select: { roleId: true },
+        select: { roleId: true, scopeType: true, scopeId: true },
       });
-      if (roles.length === 0) return new Set<string>();
+      if (roles.length === 0) return { permissions: new Set<string>(), scopes: [] as any[] };
       const rp = await tx.rolePermission.findMany({
         where: { roleId: { in: roles.map((r) => r.roleId) } },
-        select: { permission: { select: { code: true } } },
+        select: { roleId: true, permission: { select: { code: true } } },
       });
-      return new Set(rp.map((x) => x.permission.code));
+      const permissions = new Set(rp.map((x) => x.permission.code));
+      // [F6] scope của các role CẤP permission được yêu cầu
+      const grantingRoleIds = new Set(
+        rp.filter((x) => x.permission.code === required).map((x) => x.roleId),
+      );
+      const scopes = roles
+        .filter((r) => grantingRoleIds.has(r.roleId))
+        .map((r) => ({ scopeType: (r.scopeType as any) ?? null, scopeId: r.scopeId ?? null }));
+      return { permissions, scopes };
     });
 
     if (!permissions.has(required)) {
       throw new ForbiddenException(`Missing permission: ${required}`);
     }
-    const user: RequestUser = { claims: req.ipmsClaims, tenantId, permissions };
+    const user: RequestUser = { claims: req.ipmsClaims, tenantId, permissions, scopes };
     req.ipmsUser = user;
     return true;
   }

@@ -17,6 +17,11 @@ export const PERMISSIONS = [
   // Phase 1 — Evidence & Integration
   'evidence:read', 'evidence:write', 'evidence:verify',
   'integration:run',
+  // Phase 2 — Check-in, Review, Calibration, Payroll
+  'checkin:read', 'checkin:write', 'checkin:review',
+  'review:read', 'review:write', 'rating:approve',
+  'calibration:run',
+  'payroll:export',
 ] as const;
 export type PermissionCode = (typeof PERMISSIONS)[number];
 

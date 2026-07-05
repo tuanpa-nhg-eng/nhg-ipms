@@ -33,7 +33,7 @@ export class GoalController {
   @RequirePermission('goal:write')
   @Audited('goal.create')
   create(@CurrentUser() user: RequestUser, @Body() dto: CreateGoalDto) {
-    return this.goals.create(user.tenantId, user.claims.sub, dto);
+    return this.goals.create(user, dto);
   }
 
   /** Cập nhật tiến độ goal lá → health roll-up chuỗi cha (cùng transaction). */
@@ -45,6 +45,6 @@ export class GoalController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateProgressDto,
   ) {
-    return this.goals.updateProgress(user.tenantId, user.claims.sub, id, dto.progressPct);
+    return this.goals.updateProgress(user, id, dto.progressPct);
   }
 }

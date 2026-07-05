@@ -3,6 +3,8 @@ import {
 } from '@nestjs/common';
 import { uuidv7, TenantTx } from '@ipms/db';
 import { PrismaService } from '../../prisma.service';
+import { assertScope } from '../../common/auth/scope.util';
+import type { RequestUser } from '../../common/auth/decorators';
 
 export interface CreateGoalInput {
   nameVi: string;
@@ -33,10 +35,14 @@ export class GoalService {
     );
   }
 
-  create(tenantId: string, actorId: string, input: CreateGoalInput) {
+  create(user: RequestUser, input: CreateGoalInput) {
+    const tenantId = user.tenantId;
+    const actorId = user.claims.sub;
     return this.prisma.withTenant(tenantId, async (tx) => {
       const owner = await tx.person.findFirst({ where: { id: input.ownerId, deletedAt: null } });
       if (!owner) throw new UnprocessableEntityException('Owner person not found');
+      // [F6] scope: self chỉ tạo goal cho chính mình; org_unit tạo cho người trong đơn vị phụ trách
+      assertScope(user, { ownerPersonId: input.ownerId, orgUnitId: owner.orgUnitId }, 'goal:create');
       if (input.objectiveId) {
         const obj = await tx.objective.findFirst({ where: { id: input.objectiveId, deletedAt: null } });
         if (!obj) throw new UnprocessableEntityException('Objective not found');
@@ -64,7 +70,9 @@ export class GoalService {
    * trọng số lên chuỗi goal cha (cùng transaction — nhất quán). Status tự chuyển
    * theo ngưỡng (explainable: health + status luôn suy ra được từ tiến độ con).
    */
-  updateProgress(tenantId: string, actorId: string, goalId: string, progressPct: number) {
+  updateProgress(user: RequestUser, goalId: string, progressPct: number) {
+    const tenantId = user.tenantId;
+    const actorId = user.claims.sub;
     return this.prisma.withTenant(tenantId, async (tx) => {
       // [F17] advisory lock theo tenant goal-tree — serialize các roll-up song song,
       // tránh lost update khi 2 goal lá anh em cập nhật cùng lúc (READ COMMITTED).
@@ -72,6 +80,8 @@ export class GoalService {
 
       const goal = await tx.goal.findFirst({ where: { id: goalId, deletedAt: null } });
       if (!goal) throw new NotFoundException('Goal not found');
+      // [F6] scope: employee (self) chỉ cập nhật goal của mình
+      assertScope(user, { ownerPersonId: goal.ownerId, orgUnitId: goal.orgUnitId }, 'goal:progress');
 
       const children = await tx.goal.count({ where: { parentGoalId: goalId, deletedAt: null } });
       if (children > 0) {

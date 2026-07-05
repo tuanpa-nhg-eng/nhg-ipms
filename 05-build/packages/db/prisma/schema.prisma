@@ -483,6 +483,175 @@ model Scorecard {
   @@map("scorecard")
 }
 
+// ===== Phase 2 — Check-in (TDD §6.6) =====
+
+model Checkin {
+  id             String  @id @db.Uuid
+  tenantId       String  @map("tenant_id") @db.Uuid
+  personId       String  @map("person_id") @db.Uuid
+  cadence        String // weekly|monthly|quarterly|yearly
+  periodKey      String  @map("period_key") // '2026-W26','2026-07'
+  progressNote   String? @map("progress_note")
+  blocker        String?
+  managerComment String? @map("manager_comment")
+  status         String  @default("open") // open|submitted|reviewed
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  goalUpdates CheckinGoalUpdate[]
+
+  @@unique([tenantId, personId, cadence, periodKey])
+  @@map("checkin")
+}
+
+model CheckinGoalUpdate {
+  id          String  @id @db.Uuid
+  tenantId    String  @map("tenant_id") @db.Uuid
+  checkinId   String  @map("checkin_id") @db.Uuid
+  goalId      String  @map("goal_id") @db.Uuid
+  progressPct Decimal @map("progress_pct") @db.Decimal(5, 2)
+  note        String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  checkin Checkin @relation(fields: [checkinId], references: [id])
+
+  @@map("checkin_goal_update")
+}
+
+// ===== Phase 2 — Review & Rating (TDD §6.7) =====
+
+enum ReviewStatus {
+  draft
+  self_done
+  manager_done
+  calibrated
+  final
+  appealed
+
+  @@map("review_status")
+}
+
+model ReviewCycle {
+  id        String  @id @db.Uuid
+  tenantId  String  @map("tenant_id") @db.Uuid
+  name      String
+  period    String
+  startDate DateTime? @map("start_date") @db.Date
+  endDate   DateTime? @map("end_date") @db.Date
+  status    String  @default("planned") // planned|open|closed
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  reviews Review[]
+
+  @@map("review_cycle")
+}
+
+model Review {
+  id                String       @id @db.Uuid
+  tenantId          String       @map("tenant_id") @db.Uuid
+  cycleId           String       @map("cycle_id") @db.Uuid
+  revieweeId        String       @map("reviewee_id") @db.Uuid
+  scorecardId       String?      @map("scorecard_id") @db.Uuid
+  selfReflection    String?      @map("self_reflection")
+  managerAssessment String?      @map("manager_assessment")
+  strengths         String?
+  gaps              String?
+  developmentNeeds  String?      @map("development_needs")
+  proposedRating    String?      @map("proposed_rating")
+  finalRating       String?      @map("final_rating")
+  finalScore        Decimal?     @map("final_score") @db.Decimal(6, 2)
+  ipcGrade          String?      @map("ipc_grade")
+  status            ReviewStatus @default(draft)
+  approvedBy        String?      @map("approved_by") @db.Uuid
+  approvedAt        DateTime?    @map("approved_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  cycle      ReviewCycle       @relation(fields: [cycleId], references: [id])
+  itemScores ReviewItemScore[]
+
+  @@unique([tenantId, cycleId, revieweeId])
+  @@map("review")
+}
+
+model ReviewItemScore {
+  id              String   @id @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  reviewId        String   @map("review_id") @db.Uuid
+  scorecardItemId String   @map("scorecard_item_id") @db.Uuid
+  raterId         String?  @map("rater_id") @db.Uuid
+  actualValue     Decimal? @map("actual_value") @db.Decimal(14, 4)
+  achievedPct     Decimal? @map("achieved_pct") @db.Decimal(6, 2)
+  rawScore        Decimal? @map("raw_score") @db.Decimal(6, 2)
+  weightedScore   Decimal? @map("weighted_score") @db.Decimal(6, 2)
+  source          String? // system|manual
+  formulaVersion  Int?     @map("formula_version") // snapshot — recompute đúng version (explainable)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  review Review @relation(fields: [reviewId], references: [id])
+
+  @@map("review_item_score")
+}
+
+// ===== Phase 2 — Calibration (TDD §6.8) =====
+
+model CalibrationSession {
+  id          String    @id @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  cycleId     String?   @map("cycle_id") @db.Uuid
+  orgUnitId   String?   @map("org_unit_id") @db.Uuid
+  scheduledAt DateTime? @map("scheduled_at") @db.Timestamptz(6)
+  status      String    @default("planned") // planned|running|done
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  decisions CalibrationDecision[]
+
+  @@map("calibration_session")
+}
+
+model CalibrationDecision {
+  id           String  @id @db.Uuid
+  tenantId     String  @map("tenant_id") @db.Uuid
+  sessionId    String  @map("session_id") @db.Uuid
+  reviewId     String  @map("review_id") @db.Uuid
+  ratingBefore String? @map("rating_before")
+  ratingAfter  String? @map("rating_after")
+  rationale    String // BẮT BUỘC — explainable
+  decidedBy    String? @map("decided_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  session CalibrationSession @relation(fields: [sessionId], references: [id])
+
+  @@map("calibration_decision")
+}
+
 // ===== Phase 1 — Task Evidence Hub (TDD §6.5) =====
 
 enum EvidenceStatus {
