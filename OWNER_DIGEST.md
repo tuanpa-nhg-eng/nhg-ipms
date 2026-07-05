@@ -70,4 +70,17 @@
 
 **Ticket còn mở (chuyển Phase 2):** F6 **ScopeGuard org_unit/self — BẮT BUỘC đóng đầu Phase 2** (employee hiện sửa được goal người khác trong cùng tenant) · F5 audit cùng transaction trước khi có data rating thật · F9 partial unique index sau soft-delete · F19 mixed-mode weight goal · F22 SoD verify evidence của chính mình · F24 cycle-check khi có endpoint đổi parent.
 
-**Phase 2 kế tiếp — Vòng review:** Check-in (monthly) + dashboard goal-at-risk → Review cycle (self/manager) + `POST /reviews/:id/compute-score` (LƯU snapshot formula version) + finalize human → Calibration + AI draft (ai-gateway) → export OneOffice (file template).
+---
+
+## Phase 2 — Vòng review · **05/07/2026 · BUILD XONG, đang chờ Reviewer verdict vòng 2**
+
+**Đã build (commit `5244166` + hardening `5dd56ac`), 91/91 test PASS:**
+- **F6 ĐÓNG:** scope enforcement self/org_unit/tenant fail-closed toàn hệ (goal, checkin, review, evidence) — employee hết đọc/sửa dữ liệu người khác.
+- **Check-in monthly:** unique (person, cadence, period), periodKey validate theo cadence, goal updates + health roll-up **cùng một transaction**; manager review HITL.
+- **Review cycle trọn vòng:** cycle (bắt buộc khung kỳ) → review → self (chỉ reviewee) → manager (SoD tuyệt đối) → **compute-score** (target SERVER-SIDE từ scorecard, KPI system lấy evidence VERIFIED **trong kỳ**, persist snapshot formulaVersion + targetValue) → calibration (rationale ≥10 ký tự, optimistic lock) → **finalize HITL** (rating:approve + conditional update chống race + governance evidence check + audit CÙNG transaction).
+- **Export OneOffice:** chỉ review FINAL, reward_map theo tenant.settings.
+- **Reviewer Agent vòng 1: FAIL** (3 BLOCKER: reviewee tự bơm điểm F26, lộ rating toàn tenant F27, race lật final F28) → **đã sửa đủ F26–F34, F36–F38, F40 + 8 test mới** → nộp lại vòng 2 (đang chạy).
+
+**Ticket hoãn (đã báo Reviewer):** test nhánh org_unit scope + subtree matching (phase kế) · F39 export khi cycle open (minor) · F19/F22/F24 từ Phase 1.
+
+**Kế tiếp sau verdict:** AI layer (ai-gateway + review_drafting/bias agent — Module AI đầu tiên) hoặc Phase 3 Configuration Studio, tuỳ verdict và thứ tự §5 master prompt.

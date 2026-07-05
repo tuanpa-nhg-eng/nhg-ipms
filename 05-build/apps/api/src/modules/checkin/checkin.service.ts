@@ -114,6 +114,9 @@ export class CheckinService {
     return this.prisma.withTenant(user.tenantId, async (tx) => {
       const ck = await tx.checkin.findFirst({ where: { id: checkinId, deletedAt: null } });
       if (!ck) throw new NotFoundException('Check-in not found');
+      if (ck.personId === user.claims.person_id) {
+        throw new ConflictException('Không tự review check-in của chính mình (SoD)'); // [F41]
+      }
       if (ck.status !== 'submitted') throw new ConflictException(`Check-in ở trạng thái ${ck.status}`);
       const person = await tx.person.findFirst({ where: { id: ck.personId } });
       assertScope(user, { ownerPersonId: ck.personId, orgUnitId: person?.orgUnitId }, 'checkin:review');
