@@ -43,3 +43,17 @@
 **Việc tiếp theo (Phase 1 — lõi PMS):** KPI Dictionary + kpi_formula (parser whitelist min/max/round/clamp/if) + Scorecard + **Scoring Engine** với bộ test bắt buộc (bậc thang, direction reverse, chia đều group weight, Σ=100±0.01, recompute đúng formula version) → objective/goal cascade + health → Evidence Hub + connector CSV/Notion. Kèm trả nợ F5/F6/F9.
 
 **Cách chạy dev:** `cd 05-build && pnpm install && pnpm db:up && pnpm db:migrate && pnpm db:seed && pnpm api:dev` (env theo `.env.example`).
+
+---
+
+## Phase 1 — Lát cắt 1: KPI schema + Scoring Engine · **05/07/2026 · XONG**
+
+**Đã build (commit `feat(phase-1)`):**
+- **Schema §6.3–6.4** (10 bảng): strategic_theme · objective (OKR/KGI, parent tree) · goal (cascade cha–con, health_score) · kpi_category cha–con · kpi_formula (versioned) · kpi (method manual/system, direction forward/reverse, task_cell_ref, versioned) · kpi_score_tier (bậc thang) · kpi_applicability (điều kiện áp dụng) · scorecard + scorecard_item (weight/group_weight). RLS + grants đồng nhất Phase 0.
+- **Scoring Engine (logic lõi TDD §7)** — pure functions, không phụ thuộc DB:
+  - Formula parser tự viết (recursive descent) — whitelist hàm `min/max/round/clamp/if`, biến `actual/target/base`, chặn mọi ký tự/hàm/biến lạ, chặn chia 0 → **không có đường injection/eval**.
+  - `applyFormula` (direction reverse = target/actual đúng biên bản 24/06) · `tierLookup` bậc thang (100→25, 90→22…) · `resolveWeights` (item weight | group_weight chia đều, **Σ=100±0.01 chặn cứng**) · `computeScore` → final_score 1–100 → `mapIpc` (bảng cấu hình).
+  - Snapshot `formula.version` chảy qua kết quả — recompute lịch sử dùng đúng version (test chứng minh v1≠v2).
+- **Test: 45/45 PASS toàn repo** (28 test scoring mới + 9 guards + 8 integration RLS).
+
+**Việc tiếp theo (lát 2–4):** API KPI Dictionary/Scorecard CRUD + `POST /reviews/:id/compute-score` → objective/goal cascade + health → Evidence Hub + connector CSV. Kèm trả nợ F5/F6/F9. Reviewer Agent sẽ review trọn Phase 1 khi đủ lát cắt.

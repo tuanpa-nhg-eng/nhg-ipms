@@ -1,5 +1,6 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
 import { randomUUID } from 'crypto';
+import { Prisma } from '@ipms/db';
 import type { ApiError } from '@ipms/shared';
 
 /** Error model chuẩn TDD §8.2. */
@@ -12,6 +13,22 @@ export class ApiErrorFilter implements ExceptionFilter {
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let code = 'INTERNAL_ERROR';
     let message = 'Internal server error';
+
+    // [F11] Prisma known errors → HTTP đúng ngữ nghĩa (không lộ chi tiết nội bộ)
+    if (exception instanceof Prisma.PrismaClientKnownRequestError) {
+      if (exception.code === 'P2002') {
+        const payload: ApiError = {
+          error: { code: 'CONFLICT', message: 'Duplicate value violates unique constraint', trace_id: traceId },
+        };
+        return res.status(HttpStatus.CONFLICT).json(payload);
+      }
+      if (exception.code === 'P2025') {
+        const payload: ApiError = {
+          error: { code: 'NOT_FOUND', message: 'Record not found', trace_id: traceId },
+        };
+        return res.status(HttpStatus.NOT_FOUND).json(payload);
+      }
+    }
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();

@@ -1,7 +1,7 @@
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Observable } from 'rxjs';
-import { tap } from 'rxjs/operators';
+import { mergeMap } from 'rxjs/operators';
 import { PrismaService } from '../../prisma.service';
 import { AUDIT_KEY } from '../auth/decorators';
 
@@ -9,6 +9,9 @@ import { AUDIT_KEY } from '../auth/decorators';
  * AuditInterceptor — TDD §12: mutation có @Audited('entity.action') tự sinh audit_log.
  * `before` do handler gắn vào req.ipmsAuditBefore (nếu là update); `after` = response body.
  * Ghi TRONG tenant context (RLS) — audit_log cũng cô lập theo tenant, append-only.
+ * [F5-partial] AWAIT ghi audit trước khi trả response — không còn fire-and-forget
+ * (giảm rủi ro mất audit; bước kế: ghi cùng transaction nghiệp vụ trước khi có data thật).
+ * Ghi audit lỗi → vẫn trả response nhưng log ERROR (mutation đã commit, không thể rollback ở đây).
  */
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
@@ -20,14 +23,12 @@ export class AuditInterceptor implements NestInterceptor {
 
     const req = ctx.switchToHttp().getRequest();
     return next.handle().pipe(
-      tap((result: any) => {
+      mergeMap(async (result: any) => {
         const tenantId: string | undefined = req.ipmsTenantId;
-        if (!tenantId) return;
-        const entityId: string | undefined =
-          result?.id ?? req.params?.id ?? undefined;
-        // fire-and-forget có log lỗi — không chặn response
-        this.prisma
-          .withTenant(tenantId, (tx) =>
+        if (!tenantId) return result;
+        const entityId: string | undefined = result?.id ?? req.params?.id ?? undefined;
+        try {
+          await this.prisma.withTenant(tenantId, (tx) =>
             tx.auditLog.create({
               data: {
                 tenantId,
@@ -40,8 +41,11 @@ export class AuditInterceptor implements NestInterceptor {
                 ip: req.ip,
               },
             }),
-          )
-          .catch((e) => console.error(`[audit] FAILED ${action}:`, e.message));
+          );
+        } catch (e: any) {
+          console.error(`[audit] FAILED ${action}:`, e.message);
+        }
+        return result;
       }),
     );
   }

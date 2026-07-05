@@ -32,8 +32,12 @@ export async function withTenant<T>(
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenantId)) {
     throw new Error(`Invalid tenant id: ${tenantId}`);
   }
-  return prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true)`;
-    return fn(tx);
-  });
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true)`;
+      return fn(tx);
+    },
+    // maxWait nới cho môi trường dev chậm; timeout chặn transaction treo giữ connection
+    { maxWait: 10_000, timeout: 20_000 },
+  );
 }
