@@ -68,14 +68,18 @@ export class OrgFunctionController {
     return this.prisma.withTenant(user.tenantId, async (tx) => {
       const unit = await tx.orgUnit.findFirst({ where: { id: orgUnitId, deletedAt: null } });
       if (!unit) throw new UnprocessableEntityException('Org unit not found');
+      // [F52] dedup functionId → 422 thay vì PK violation 500
+      const ids = dto.functions.map((f) => f.functionId);
+      if (new Set(ids).size !== ids.length) {
+        throw new UnprocessableEntityException('functionId trùng lặp trong payload');
+      }
       for (const f of dto.functions) {
         const fn = await tx.orgFunction.findFirst({ where: { id: f.functionId, deletedAt: null } });
         if (!fn) throw new UnprocessableEntityException(`Function ${f.functionId} not found`);
       }
-      // thay toàn bộ mapping (bảng nhỏ, không soft-delete — PK composite)
-      await tx.orgUnitFunction.deleteMany({ where: { orgUnitId } }).catch(() => {
-        throw new UnprocessableEntityException('Không thể cập nhật mapping');
-      });
+      // thay toàn bộ mapping (bảng nhỏ, không soft-delete — PK composite);
+      // atomic trong interactive tx — lỗi giữa chừng rollback toàn bộ ([F52] bỏ catch nuốt lỗi)
+      await tx.orgUnitFunction.deleteMany({ where: { orgUnitId } });
       for (const f of dto.functions) {
         await tx.orgUnitFunction.create({
           data: { tenantId: user.tenantId, orgUnitId, functionId: f.functionId, weight: f.weight },

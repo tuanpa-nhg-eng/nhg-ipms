@@ -100,14 +100,17 @@ export class DerivationService {
         throw new UnprocessableEntityException('Chưa có derivation rule nào trong version này');
       }
 
-      // vị trí gộp theo (org_unit, role_family) — mỗi cặp = 1 scorecard đề xuất
+      // [F49] gộp theo (org_unit, role_family, grade) — không nuốt position khác grade;
+      // giữ TOÀN BỘ positions trong nhóm để cascade_link đủ lineage
       const positions = await tx.position.findMany({
         where: { deletedAt: null, roleFamilyId: { not: null } },
         include: { orgUnit: true, roleFamily: true },
       });
-      const groups = new Map<string, (typeof positions)[number]>();
+      const groups = new Map<string, { rep: (typeof positions)[number]; positionIds: string[] }>();
       for (const p of positions) {
-        groups.set(`${p.orgUnitId}::${p.roleFamilyId}`, p);
+        const key = `${p.orgUnitId}::${p.roleFamilyId}::${p.grade ?? p.orgUnit.grade ?? ''}`;
+        if (!groups.has(key)) groups.set(key, { rep: p, positionIds: [] });
+        groups.get(key)!.positionIds.push(p.id);
       }
 
       const unitFunctions = await tx.orgUnitFunction.findMany({ include: { function: true } });
@@ -122,7 +125,8 @@ export class DerivationService {
 
       const results: Array<{ targetType: string; action: string; payload: any; reason: string }> = [];
 
-      for (const p of groups.values()) {
+      for (const g of groups.values()) {
+        const p = g.rep;
         const ctx = {
           functions: fnByUnit.get(p.orgUnitId) ?? [],
           roleFamily: p.roleFamily!.code,
@@ -186,17 +190,16 @@ export class DerivationService {
         const weightOk = valid && Math.abs(sum - 100) <= 0.01;
 
         const scName = `SC ${p.orgUnit.code} · ${p.roleFamily!.code}`;
+        // [F45a] check tồn tại theo (orgUnit, roleFamily) — kể cả scorecard tạo tay
+        // không version-scoped (Phase 1) cũng được tôn trọng, không nhân đôi
         const existing = await tx.scorecard.findFirst({
-          where: {
-            orgUnitId: p.orgUnitId, roleFamilyId: p.roleFamilyId,
-            deletedAt: null,
-            items: { some: { configVersionId: input.configVersionId } },
-          },
+          where: { orgUnitId: p.orgUnitId, roleFamilyId: p.roleFamilyId, deletedAt: null },
           include: { items: { where: { deletedAt: null } } },
         });
 
         const scorecardPayload = {
           name: scName, org_unit_id: p.orgUnitId, role_family_id: p.roleFamilyId,
+          position_ids: g.positionIds, // [F49] đủ lineage mọi position trong nhóm
           items, weight_sum: sum, weight_valid: weightOk,
         };
 
@@ -214,17 +217,18 @@ export class DerivationService {
             reason: `Chưa có scorecard cho (${p.orgUnit.code}, ${p.roleFamily!.code}); ${items.length} KPI kéo theo từ functions [${ctx.functions.join(',')}] + role_family '${ctx.roleFamily}'`,
           });
         } else {
+          // [F46] item-sync chưa hỗ trợ → action 'keep' tường minh (không hứa 'update' rồi bỏ qua)
           const overridden = existing.items.filter((i) => i.manualOverride);
           results.push({
-            targetType: 'scorecard', action: overridden.length > 0 ? 'keep' : 'update',
+            targetType: 'scorecard', action: 'keep',
             payload: { ...scorecardPayload, existing_id: existing.id, manual_override_items: overridden.length },
             reason: overridden.length > 0
               ? `Scorecard đã có ${overridden.length} item manual_override — engine KHÔNG đè (giữ chủ đích người dùng)`
-              : `Scorecard tồn tại — đồng bộ theo rules mới nhất`,
+              : `Scorecard tồn tại — item-sync tự động chưa hỗ trợ (lát sau); giữ nguyên`,
           });
         }
 
-        // cascade_link lineage cho từng KPI
+        // cascade_link lineage cho từng KPI — đủ MỌI position trong nhóm (F49)
         for (const it of items) {
           const tpl = templateByCode.get(it.kpi_template_code)!;
           for (const ref of tpl.taskCellRefs) {
@@ -232,7 +236,7 @@ export class DerivationService {
               targetType: 'cascade_link', action: 'add',
               payload: {
                 kpi_template_code: it.kpi_template_code, task_cell_ref: ref,
-                org_unit_id: p.orgUnitId, position_id: p.id,
+                org_unit_id: p.orgUnitId, position_ids: g.positionIds,
               },
               reason: `Lineage KPI '${it.kpi_template_code}' ▸ Task Cell '${ref}' (template mapping)`,
             });
@@ -306,8 +310,19 @@ export class DerivationService {
       }
 
       let appliedCount = 0;
+      const appliedResultIds: string[] = []; // [F46] chỉ mark applied cho result THỰC SỰ ghi
+      const skipped: Array<{ resultId: string; reason: string }> = [];
+
       for (const r of run.results.filter((x) => x.targetType === 'scorecard' && x.action === 'add')) {
         const p = r.payload as any;
+        // [F45b] re-check tại APPLY — 2 run preview song song không nhân đôi scorecard
+        const dup = await tx.scorecard.findFirst({
+          where: { orgUnitId: p.org_unit_id, roleFamilyId: p.role_family_id, deletedAt: null },
+        });
+        if (dup) {
+          skipped.push({ resultId: r.id, reason: `Scorecard (${p.name}) đã tồn tại lúc apply — bỏ qua (run khác đã ghi?)` });
+          continue;
+        }
         const sc = await tx.scorecard.create({
           data: {
             id: uuidv7(), tenantId: user.tenantId,
@@ -315,8 +330,10 @@ export class DerivationService {
             status: 'draft', createdBy: user.claims.sub, updatedBy: user.claims.sub,
           },
         });
+        const reusedKpis: string[] = [];
         for (const it of p.items) {
-          const kpi = await this.ensureKpiFromTemplate(tx, user, it.kpi_template_code);
+          const { kpi, reused } = await this.ensureKpiFromTemplate(tx, user, it.kpi_template_code);
+          if (reused) reusedKpis.push(kpi.code); // [F50] explainable
           await tx.scorecardItem.create({
             data: {
               id: uuidv7(), tenantId: user.tenantId, scorecardId: sc.id, kpiId: kpi.id,
@@ -325,27 +342,52 @@ export class DerivationService {
             },
           });
         }
-        await this.config.recordChange(tx, user, run.configVersionId, 'scorecard', sc.id, 'create', null, p);
+        await this.config.recordChange(tx, user, run.configVersionId, 'scorecard', sc.id, 'create', null, {
+          ...p,
+          reused_kpis: reusedKpis.length > 0 ? reusedKpis : undefined, // [F50] KPI dùng lại — tier/formula template không áp
+        });
+        appliedResultIds.push(r.id);
         appliedCount++;
       }
 
       for (const r of run.results.filter((x) => x.targetType === 'cascade_link' && x.action === 'add')) {
         const p = r.payload as any;
         const kpi = await tx.kpi.findFirst({ where: { code: p.kpi_template_code, deletedAt: null } });
-        await tx.cascadeLink.create({
-          data: {
-            id: uuidv7(), tenantId: user.tenantId, configVersionId: run.configVersionId,
-            kpiId: kpi?.id, taskCellRef: p.task_cell_ref,
-            orgUnitId: p.org_unit_id, positionId: p.position_id,
-          },
-        });
-        appliedCount++;
+        const positionIds: (string | null)[] = Array.isArray(p.position_ids) && p.position_ids.length > 0
+          ? p.position_ids
+          : [p.position_id ?? null];
+        let wrote = false;
+        for (const posId of positionIds) {
+          // [F45c] dedup — không nhân bản lineage qua nhiều run
+          const dup = await tx.cascadeLink.findFirst({
+            where: {
+              kpiId: kpi?.id ?? null, taskCellRef: p.task_cell_ref,
+              orgUnitId: p.org_unit_id, positionId: posId,
+              configVersionId: run.configVersionId, deletedAt: null,
+            },
+          });
+          if (dup) continue;
+          await tx.cascadeLink.create({
+            data: {
+              id: uuidv7(), tenantId: user.tenantId, configVersionId: run.configVersionId,
+              kpiId: kpi?.id, taskCellRef: p.task_cell_ref,
+              orgUnitId: p.org_unit_id, positionId: posId,
+            },
+          });
+          wrote = true;
+          appliedCount++;
+        }
+        if (wrote) appliedResultIds.push(r.id);
+        else skipped.push({ resultId: r.id, reason: 'Lineage đã tồn tại — bỏ qua' });
       }
 
-      await tx.derivationResult.updateMany({
-        where: { runId, action: { in: ['add', 'update'] } },
-        data: { applied: true },
-      });
+      // [F46] chỉ result thực sự ghi mới applied=true; keep/task_cell/error giữ nguyên false
+      if (appliedResultIds.length > 0) {
+        await tx.derivationResult.updateMany({
+          where: { id: { in: appliedResultIds } },
+          data: { applied: true },
+        });
+      }
       const count = await tx.derivationRun.updateMany({
         where: { id: runId, status: 'preview' },
         data: { status: 'applied' },
@@ -356,17 +398,20 @@ export class DerivationService {
         data: {
           tenantId: user.tenantId, actorUserId: user.claims.sub,
           action: 'derivation.apply', entityType: 'derivation_run', entityId: runId,
-          after: { applied: appliedCount, config_version_id: run.configVersionId } as any,
+          after: { applied: appliedCount, skipped: skipped.length, config_version_id: run.configVersionId } as any,
         },
       });
-      return { runId, applied: appliedCount };
+      return { runId, applied: appliedCount, skipped };
     });
   }
 
-  /** Tạo kpi thật từ template nếu chưa có (status draft — vẫn cần approve HITL). */
-  private async ensureKpiFromTemplate(tx: TenantTx, user: RequestUser, code: string) {
+  /** Tạo kpi thật từ template nếu chưa có (status draft — vẫn cần approve HITL).
+   *  [F50] reused=true → KPI có sẵn được dùng lại, tier/formula của template KHÔNG áp. */
+  private async ensureKpiFromTemplate(
+    tx: TenantTx, user: RequestUser, code: string,
+  ): Promise<{ kpi: { id: string; code: string }; reused: boolean }> {
     const existing = await tx.kpi.findFirst({ where: { code, deletedAt: null } });
-    if (existing) return existing;
+    if (existing) return { kpi: existing, reused: true };
     const tpl = await tx.kpiTemplate.findFirst({ where: { code, deletedAt: null } });
     if (!tpl) throw new UnprocessableEntityException(`Template '${code}' biến mất giữa preview và apply`);
 
@@ -397,6 +442,6 @@ export class DerivationService {
         }
       }
     }
-    return kpi;
+    return { kpi, reused: false };
   }
 }

@@ -5,6 +5,13 @@ import { uuidv7, TenantTx } from '@ipms/db';
 import { PrismaService } from '../../prisma.service';
 import type { RequestUser } from '../../common/auth/decorators';
 
+/** Marker nội bộ: vi phạm SoD phát hiện trong transaction — audit incident ghi ở catch. */
+class SodViolationError extends Error {
+  constructor(public severity: string) {
+    super('sod_violation');
+  }
+}
+
 /**
  * Config-as-Data (#1) — GitOps cho cấu hình tenant:
  * draft (sửa tự do, mọi thao tác ghi config_change) → preview/diff → publish (SoD,
@@ -58,11 +65,35 @@ export class ConfigService {
    * Conditional update chống race (chuẩn F28). Audit CÙNG transaction.
    */
   async publish(user: RequestUser, id: string, expectedVersion: number, ip?: string) {
-    // SoD runtime check TRƯỚC transaction chính — audit incident phải SỐNG SÓT
-    // (ghi trong tx rồi throw sẽ bị rollback mất audit)
-    const sodViolation = await this.prisma.withTenant(user.tenantId, async (tx) => {
+    // [F48] SoD check TRONG transaction chính (fail-closed — không có race window giữa
+    // check và publish); vi phạm → throw marker, audit incident ghi ở tx RIÊNG sau catch
+    // (sống sót rollback).
+    try {
+      return await this.doPublish(user, id, expectedVersion, ip);
+    } catch (e) {
+      if (e instanceof SodViolationError) {
+        await this.prisma.withTenant(user.tenantId, (tx) =>
+          tx.auditLog.create({
+            data: {
+              tenantId: user.tenantId, actorUserId: user.claims.sub,
+              action: 'sod.violation_blocked', entityType: 'config_version', entityId: id,
+              after: { rule: 'config:write ⟂ config:publish', severity: e.severity } as any,
+              ip,
+            },
+          }),
+        );
+        throw new ConflictException('SoD: người giữ config:write không được publish (tách vai Designer/Approver)');
+      }
+      throw e;
+    }
+  }
+
+  private doPublish(user: RequestUser, id: string, expectedVersion: number, ip?: string) {
+    return this.prisma.withTenant(user.tenantId, async (tx) => {
       const cv = await tx.configVersion.findFirst({ where: { id, deletedAt: null } });
       if (!cv) throw new NotFoundException('Config version not found');
+
+      // [F48] SoD check trong CÙNG tx với conditional update — không còn race window
       const sod = await tx.sodRule.findFirst({
         where: {
           deletedAt: null,
@@ -72,27 +103,9 @@ export class ConfigService {
           ],
         },
       });
-      return sod && user.permissions.has('config:write') && user.permissions.has('config:publish')
-        ? { severity: sod.severity }
-        : null;
-    });
-    if (sodViolation) {
-      await this.prisma.withTenant(user.tenantId, (tx) =>
-        tx.auditLog.create({
-          data: {
-            tenantId: user.tenantId, actorUserId: user.claims.sub,
-            action: 'sod.violation_blocked', entityType: 'config_version', entityId: id,
-            after: { rule: 'config:write ⟂ config:publish', severity: sodViolation.severity } as any,
-            ip,
-          },
-        }),
-      );
-      throw new ConflictException('SoD: người giữ config:write không được publish (tách vai Designer/Approver)');
-    }
-
-    return this.prisma.withTenant(user.tenantId, async (tx) => {
-      const cv = await tx.configVersion.findFirst({ where: { id, deletedAt: null } });
-      if (!cv) throw new NotFoundException('Config version not found');
+      if (sod && user.permissions.has('config:write') && user.permissions.has('config:publish')) {
+        throw new SodViolationError(sod.severity);
+      }
 
       // archive bản published hiện tại (nếu có)
       await tx.configVersion.updateMany({
@@ -168,6 +181,7 @@ export class ConfigService {
           },
         });
       }
+      // [F47] clone task_cell ĐỦ 7 nhóm thuộc tính (không rơi cột)
       const cells = await tx.taskCell.findMany({ where: { configVersionId: sourceId, deletedAt: null } });
       for (const c of cells) {
         await tx.taskCell.create({
@@ -176,14 +190,25 @@ export class ConfigService {
             code: c.code, groupCode: c.groupCode, clusterCode: c.clusterCode,
             nameVi: c.nameVi, nameEn: c.nameEn,
             responsibleRole: c.responsibleRole, accountableRole: c.accountableRole,
+            consulted: c.consulted as any, informed: c.informed as any,
+            inputs: c.inputs as any, outputs: c.outputs as any,
+            measures: c.measures as any,
+            aiLevel: c.aiLevel, aiDimension: c.aiDimension as any,
+            governance: c.governance as any, riskLevel: c.riskLevel,
+            lifecycle: c.lifecycle as any, processStepId: c.processStepId,
             attrs: c.attrs as any, kpiRef: c.kpiRef, createdBy: user.claims.sub,
           },
         });
       }
+      // [F47] scorecard_item/cascade_link version-scoped KHÔNG clone tự động —
+      // quyết định tường minh: version rollback cần chạy lại Derivation Engine.
+      const linkCount = await tx.cascadeLink.count({ where: { configVersionId: sourceId, deletedAt: null } });
       await this.recordChange(tx, user, draft.id, 'config_version', draft.id, 'create', null, {
         rollback_from: src.label,
+        requires_rederive: linkCount > 0,
+        note: linkCount > 0 ? 'scorecard/cascade_link không clone — chạy lại derivation trên draft mới' : undefined,
       });
-      return draft;
+      return { ...draft, requiresRederive: linkCount > 0 };
     });
   }
 

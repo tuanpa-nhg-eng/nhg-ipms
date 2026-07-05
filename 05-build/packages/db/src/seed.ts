@@ -221,6 +221,22 @@ async function main() {
     }
     await seedStudioUser('designer', 'config_designer');
     await seedStudioUser('approver', 'config_approver');
+
+    // [F53] SoD mặc định fail-closed: config:write ⟂ config:publish
+    // (tenant muốn tắt → soft-delete rule; mặc định KHÔNG ai vừa sửa vừa publish)
+    await prisma.sodRule.upsert({
+      where: {
+        tenantId_permissionA_permissionB: {
+          tenantId: tenant.id, permissionA: 'config:write', permissionB: 'config:publish',
+        },
+      },
+      update: {},
+      create: {
+        id: uuidv7(), tenantId: tenant.id,
+        permissionA: 'config:write', permissionB: 'config:publish',
+        severity: 'high', note: 'SoD mặc định — tách vai Designer/Approver',
+      },
+    });
     return tenant;
   }
 

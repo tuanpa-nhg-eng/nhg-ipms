@@ -535,7 +535,7 @@ model ConfigChange {
 
   configVersion ConfigVersion @relation(fields: [configVersionId], references: [id])
 
-  @@index([configVersionId, seq])
+  @@unique([configVersionId, seq]) // [F53] chống trùng seq giữa 2 tx song song
   @@map("config_change")
 }
 

@@ -44,6 +44,18 @@ describe('Phase 3 — Configuration Studio E2E', () => {
     approver = await ctxFor('H.01', 'approver@');
     t2admin = await ctxFor('T2.TEST', 'admin@');
 
+    // cleanup rerun: scorecard/cascade_link do engine sinh ở run trước (owner — chỉ test)
+    const rfClean = await owner.roleFamily.findFirst({ where: { tenantId: admin.id, code: 'TS-STAFF' } });
+    if (rfClean) {
+      const scs = await owner.scorecard.findMany({ where: { tenantId: admin.id, roleFamilyId: rfClean.id } });
+      await owner.reviewItemScore.deleteMany({
+        where: { scorecardItemId: { in: (await owner.scorecardItem.findMany({ where: { scorecardId: { in: scs.map((s) => s.id) } }, select: { id: true } })).map((i) => i.id) } },
+      });
+      await owner.scorecardItem.deleteMany({ where: { scorecardId: { in: scs.map((s) => s.id) } } });
+      await owner.scorecard.deleteMany({ where: { id: { in: scs.map((s) => s.id) } } });
+    }
+    await owner.cascadeLink.deleteMany({ where: { tenantId: admin.id } });
+
     const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = mod.createNestApplication();
     app.setGlobalPrefix('api/v1');
@@ -62,6 +74,7 @@ describe('Phase 3 — Configuration Studio E2E', () => {
   let draftId: string;
   let fnAdmissionsId: string;
   let runId: string;
+  let runBId: string; // run preview thứ 2 — test double-apply (F45)
 
   it('① tạo config version draft (designer) — employee/approver không tạo được', async () => {
     const denied = await api().post('/api/v1/config-versions').set(as(approver))
@@ -171,6 +184,11 @@ describe('Phase 3 — Configuration Studio E2E', () => {
     expect(scAdd.reason).toContain('kéo theo'); // explainable
     const lineage = run.body.results.filter((r: any) => r.targetType === 'cascade_link');
     expect(lineage.length).toBeGreaterThanOrEqual(2);
+
+    // run preview THỨ 2 trước khi apply — cả hai đều thấy 'add' (F45 double-apply setup)
+    const runB = await api().post('/api/v1/derivation/run').set(as(designer))
+      .send({ configVersionId: draftId, trigger: 'manual' });
+    runBId = runB.body.run.id;
   });
 
   it('④ apply → scorecard + item + kpi (draft) + cascade_link ghi vào draft version', async () => {
@@ -192,6 +210,40 @@ describe('Phase 3 — Configuration Studio E2E', () => {
     // apply lại → 409 (đã applied)
     const again = await api().post(`/api/v1/derivation/runs/${runId}/apply`).set(as(designer));
     expect(again.status).toBe(409);
+  });
+
+  it('[F45] double-apply qua RUN KHÁC → không nhân đôi scorecard/cascade_link', async () => {
+    const res = await api().post(`/api/v1/derivation/runs/${runBId}/apply`).set(as(designer));
+    expect(res.status).toBe(201);
+    expect(res.body.skipped.length).toBeGreaterThanOrEqual(1); // scorecard + lineage đã có → skip
+
+    const rf = await owner.roleFamily.findFirst({ where: { tenantId: admin.id, code: 'TS-STAFF' } });
+    const scCount = await owner.scorecard.count({
+      where: { tenantId: admin.id, roleFamilyId: rf!.id, deletedAt: null },
+    });
+    expect(scCount).toBe(1); // KHÔNG nhân đôi
+
+    const links = await owner.cascadeLink.findMany({
+      where: { tenantId: admin.id, configVersionId: draftId, deletedAt: null },
+    });
+    const keys = links.map((l) => `${l.kpiId}::${l.taskCellRef}::${l.positionId}`);
+    expect(new Set(keys).size).toBe(keys.length); // không có lineage trùng
+  });
+
+  it('[F44] RLS: ipms_app KHÔNG ghi được kpi_template global (tenant_id NULL)', async () => {
+    const appDb = createPrismaClient(process.env.DATABASE_URL);
+    try {
+      await expect(
+        appDb.$transaction(async (px) => {
+          await px.$executeRaw`SELECT set_config('app.tenant_id', ${admin.id}, true)`;
+          return px.$executeRaw`
+            INSERT INTO kpi_template (id, tenant_id, code, name_vi, created_at, updated_at)
+            VALUES (gen_random_uuid(), NULL, ${'EVIL-GLOBAL-' + uniq}, 'x', now(), now())`;
+        }),
+      ).rejects.toThrow(); // WITH CHECK của tenant_write chặn — fail-closed
+    } finally {
+      await appDb.$disconnect();
+    }
   });
 
   it('④ manual_override được engine tôn trọng (keep, không đè)', async () => {
