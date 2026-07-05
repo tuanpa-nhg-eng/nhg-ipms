@@ -87,7 +87,9 @@
 
 ---
 
-## Phase 3 — Configuration Studio (lát 1+2) · **05/07/2026 · BUILD XONG — 101/101 test PASS, chờ Reviewer**
+## Phase 3 — Configuration Studio (lát 1+2) · **05/07/2026 · HOÀN THIỆN — Reviewer PASS-WITH-FIXES → đã fix F44–F54, 103/103 PASS**
+
+> **Verdict Reviewer Phase 3:** kiến trúc đúng spec; 6 MAJOR đã fix đủ: F44 (RLS kpi_template — app từng ghi được global rows qua kẽ hở policy OR, đã thu hẹp FOR SELECT + test chứng minh) · F45 (double-apply nhân đôi scorecard/lineage — re-check tại apply + dedup + test 2 run) · F46 (applied flag nói dối — chỉ mark result thực ghi, trả skipped[]) · F47 (rollback rơi 11 cột task_cell — clone đủ + requires_rederive tường minh) · F48 (SoD race window — check vào trong tx publish) · F49 (nuốt position khác grade — group thêm grade + lineage đủ mọi position). MINOR F50–F53 cũng đã fix (reuse KPI explainable, search_path pinning, org-function dedup, **SoD rule seed mặc định mọi tenant — fail-closed từ đầu**). Ticket còn: throttle/cache resolver public (F51 phần còn lại) · recordChange retry P2002.
 
 **Đã build (commit `8108658`) — chuỗi tailor-made ①②④⑦ chạy được E2E:**
 - **Config-as-Data (#1):** `config_version` draft→diff→publish→rollback. Publish có SoD runtime check (`config:write ⟂ config:publish` khi tenant bật sod_rule) — vi phạm bị block + **audit incident sống sót rollback** (ghi ngoài tx chính); conditional update chống race; rollback clone brand/rules/task cells với lineage `based_on`.
