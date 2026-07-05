@@ -745,6 +745,194 @@ model CascadeLink {
   @@map("cascade_link")
 }
 
+// ===== Phase 3 lát 3 — ⑤ Process Designer (Spec Config Studio §4.6) =====
+
+model Process {
+  id              String  @id @db.Uuid
+  tenantId        String  @map("tenant_id") @db.Uuid
+  configVersionId String? @map("config_version_id") @db.Uuid
+  code            String
+  nameVi          String  @map("name_vi")
+  nameEn          String? @map("name_en")
+  domain          String?
+  status          String  @default("draft") // draft|published
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  steps ProcessStep[]
+  edges ProcessEdge[]
+
+  @@unique([tenantId, code, configVersionId])
+  @@map("process")
+}
+
+model ProcessStep {
+  id              String  @id @db.Uuid
+  tenantId        String  @map("tenant_id") @db.Uuid
+  processId       String  @map("process_id") @db.Uuid
+  seq             Int
+  type            String // task|decision|milestone|approval|gateway
+  nameVi          String  @map("name_vi")
+  nameEn          String? @map("name_en")
+  responsibleRole String? @map("responsible_role")
+  config          Json? // RACI, I/O, AI dimension, measures → sinh task_cell
+  taskCellId      String? @map("task_cell_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  process Process @relation(fields: [processId], references: [id])
+
+  @@index([tenantId, processId, seq])
+  @@map("process_step")
+}
+
+model ProcessEdge {
+  id         String  @id @db.Uuid
+  tenantId   String  @map("tenant_id") @db.Uuid
+  processId  String  @map("process_id") @db.Uuid
+  fromStepId String? @map("from_step_id") @db.Uuid
+  toStepId   String? @map("to_step_id") @db.Uuid
+  condition  String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  process Process @relation(fields: [processId], references: [id])
+
+  @@map("process_edge")
+}
+
+// ===== Phase 3 lát 3 — ⑥ Integration Hub (Spec Config Studio §4.7) =====
+
+model IntegrationConnection {
+  id          String   @id @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  provider    String // notion|ms_planner|ms_todo|bravo|salesforce|crm|hris|csv
+  displayName String?  @map("display_name")
+  authRef     String?  @map("auth_ref") // tham chiếu Key Vault — KHÔNG lưu token thô
+  scopes      String[]
+  config      Json     @default("{}")
+  status      String   @default("active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  bindings IntegrationBinding[]
+  runs     IntegrationRun[]
+
+  @@map("integration_connection")
+}
+
+model IntegrationBinding {
+  id              String  @id @db.Uuid
+  tenantId        String  @map("tenant_id") @db.Uuid
+  configVersionId String? @map("config_version_id") @db.Uuid
+  connectionId    String  @map("connection_id") @db.Uuid
+  localType       String  @map("local_type") // task_cell|scorecard|kpi|checkin|evidence
+  localId         String? @map("local_id") @db.Uuid
+  direction       String // push|pull|bidirectional
+  externalTarget  Json?   @map("external_target")
+  fieldMap        Json    @map("field_map")
+  syncPolicy      Json?   @map("sync_policy")
+  status          String  @default("active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  connection IntegrationConnection @relation(fields: [connectionId], references: [id])
+
+  @@map("integration_binding")
+}
+
+model DataContract {
+  id        String  @id @db.Uuid
+  tenantId  String? @map("tenant_id") @db.Uuid // null = contract chung
+  provider  String
+  direction String? // in|out
+  schema    Json // {required: string[], fields: {name: {type, enum?}}}
+  version   Int     @default(1)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@map("data_contract")
+}
+
+model IntegrationRun {
+  id           String    @id @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  connectionId String?   @map("connection_id") @db.Uuid
+  bindingId    String?   @map("binding_id") @db.Uuid
+  type         String // push|pull
+  cursor       String?
+  startedAt    DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt   DateTime? @map("finished_at") @db.Timestamptz(6)
+  status       String    @default("running") // running|success|partial|failed
+  stats        Json?
+  error        Json?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  connection IntegrationConnection? @relation(fields: [connectionId], references: [id])
+
+  @@index([tenantId, status])
+  @@map("integration_run")
+}
+
+model SyncRecord {
+  id           String    @id @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  bindingId    String?   @map("binding_id") @db.Uuid
+  localType    String?   @map("local_type")
+  localId      String?   @map("local_id") @db.Uuid
+  externalId   String    @map("external_id")
+  externalEtag String?   @map("external_etag")
+  lastSyncedAt DateTime? @map("last_synced_at") @db.Timestamptz(6)
+  status       String    @default("in_sync") // in_sync|conflict|pending
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version   Int      @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, bindingId, externalId])
+  @@map("sync_record")
+}
+
+model OutboxEvent {
+  id            BigInt    @id @default(autoincrement())
+  tenantId      String    @map("tenant_id") @db.Uuid
+  aggregateType String    @map("aggregate_type")
+  aggregateId   String?   @map("aggregate_id") @db.Uuid
+  eventType     String    @map("event_type") // config.published|evidence.created|task_cell.assigned...
+  payload       Json
+  status        String    @default("pending") // pending|dispatched|failed
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  dispatchedAt  DateTime? @map("dispatched_at") @db.Timestamptz(6)
+  retryCount    Int       @default(0) @map("retry_count")
+
+  @@index([status, createdAt])
+  @@map("outbox_event")
+}
+
 // ===== Phase 2 — Check-in (TDD §6.6) =====
 
 model Checkin {

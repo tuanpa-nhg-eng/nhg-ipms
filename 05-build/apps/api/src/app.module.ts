@@ -35,6 +35,10 @@ import { BrandController } from './modules/config/brand.controller';
 import { OrgFunctionController } from './modules/config/org-function.controller';
 import { DerivationController } from './modules/derivation/derivation.controller';
 import { DerivationService } from './modules/derivation/derivation.service';
+import { ProcessController } from './modules/process/process.controller';
+import { ProcessService } from './modules/process/process.service';
+import { IntegrationController } from './modules/integration/integration.controller';
+import { IntegrationService } from './modules/integration/integration.service';
 
 @Module({
   controllers: [
@@ -43,6 +47,7 @@ import { DerivationService } from './modules/derivation/derivation.service';
     EvidenceController, CheckinController, ReviewController, CalibrationController,
     ExportController,
     ConfigController, BrandController, OrgFunctionController, DerivationController,
+    ProcessController, IntegrationController,
   ],
   providers: [
     PrismaService,
@@ -58,6 +63,8 @@ import { DerivationService } from './modules/derivation/derivation.service';
     CalibrationService,
     ConfigService,
     DerivationService,
+    ProcessService,
+    IntegrationService,
     // Guard pipeline TDD §11: Jwt → Tenant → Permission (Scope Phase 0 = tenant-level)
     { provide: APP_GUARD, useClass: JwtGuard },
     { provide: APP_GUARD, useClass: TenantGuard },

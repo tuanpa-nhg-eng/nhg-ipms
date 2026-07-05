@@ -28,6 +28,8 @@ export const PERMISSIONS = [
   'org:design',
   'derivation:run',
   'taskcell:read', 'taskcell:write',
+  'process:design',
+  'integration:connect', 'integration:bind',
 ] as const;
 export type PermissionCode = (typeof PERMISSIONS)[number];
 

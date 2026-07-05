@@ -37,6 +37,8 @@ const PERMISSIONS = [
   'org:design',
   'derivation:run',
   'taskcell:read', 'taskcell:write',
+  'process:design',
+  'integration:connect', 'integration:bind',
 ];
 
 // Role toàn cục (tenant_id = null) + permission mặc định
@@ -65,6 +67,7 @@ const GLOBAL_ROLES: Record<string, string[]> = {
     'tenant:read', 'org:read', 'person:read',
     'config:read', 'config:write', 'brand:write', 'org:design', 'derivation:run',
     'taskcell:read', 'taskcell:write', 'kpi:read', 'scorecard:read', 'flag:read',
+    'process:design',
   ],
   config_approver: ['tenant:read', 'org:read', 'config:read', 'config:publish', 'scorecard:read', 'kpi:read'],
   auditor: ['tenant:read', 'audit:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read'],
