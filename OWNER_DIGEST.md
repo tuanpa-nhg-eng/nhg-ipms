@@ -56,4 +56,18 @@
   - Snapshot `formula.version` chảy qua kết quả — recompute lịch sử dùng đúng version (test chứng minh v1≠v2).
 - **Test: 45/45 PASS toàn repo** (28 test scoring mới + 9 guards + 8 integration RLS).
 
-**Việc tiếp theo (lát 2–4):** API KPI Dictionary/Scorecard CRUD + `POST /reviews/:id/compute-score` → objective/goal cascade + health → Evidence Hub + connector CSV. Kèm trả nợ F5/F6/F9. Reviewer Agent sẽ review trọn Phase 1 khi đủ lát cắt.
+---
+
+## Phase 1 — HOÀN THÀNH (lát 2–4 + review) · **05/07/2026**
+
+**Đã build (4 commit `731ecf9`→`9f598fb`), 75/75 test PASS:**
+- **KPI Dictionary API:** create (validate formula whitelist ngay khi nhập → 422) · approve human-in-the-loop (draft→active, chống lặp 409) · **update formula = version mới immutable** (bản cũ giữ cho recompute lịch sử — explainable).
+- **Scorecard API:** create · validate-weights (Σ=100±0.01, lệch → 422) · **compute-preview** chạy Scoring Engine end-to-end với ipc_map cấu hình theo `tenant.settings` (KHÔNG ghi DB — công cụ B1 kiểm tra cấu hình).
+- **Strategy cascade:** OKR→KGI→Goal với ràng buộc tầng chặt (KGI con OKR; goal chỉ gắn KGI) · cây lineage `GET /objectives/:id/cascade` · **health roll-up trọng số** cùng transaction + advisory lock chống race · status tự chuyển active/at_risk/off_track.
+- **Evidence Hub:** manual create → verify/reject human-in-the-loop · **bulk sync idempotent** theo (source, external_id) — connector pipeline TDD §10.1, fallback CSV/ETL như giả định đã chốt; evidence đã verified bị nguồn ghi đè → tự reset pending (phải duyệt lại).
+
+**Reviewer Agent (SoD) vòng 2 — verdict PASS-WITH-FIXES → đã fix đủ:** F13 (integrity evidence sau duyệt) · F14 (chặn prototype-chain trong formula) · F15 (parser 2 pha AST, `if` short-circuit — guard chia 0 dùng được) · F16 (normalize thang tier — bậc thang 25/22/19/16 của biên bản 24/06 và thang 0–100 cho cùng kết quả) · F17 (advisory lock roll-up) · F18 (endpoint formula versioning) · F20/F21/F25.
+
+**Ticket còn mở (chuyển Phase 2):** F6 **ScopeGuard org_unit/self — BẮT BUỘC đóng đầu Phase 2** (employee hiện sửa được goal người khác trong cùng tenant) · F5 audit cùng transaction trước khi có data rating thật · F9 partial unique index sau soft-delete · F19 mixed-mode weight goal · F22 SoD verify evidence của chính mình · F24 cycle-check khi có endpoint đổi parent.
+
+**Phase 2 kế tiếp — Vòng review:** Check-in (monthly) + dashboard goal-at-risk → Review cycle (self/manager) + `POST /reviews/:id/compute-score` (LƯU snapshot formula version) + finalize human → Calibration + AI draft (ai-gateway) → export OneOffice (file template).
