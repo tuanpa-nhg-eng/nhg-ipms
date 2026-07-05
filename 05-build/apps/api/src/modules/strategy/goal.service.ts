@@ -66,6 +66,10 @@ export class GoalService {
    */
   updateProgress(tenantId: string, actorId: string, goalId: string, progressPct: number) {
     return this.prisma.withTenant(tenantId, async (tx) => {
+      // [F17] advisory lock theo tenant goal-tree — serialize các roll-up song song,
+      // tránh lost update khi 2 goal lá anh em cập nhật cùng lúc (READ COMMITTED).
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${tenantId + ':goal-rollup'}))`;
+
       const goal = await tx.goal.findFirst({ where: { id: goalId, deletedAt: null } });
       if (!goal) throw new NotFoundException('Goal not found');
 

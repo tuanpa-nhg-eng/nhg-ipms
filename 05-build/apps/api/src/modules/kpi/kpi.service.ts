@@ -114,6 +114,43 @@ export class KpiService {
     });
   }
 
+  /**
+   * [F18] Cập nhật công thức = tạo bản ghi kpi_formula MỚI (immutable, version = max+1),
+   * trỏ kpi.formulaId sang bản mới; bản cũ GIỮ NGUYÊN để recompute lịch sử đúng version
+   * (nguyên tắc explainable — TDD §7.3).
+   */
+  updateFormula(tenantId: string, actorId: string, kpiId: string, expression: string) {
+    try {
+      evaluateFormula(expression, { actual: 80, target: 100, base: 1 });
+    } catch (e) {
+      if (e instanceof FormulaError) {
+        throw new UnprocessableEntityException(`Công thức không hợp lệ: ${e.message}`);
+      }
+      throw e;
+    }
+    return this.prisma.withTenant(tenantId, async (tx) => {
+      const kpi = await tx.kpi.findFirst({
+        where: { id: kpiId, deletedAt: null },
+        include: { formula: true },
+      });
+      if (!kpi) throw new NotFoundException('KPI not found');
+
+      const nextVersion = (kpi.formula?.version ?? 0) + 1;
+      const f = await tx.kpiFormula.create({
+        data: {
+          id: uuidv7(), tenantId, expression, version: nextVersion,
+          note: kpi.formula ? `thay thế v${kpi.formula.version} (${kpi.formula.id})` : undefined,
+          createdBy: actorId, updatedBy: actorId,
+        },
+      });
+      await tx.kpi.update({
+        where: { id: kpiId },
+        data: { formulaId: f.id, updatedBy: actorId, version: { increment: 1 } },
+      });
+      return this.reloadWithRelations(tx, kpiId);
+    });
+  }
+
   private reloadWithRelations(tx: any, id: string) {
     return tx.kpi.findFirst({
       where: { id },

@@ -47,6 +47,29 @@ describe('Formula parser (safe, whitelist)', () => {
   it('chia 0 → lỗi mềm, không NaN/Infinity', () => {
     expect(() => evaluateFormula('actual/base', vars)).toThrow(FormulaError);
   });
+
+  it('[F14] CHẶN prototype-chain identifier (constructor/__proto__/toString/valueOf)', () => {
+    for (const evil of ['constructor', '__proto__', 'toString', 'valueOf', 'hasOwnProperty']) {
+      expect(() => evaluateFormula(`${evil}+1`, vars)).toThrow(FormulaError);
+      expect(() => evaluateFormula(`if(${evil}>0,50,70)`, vars)).toThrow(FormulaError);
+    }
+  });
+
+  it('[F15] if SHORT-CIRCUIT: guard chia 0 hoạt động — if(target==0,0,actual/target)', () => {
+    expect(evaluateFormula('if(target==0,0,actual/target)', { actual: 80, target: 0, base: 0 })).toBe(0);
+    expect(evaluateFormula('if(target==0,0,actual/target*100)', vars)).toBe(80);
+    // nhánh không chọn chứa biến cấm cũng KHÔNG được eval... nhưng vẫn phải parse hợp lệ
+    expect(evaluateFormula('if(1>0, 42, actual/base)', vars)).toBe(42);
+  });
+
+  it('round digits ngoài phạm vi → lỗi mềm', () => {
+    expect(() => evaluateFormula('round(1,400)', vars)).toThrow(FormulaError);
+  });
+
+  it('biểu thức lồng sâu trong trần 500 ký tự không crash', () => {
+    const deep = '('.repeat(200) + 'actual' + ')'.repeat(200);
+    expect(evaluateFormula(deep, vars)).toBe(80);
+  });
 });
 
 describe('applyFormula — direction', () => {
@@ -171,5 +194,38 @@ describe('computeScore — pipeline đầy đủ + IPC', () => {
 
   it('scorecard rỗng → lỗi', () => {
     expect(() => computeScore([])).toThrow(ScoringError);
+  });
+
+  it('[F16] bậc thang biên bản 24/06 (25/22/19/16, 4 nhóm × 25%) — KHÔNG double-weighting', () => {
+    const tiersBB = [
+      { minPct: 100, score: 25 },
+      { minPct: 90, score: 22 },
+      { minPct: 80, score: 19 },
+      { minPct: 70, score: 16 },
+    ];
+    const mk = (id: string, actual: number) =>
+      baseItem({ id, actual, target: 100, tiers: tiersBB, weight: 25 });
+    // 4 KPI đều đạt 100% → tier 25 → normalize 100 → final phải là 100 (không phải 25)
+    const perfect = computeScore([mk('a', 100), mk('b', 100), mk('c', 100), mk('d', 100)]);
+    expect(perfect.finalScore).toBe(100);
+    expect(perfect.ipcGrade).toBe('A+');
+    // 95/95/85/75 → tier 22,22,19,16 → normalize 88,88,76,64 → (88+88+76+64)/4 = 79
+    const mixed = computeScore([mk('a', 95), mk('b', 95), mk('c', 85), mk('d', 75)]);
+    expect(mixed.finalScore).toBe(79);
+    expect(mixed.ipcGrade).toBe('B');
+  });
+
+  it('[F16] thang tier 25-điểm và 100-điểm cho CÙNG kết quả', () => {
+    const t25 = [{ minPct: 100, score: 25 }, { minPct: 90, score: 22 }, { minPct: 80, score: 19 }, { minPct: 70, score: 16 }];
+    const t100 = [{ minPct: 100, score: 100 }, { minPct: 90, score: 88 }, { minPct: 80, score: 76 }, { minPct: 70, score: 64 }];
+    const a = computeScore([baseItem({ id: 'x', actual: 95, target: 100, tiers: t25, weight: 100 })]);
+    const b = computeScore([baseItem({ id: 'x', actual: 95, target: 100, tiers: t100, weight: 100 })]);
+    expect(a.finalScore).toBe(b.finalScore);
+  });
+
+  it('[F21] dưới mọi bậc thang → finalScore = 1 (sàn thang 1–100, quyết định nghiệp vụ)', () => {
+    const tiers = [{ minPct: 70, score: 16 }];
+    const r = computeScore([baseItem({ id: 'x', actual: 10, target: 100, tiers, weight: 100 })]);
+    expect(r.finalScore).toBe(1);
   });
 });

@@ -113,6 +113,19 @@ describe('Strategy cascade + Goal health (integration)', () => {
     expect(parent.status).toBe('at_risk');
   });
 
+  it('[F17] concurrency: 2 leaf cập nhật SONG SONG → cha vẫn đúng trung bình trọng số', async () => {
+    const [r1, r2] = await Promise.all([
+      api().patch(`/api/v1/goals/${leaf1}/progress`).set(h01Req()).send({ progressPct: 100 }),
+      api().patch(`/api/v1/goals/${leaf2}/progress`).set(h01Req()).send({ progressPct: 50 }),
+    ]);
+    expect(r1.status).toBe(200);
+    expect(r2.status).toBe(200);
+
+    // cha: (100*60 + 50*40)/100 = 80 — advisory lock serialize, không lost update
+    const parent = await owner.goal.findFirst({ where: { id: parentGoal } });
+    expect(Number(parent!.healthScore)).toBe(80);
+  });
+
   it('không cho cập nhật progress trực tiếp trên goal cha (422)', async () => {
     const res = await api().patch(`/api/v1/goals/${parentGoal}/progress`).set(h01Req())
       .send({ progressPct: 99 });

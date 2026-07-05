@@ -1,8 +1,8 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { Type } from 'class-transformer';
 import {
-  ArrayMinSize, IsArray, IsIn, IsISO8601, IsObject, IsOptional, IsString, IsUUID, Length,
-  ValidateNested,
+  ArrayMaxSize, ArrayMinSize, IsArray, IsIn, IsISO8601, IsObject, IsOptional, IsString, IsUUID,
+  Length, ValidateNested,
 } from 'class-validator';
 import { Audited, CurrentUser, RequirePermission, RequestUser } from '../../common/auth/decorators';
 import { EvidenceService } from './evidence.service';
@@ -39,7 +39,8 @@ class BulkRecordDto {
 
 class BulkSyncDto {
   @IsString() @Length(1, 50) sourceSystem!: string;
-  @IsArray() @ArrayMinSize(1) @ValidateNested({ each: true }) @Type(() => BulkRecordDto)
+  // [F25] trần 500 record/batch — transaction có timeout; batch lớn chia nhiều lần gọi
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(500) @ValidateNested({ each: true }) @Type(() => BulkRecordDto)
   records!: BulkRecordDto[];
 }
 

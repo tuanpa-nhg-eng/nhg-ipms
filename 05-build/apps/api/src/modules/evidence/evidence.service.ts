@@ -129,11 +129,21 @@ export class EvidenceService {
           taskCellRef: r.taskCellRef,
           updatedBy: actorId,
         };
+        // [F13] không đụng record đã soft-delete; record đã verified/rejected mà nguồn
+        // thay đổi nội dung → reset về pending + xoá reviewer (bằng chứng phải duyệt lại)
         const existing = await tx.evidence.findFirst({
-          where: { sourceSystem, externalId: r.externalId },
+          where: { sourceSystem, externalId: r.externalId, deletedAt: null },
         });
         if (existing) {
-          await tx.evidence.update({ where: { id: existing.id }, data });
+          const resetReview = existing.status !== 'pending';
+          await tx.evidence.update({
+            where: { id: existing.id },
+            data: {
+              ...data,
+              ...(resetReview ? { status: 'pending' as const, reviewerId: null } : {}),
+              version: { increment: 1 },
+            },
+          });
           updated++;
         } else {
           await tx.evidence.create({

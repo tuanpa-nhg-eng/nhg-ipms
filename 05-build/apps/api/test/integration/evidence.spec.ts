@@ -98,6 +98,26 @@ describe('Evidence Hub (integration)', () => {
     expect((rows[0].payload as any).rerun).toBe(true); // đã cập nhật
   });
 
+  it('[F13] bulk đè record ĐÃ VERIFIED → reset về pending + xoá reviewer (phải duyệt lại)', async () => {
+    // verify ROW-1
+    const rows = await api().get('/api/v1/evidence').set(h01Req());
+    const row1 = rows.body.find((e: any) => e.sourceSystem === SRC && e.externalId === 'ROW-1');
+    const v = await api().post(`/api/v1/evidence/${row1.id}/verify`).set(h01Req())
+      .send({ decision: 'verified' });
+    expect(v.body.status).toBe('verified');
+
+    // connector sync lại với nội dung MỚI
+    await api().post('/api/v1/evidence/bulk').set(h01Req()).send({
+      sourceSystem: SRC,
+      records: [{ externalId: 'ROW-1', type: 'metric', payload: { value: 999, tampered: true } }],
+    });
+
+    const after = await owner.evidence.findFirst({ where: { id: row1.id } });
+    expect(after!.status).toBe('pending'); // bằng chứng thay đổi sau duyệt → duyệt lại
+    expect(after!.reviewerId).toBeNull();
+    expect((after!.payload as any).value).toBe(999);
+  });
+
   it('bulk: KPI code không tồn tại → vào failed[], không chặn record khác', async () => {
     const res = await api().post('/api/v1/evidence/bulk').set(h01Req()).send({
       sourceSystem: SRC,

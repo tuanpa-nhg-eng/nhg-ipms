@@ -8,7 +8,11 @@ import { KpiService } from './kpi.service';
 
 class ScoreTierDto {
   @IsNumber() @Min(0) @Max(999) minPct!: number;
-  @IsNumber() @Min(0) @Max(9999) score!: number;
+  @IsNumber() @Min(0) @Max(1000) score!: number; // thang tuyệt đối hoặc 0–100 — engine normalize (F16)
+}
+
+class UpdateFormulaDto {
+  @IsString() @Length(1, 500) expression!: string;
 }
 
 class CreateKpiDto {
@@ -49,6 +53,18 @@ export class KpiController {
   @Audited('kpi.create')
   create(@CurrentUser() user: RequestUser, @Body() dto: CreateKpiDto) {
     return this.kpis.create(user.tenantId, user.claims.sub, dto);
+  }
+
+  /** [F18] Cập nhật công thức — tạo version mới immutable, giữ bản cũ cho recompute. */
+  @Post(':id/formula')
+  @RequirePermission('kpi:write')
+  @Audited('kpi.formula_update')
+  updateFormula(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateFormulaDto,
+  ) {
+    return this.kpis.updateFormula(user.tenantId, user.claims.sub, id, dto.expression);
   }
 
   /** Human-in-the-loop: duyệt KPI (draft → active). */

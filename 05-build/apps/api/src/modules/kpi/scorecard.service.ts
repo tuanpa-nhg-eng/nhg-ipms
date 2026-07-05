@@ -155,7 +155,12 @@ export class ScorecardService {
     return this.prisma.withTenant(tenantId, async (tx) => {
       const tenant = await tx.tenant.findFirst({ where: { deletedAt: null } });
       const cfg = (tenant?.settings as any)?.ipc_map;
-      if (Array.isArray(cfg) && cfg.every((t) => typeof t?.minScore === 'number' && typeof t?.grade === 'string')) {
+      // [F20] mảng rỗng / thiếu tier đáy (minScore ≤ 1) → fallback mặc định, không âm thầm ra 'D'
+      if (
+        Array.isArray(cfg) && cfg.length > 0 &&
+        cfg.every((t) => typeof t?.minScore === 'number' && typeof t?.grade === 'string') &&
+        cfg.some((t) => t.minScore <= 1)
+      ) {
         return cfg as IpcTier[];
       }
       return DEFAULT_IPC_MAP;

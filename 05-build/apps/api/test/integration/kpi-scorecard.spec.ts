@@ -162,6 +162,34 @@ describe('KPI + Scorecard + Scoring Engine (integration)', () => {
     expect(sales.formulaVersion).toBe(1);
   });
 
+  it('[F18] update formula → version mới immutable; compute-preview dùng version mới', async () => {
+    // v1: min(actual/target,1)*100 — cap 100. v2: cho vượt trần 120%
+    const up = await request(app.getHttpServer())
+      .post(`/api/v1/kpis/${kpiSales}/formula`).set(h01Req())
+      .send({ expression: 'clamp(actual/target,0,1.2)*100' });
+    expect(up.status).toBe(201);
+    expect(up.body.formula.version).toBe(2);
+
+    // bản v1 vẫn còn trong DB (immutable — recompute lịch sử)
+    const formulas = await owner.kpiFormula.findMany({
+      where: { tenantId: h01.id, version: { in: [1, 2] } },
+      orderBy: { version: 'asc' },
+    });
+    expect(formulas.some((f) => f.expression === 'min(actual/target,1)*100')).toBe(true);
+
+    const res = await request(app.getHttpServer())
+      .post(`/api/v1/scorecards/${scorecardId}/compute-preview`).set(h01Req())
+      .send({
+        actuals: [
+          { kpiId: kpiSales, actual: 110, target: 100 },
+          { kpiId: kpiQuality, actual: 4, target: 4 },
+        ],
+      });
+    const sales = res.body.items.find((i: any) => i.formulaVersion === 2);
+    expect(sales).toBeDefined();
+    expect(sales.achievedPct).toBe(110); // v2 cho vượt 100%
+  });
+
   it('CÔ LẬP: T2 không thấy KPI/scorecard của H.01', async () => {
     const kpis = await request(app.getHttpServer()).get('/api/v1/kpis').set(t2Req());
     expect(kpis.status).toBe(200);

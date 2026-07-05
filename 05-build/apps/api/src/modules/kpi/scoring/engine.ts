@@ -129,19 +129,26 @@ export function computeScore(items: ScoringItem[], ipcMap: IpcTier[] = DEFAULT_I
   const itemScores: ItemScore[] = items.map((it) => {
     const achievedPct = applyFormula(it);
     const rawScore = tierLookup(it.tiers, achievedPct);
+    // [F16] Chuẩn hoá thang tier trước khi áp trọng số: bậc thang nghiệp vụ có thể
+    // cấu hình theo điểm tuyệt đối (biên bản 24/06: 25/22/19/16 cho nhóm 25%) HOẶC
+    // thang 0–100. Engine normalize raw/maxTier*100 → 2 cách cấu hình cho CÙNG kết quả,
+    // tránh double-weighting (25 điểm × 25% = 6.25 sai).
+    const maxTier = it.tiers.length > 0 ? Math.max(...it.tiers.map((t) => t.score)) : 100;
+    const normalizedScore = maxTier > 0 ? (rawScore / maxTier) * 100 : 0;
     const effectiveWeight = weights.get(it.id)!;
     return {
       id: it.id,
       achievedPct: round2(achievedPct),
       rawScore: round2(rawScore),
       effectiveWeight: round2(effectiveWeight),
-      weightedScore: round2(rawScore * (effectiveWeight / 100)),
+      weightedScore: round2(normalizedScore * (effectiveWeight / 100)),
       formulaVersion: it.formula?.version,
     };
   });
 
-  // Chuẩn hoá: nếu tiers là thang điểm (vd max 25/nhóm), weightedScore đã theo trọng số;
-  // finalScore = Σ weighted, clamp 1–100 (thang 1–100 theo spec).
+  // finalScore = Σ weighted, clamp 1–100 — thang IPC 1–100 theo spec:
+  // [F21] total=0 (dưới mọi bậc) → sàn 1 điểm là QUYẾT ĐỊNH NGHIỆP VỤ (thang 1–100,
+  // không có 0); nếu B1 muốn 0 → đổi sàn tại đây + cập nhật ipc_map.
   const total = itemScores.reduce((a, b) => a + b.weightedScore, 0);
   const finalScore = round2(clamp(total, 1, 100));
 
