@@ -85,4 +85,18 @@
 
 **Ticket hoãn (đã báo Reviewer):** test nhánh org_unit scope + subtree matching (phase kế) · F39 export khi cycle open (minor) · F19/F22/F24 từ Phase 1.
 
-**Kế tiếp sau verdict:** AI layer (ai-gateway + review_drafting/bias agent — Module AI đầu tiên) hoặc Phase 3 Configuration Studio, tuỳ verdict và thứ tự §5 master prompt.
+---
+
+## Phase 3 — Configuration Studio (lát 1+2) · **05/07/2026 · BUILD XONG — 101/101 test PASS, chờ Reviewer**
+
+**Đã build (commit `8108658`) — chuỗi tailor-made ①②④⑦ chạy được E2E:**
+- **Config-as-Data (#1):** `config_version` draft→diff→publish→rollback. Publish có SoD runtime check (`config:write ⟂ config:publish` khi tenant bật sod_rule) — vi phạm bị block + **audit incident sống sót rollback** (ghi ngoài tx chính); conditional update chống race; rollback clone brand/rules/task cells với lineage `based_on`.
+- **Vai trò SoD mới:** `config_designer` (sửa, KHÔNG publish) ⟂ `config_approver` (publish, KHÔNG sửa) — seed sẵn `designer@`/`approver@` mỗi tenant. Test chứng minh: designer publish → 403, tenant_admin (giữ cả 2) → 409 + incident, approver → OK.
+- **① Brand Kit:** PUT theo draft + resolver public `/brand-kit/resolve?tenant=` (theming trước đăng nhập qua SECURITY DEFINER, fallback NHG DS; publish xong tokens mới có hiệu lực — test đổi màu primary #0055AA).
+- **② Org Function:** catalog chức năng + gán phòng ban (feed engine).
+- **④ Auto-Derivation Engine (trái tim):** rule match (function/role_family/level/grade, wildcard, priority cao thắng) ⇒ kéo theo KPI templates ⇒ validate Σweight=100 ⇒ **preview với reason explainable từng dòng** ⇒ apply ghi scorecard/item/KPI/cascade_link vào DRAFT (KPI sinh ra vẫn `draft` — approve HITL giữ nguyên) ⇒ **không đè manual_override** ⇒ không tự publish.
+- **Lineage:** `cascade_link` KPI ▸ Task Cell ghi tự động từ template mapping.
+
+**Chưa build (lát 3+ Phase 3):** Process Designer (⑤) · Integration Hub Notion/Planner/CSV (⑥) · MCP server + AI Config Copilot + eval harness (#3/#4/#10) · access_policy Cedar (#2 mới có sod_rule — Cedar engine gắn sau) · FE canvas react-flow.
+
+**Kế tiếp:** chờ Reviewer Phase 3 verdict → fix → Process Designer + Integration Hub (CSV trước, Notion/Planner cần token thật — RED-LINE nếu đẩy data thật).
