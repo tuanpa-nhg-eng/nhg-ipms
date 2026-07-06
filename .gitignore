@@ -9,7 +9,8 @@ dist/
 .vercel/
 
 # ===== Tooling / OS / editor =====
-.claude/
+.claude/*
+!.claude/skills/
 .DS_Store
 Thumbs.db
 *.log
