@@ -39,6 +39,9 @@ import { ProcessController } from './modules/process/process.controller';
 import { ProcessService } from './modules/process/process.service';
 import { IntegrationController } from './modules/integration/integration.controller';
 import { IntegrationService } from './modules/integration/integration.service';
+import { ConnectorRegistry } from './modules/integration/connectors/connector.registry';
+import { OutboxDispatcher } from './modules/integration/outbox.dispatcher';
+import { MorningTodosService } from './modules/integration/morning-todos.service';
 import { AiGatewayService } from './modules/ai/ai-gateway.service';
 import { McpController } from './modules/ai/mcp/mcp.controller';
 import { McpService } from './modules/ai/mcp/mcp.service';
@@ -71,6 +74,9 @@ import { EvalService } from './modules/ai/eval/eval.service';
     DerivationService,
     ProcessService,
     IntegrationService,
+    ConnectorRegistry,
+    OutboxDispatcher,
+    MorningTodosService,
     AiGatewayService,
     McpService,
     EvalService,

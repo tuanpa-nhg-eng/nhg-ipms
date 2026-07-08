@@ -39,6 +39,10 @@ export class McpController {
     if (!/^[a-z0-9._-]{1,100}$/.test(name)) {
       throw new UnprocessableEntityException('Tên tool không hợp lệ');
     }
+    // [F60] cap kích thước args — chặn payload khổng lồ vào DB/log
+    if (dto.args && JSON.stringify(dto.args).length > 16_000) {
+      throw new UnprocessableEntityException('args tối đa 16KB');
+    }
     return this.mcp.invoke(user, name, dto.args ?? {});
   }
 

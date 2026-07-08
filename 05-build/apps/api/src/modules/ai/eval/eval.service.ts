@@ -30,6 +30,16 @@ export class EvalService {
       if (!c.assertions?.length) {
         throw new UnprocessableEntityException(`Case '${c.name ?? '?'}' thiếu assertions — eval fail-closed`);
       }
+      // [F60] cap kích thước — chặn JSON khổng lồ vào DB/log
+      if (c.assertions.length > 20) {
+        throw new UnprocessableEntityException(`Case '${c.name ?? '?'}' quá 20 assertions`);
+      }
+      if (typeof c.input?.prompt !== 'string' || c.input.prompt.length === 0 || c.input.prompt.length > 4_000) {
+        throw new UnprocessableEntityException(`Case '${c.name ?? '?'}': prompt bắt buộc, tối đa 4000 ký tự`);
+      }
+      if (c.input.context !== undefined && JSON.stringify(c.input.context).length > 8_000) {
+        throw new UnprocessableEntityException(`Case '${c.name ?? '?'}': context tối đa 8KB`);
+      }
     }
     return this.prisma.withTenant(user.tenantId, async (tx) => {
       const suite = await tx.aiEvalSuite.create({
@@ -83,6 +93,27 @@ export class EvalService {
       }),
     );
 
+    // [F58] mọi lỗi ngoài per-case (đã catch riêng) → run kết thúc status='error',
+    // không kẹt 'running' vĩnh viễn
+    try {
+      return await this.executeRun(user, runId, suite, cases, backend);
+    } catch (e) {
+      await this.prisma.withTenant(user.tenantId, (tx) =>
+        tx.aiEvalRun.update({
+          where: { id: runId },
+          data: { status: 'error', finishedAt: new Date(), summary: { error: (e as Error).message } as any },
+        }),
+      ).catch(() => undefined);
+      throw e;
+    }
+  }
+
+  private async executeRun(
+    user: RequestUser, runId: string,
+    suite: { agent: string; name: string },
+    cases: Array<{ id: string; input: unknown; assertions: unknown }>,
+    backend: string,
+  ) {
     let pass = 0;
     let scoreSum = 0;
     const results: Array<{ caseId: string; passed: boolean; score: number; judgeOutput: unknown }> = [];

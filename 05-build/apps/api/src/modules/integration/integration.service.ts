@@ -4,6 +4,7 @@ import {
 import { uuidv7 } from '@ipms/db';
 import { PrismaService } from '../../prisma.service';
 import { EvidenceService, BulkEvidenceRecord } from '../evidence/evidence.service';
+import { OutboxDispatcher } from './outbox.dispatcher';
 import type { RequestUser } from '../../common/auth/decorators';
 
 /**
@@ -20,7 +21,36 @@ interface ContractSchema {
 
 @Injectable()
 export class IntegrationService {
-  constructor(private prisma: PrismaService, private evidence: EvidenceService) {}
+  constructor(
+    private prisma: PrismaService,
+    private evidence: EvidenceService,
+    private outbox: OutboxDispatcher,
+  ) {}
+
+  /** Binding local↔external (lát 4b) — connection phải tồn tại trong tenant. */
+  createBinding(user: RequestUser, input: {
+    connectionId: string; localType: string; localId?: string; direction: string;
+    externalTarget?: Record<string, unknown>; fieldMap: Record<string, unknown>;
+    syncPolicy?: Record<string, unknown>;
+  }) {
+    return this.prisma.withTenant(user.tenantId, async (tx) => {
+      const conn = await tx.integrationConnection.findFirst({
+        where: { id: input.connectionId, deletedAt: null },
+      });
+      if (!conn) throw new UnprocessableEntityException('connectionId không tồn tại trong tenant');
+      return tx.integrationBinding.create({
+        data: {
+          id: uuidv7(), tenantId: user.tenantId, connectionId: conn.id,
+          localType: input.localType, localId: input.localId,
+          direction: input.direction,
+          externalTarget: (input.externalTarget ?? undefined) as any,
+          fieldMap: input.fieldMap as any,
+          syncPolicy: (input.syncPolicy ?? undefined) as any,
+          createdBy: user.claims.sub, updatedBy: user.claims.sub,
+        },
+      });
+    });
+  }
 
   createConnection(user: RequestUser, input: { provider: string; displayName?: string; config?: Record<string, unknown> }) {
     return this.prisma.withTenant(user.tenantId, (tx) =>
@@ -160,6 +190,9 @@ export class IntegrationService {
           },
         });
       });
+
+      // đánh thức worker outbox (debounce theo tenant — no-op khi worker tắt)
+      this.outbox.notify(user.tenantId);
 
       return { runId: run.id, status, stats, contractFailed, upsertFailed: result.failed };
     } catch (e: any) {

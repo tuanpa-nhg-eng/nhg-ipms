@@ -122,3 +122,19 @@
 **Sửa môi trường (phát hiện khi verify baseline):** bản copy folder OneDrive làm mất `.env` (gitignored) → integration fail toàn bộ. Đã tái tạo `.env` từ example + thêm default DB dev-only vào `test/setup-env.ts` (chỉ áp khi biến chưa set — CI override được).
 
 **Còn lại Phase 3 (lát 4b+):** outbox dispatcher BullMQ · Cedar access_policy · Notion/Planner mock connector · FE canvas react-flow · morning-todos job · ticket F42/F43 (policy chờ user) / F58–F60 / throttle resolver.
+
+---
+
+## Phase 3 — Lát 4b: outbox dispatcher + mock connector + morning-todos · **08/07/2026 · HOÀN THÀNH — Reviewer PASS-WITH-FIXES → đã fix F61–F63+F67, 146/146 PASS**
+
+> **Verdict Reviewer (SoD):** PASS-WITH-FIXES — 0 BLOCKER, 2 MAJOR (đã fix trước commit): **F61** (BullMQ jobId cố định thiếu removeOnFail → tenant kẹt notify vĩnh viễn sau 1 job fail — đã thêm removeOnFail) · **F62** (2 dispatch song song double-push — đã thêm CLAIM pending→processing conditional update + recovery event kẹt processing >10'). MINOR đã fix luôn: **F63** (lọc connection.status='active') · **F67** (run song song cùng ngày → P2002 đếm skipped thay vì fail run; bỏ kéo fullName thừa). **Ticket nợ: F64** (cap F60 vòng qua được một phần — nên cap tổng JSON/case + đo bytes) · **F65** (event không binding → skipped vĩnh viễn, không replay — tradeoff ghi nhận) · **F66** (test cleanup phá state dev DB dùng chung — nên scope theo uniq).
+
+**Đã build (không token thật — mock connector, RED-LINE #2 giữ nguyên):**
+- **Connector SDK + mock:** interface `Connector` (push/pull idempotent theo externalId) + `MockConnector` in-memory **cô lập theo tenant trong key store** (provider:tenantId:workspace), etag tất định theo nội dung, tiêm lỗi qua `target.failMode` để test retry. Registry: notion/ms_planner/ms_todo = mock; provider lạ → NotImplemented tường minh.
+- **Outbox dispatcher (#6):** đọc outbox_event PENDING per-tenant (RLS giữ nguyên, không cross-tenant) → đẩy tới binding outbound khớp `syncPolicy.events` → sync_record idempotent → `dispatched`. Lỗi → retry_count++, **quá 5 lần → dead-letter**. Event không binding khớp → skipped. **CLAIM chống double-push (F62)** + BullMQ worker env-gated `ENABLE_OUTBOX_WORKER` (test/CI không cần Redis; debounce notify theo tenant sau importCsv).
+- **Morning-todos job (master prompt ⑥):** binding `local_type='morning_todos'` → goal active/at_risk/off_track → todo `Check-in: <goal>` đẩy hệ ngoài (mock), **idempotent theo (binding, todo-<date>-<goalId>)** — chạy lại cùng ngày không nhân đôi; chỉ đẩy employeeCode (ẩn danh, không PII thừa). Endpoint `POST /integrations/jobs/morning-todos/run` (integration:run).
+- **Endpoint mới:** `POST /integrations/bindings` (integration:bind) · `POST /integrations/outbox/dispatch` (integration:run).
+- **Trả nợ lát 4a:** **F58** (eval run kết thúc `error` thay vì kẹt `running` khi lỗi ngoài per-case) · **F60** (cap: mcp args 16KB, eval prompt 4000, context 8KB, ≤20 assertions/case).
+- **Test: 146/146 PASS** (59 unit + 87 integration; chạy 2 lần liên tiếp đều xanh — spec tự dọn state). Dep mới: bullmq (msgpackr-extract native tắt build — JS fallback).
+
+**Còn lại Phase 3 (lát 4c+):** Cedar access_policy (#2) · FE canvas react-flow · connector Notion/Planner THẬT (chờ token — RED-LINE) · AI Config Copilot end-to-end khi có API key · ticket F42/F43 (policy chờ user) / F55-phần còn lại khi mở endpoint quản trị mcp_tool / F59 (khử PII log trước khi bật client thật) / F64–F66 / throttle resolver.

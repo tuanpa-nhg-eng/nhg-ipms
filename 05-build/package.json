@@ -14,6 +14,8 @@
     "db:seed": "pnpm --filter @ipms/db seed",
     "api:dev": "pnpm --filter @ipms/api start:dev"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "packageManager": "pnpm@11.3.0"
 }
