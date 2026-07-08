@@ -1167,3 +1167,148 @@ model ScorecardItem {
   @@index([tenantId, scorecardId])
   @@map("scorecard_item")
 }
+
+// ===== Phase 3 lát 4a — bộ ba AI: ai-gateway (mock) + MCP server (#3) + eval harness (#10) =====
+// Spec Config Studio §4.8 + §9 + §10. KHÔNG gọi LLM thật (RED-LINE chờ API key).
+
+model McpTool {
+  id              String  @id @db.Uuid
+  tenantId        String? @map("tenant_id") @db.Uuid // null = catalog global (tenant override thắng)
+  name            String // 'ipms.get_org','ipms.propose_org_change'...
+  descriptionVi   String? @map("description_vi")
+  inputSchema     Json    @default("{}") @map("input_schema") // JSON Schema — tương thích MCP tool spec
+  scopePermission String  @map("scope_permission") // permission cần có để gọi (fail-closed)
+  readOnly        Boolean @default(true) @map("read_only")
+  enabled         Boolean @default(true)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  version   Int       @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, name])
+  @@map("mcp_tool")
+}
+
+// Log mọi lượt gọi AI/tool (TDD §6.10) — APPEND-ONLY như audit_log.
+model AiInteraction {
+  id            BigInt   @id @default(autoincrement())
+  tenantId      String   @map("tenant_id") @db.Uuid
+  actorUserId   String?  @map("actor_user_id") @db.Uuid
+  agent         String // 'mcp'|'config_copilot'|'eval_harness'...
+  toolName      String?  @map("tool_name")
+  model         String? // 'mock'|'claude-*' (khi có key)
+  promptVersion String?  @map("prompt_version")
+  input         Json?
+  output        Json?
+  tokensIn      Int?     @map("tokens_in")
+  tokensOut     Int?     @map("tokens_out")
+  costUsd       Decimal? @map("cost_usd") @db.Decimal(10, 6)
+  latencyMs     Int?     @map("latency_ms")
+  status        String   @default("ok") // ok|error|blocked
+  at            DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([tenantId, at])
+  @@index([tenantId, toolName])
+  @@map("ai_interaction")
+}
+
+// Đề xuất do AI sinh — human-in-the-loop: accept mới materialize vào config_change (draft).
+model AiSuggestion {
+  id              String  @id @db.Uuid
+  tenantId        String  @map("tenant_id") @db.Uuid
+  configVersionId String? @map("config_version_id") @db.Uuid // draft đích khi accept
+  type            String // 'org_change'|'derivation_rule'|'process'...
+  payload         Json
+  reason          String? // explainable — vì sao AI đề xuất
+  status          String  @default("pending") // pending|accepted|rejected
+  createdByTool   String? @map("created_by_tool")
+  decidedBy       String? @map("decided_by") @db.Uuid
+  decidedAt       DateTime? @map("decided_at") @db.Timestamptz(6)
+  decisionNote    String? @map("decision_note")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  version   Int       @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@index([tenantId, status])
+  @@map("ai_suggestion")
+}
+
+model AiEvalSuite {
+  id       String @id @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  agent    String // agent bị đánh giá: 'config_copilot','kpi_designer'...
+  name     String
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?   @map("created_by") @db.Uuid
+  version   Int       @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  cases AiEvalCase[]
+  runs  AiEvalRun[]
+
+  @@unique([tenantId, agent, name])
+  @@map("ai_eval_suite")
+}
+
+model AiEvalCase {
+  id         String @id @db.Uuid
+  tenantId   String @map("tenant_id") @db.Uuid
+  suiteId    String @map("suite_id") @db.Uuid
+  name       String?
+  input      Json // request đưa vào agent (deterministic trên mock)
+  expected   Json? // kỳ vọng (tham khảo/so khớp)
+  assertions Json? // [{type:'equals'|'contains'|'regex', path, value}]
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version   Int       @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  suite AiEvalSuite @relation(fields: [suiteId], references: [id])
+
+  @@index([tenantId, suiteId])
+  @@map("ai_eval_case")
+}
+
+model AiEvalRun {
+  id            String    @id @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  suiteId       String    @map("suite_id") @db.Uuid
+  model         String? // 'mock' cho tới khi có key
+  promptVersion String?   @map("prompt_version")
+  status        String    @default("running") // running|done|error
+  startedAt     DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt    DateTime? @map("finished_at") @db.Timestamptz(6)
+  summary       Json? // {pass,fail,avg_score}
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  version   Int      @default(1)
+
+  suite   AiEvalSuite    @relation(fields: [suiteId], references: [id])
+  results AiEvalResult[]
+
+  @@index([tenantId, suiteId])
+  @@map("ai_eval_run")
+}
+
+model AiEvalResult {
+  id          String   @id @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  runId       String   @map("run_id") @db.Uuid
+  caseId      String   @map("case_id") @db.Uuid
+  score       Decimal? @db.Decimal(4, 3)
+  passed      Boolean
+  judgeOutput Json?    @map("judge_output") // chi tiết từng assertion pass/fail
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  run AiEvalRun @relation(fields: [runId], references: [id])
+
+  @@index([runId])
+  @@map("ai_eval_result")
+}

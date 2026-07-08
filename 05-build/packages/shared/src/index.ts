@@ -30,6 +30,8 @@ export const PERMISSIONS = [
   'taskcell:read', 'taskcell:write',
   'process:design',
   'integration:connect', 'integration:bind',
+  // Phase 3 lát 4a — ai-gateway + MCP + eval harness
+  'ai:invoke', 'ai:eval',
 ] as const;
 export type PermissionCode = (typeof PERMISSIONS)[number];
 

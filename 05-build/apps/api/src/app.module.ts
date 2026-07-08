@@ -39,6 +39,11 @@ import { ProcessController } from './modules/process/process.controller';
 import { ProcessService } from './modules/process/process.service';
 import { IntegrationController } from './modules/integration/integration.controller';
 import { IntegrationService } from './modules/integration/integration.service';
+import { AiGatewayService } from './modules/ai/ai-gateway.service';
+import { McpController } from './modules/ai/mcp/mcp.controller';
+import { McpService } from './modules/ai/mcp/mcp.service';
+import { EvalController } from './modules/ai/eval/eval.controller';
+import { EvalService } from './modules/ai/eval/eval.service';
 
 @Module({
   controllers: [
@@ -48,6 +53,7 @@ import { IntegrationService } from './modules/integration/integration.service';
     ExportController,
     ConfigController, BrandController, OrgFunctionController, DerivationController,
     ProcessController, IntegrationController,
+    McpController, EvalController,
   ],
   providers: [
     PrismaService,
@@ -65,6 +71,9 @@ import { IntegrationService } from './modules/integration/integration.service';
     DerivationService,
     ProcessService,
     IntegrationService,
+    AiGatewayService,
+    McpService,
+    EvalService,
     // Guard pipeline TDD §11: Jwt → Tenant → Permission (Scope Phase 0 = tenant-level)
     { provide: APP_GUARD, useClass: JwtGuard },
     { provide: APP_GUARD, useClass: TenantGuard },

@@ -39,6 +39,8 @@ const PERMISSIONS = [
   'taskcell:read', 'taskcell:write',
   'process:design',
   'integration:connect', 'integration:bind',
+  // Phase 3 lát 4a — ai-gateway + MCP + eval harness
+  'ai:invoke', 'ai:eval',
 ];
 
 // Role toàn cục (tenant_id = null) + permission mặc định
@@ -68,6 +70,8 @@ const GLOBAL_ROLES: Record<string, string[]> = {
     'config:read', 'config:write', 'brand:write', 'org:design', 'derivation:run',
     'taskcell:read', 'taskcell:write', 'kpi:read', 'scorecard:read', 'flag:read',
     'process:design',
+    // lát 4a: designer dùng MCP tools + chạy eval (mock) — approver KHÔNG có (SoD giữ nguyên)
+    'ai:invoke', 'ai:eval',
   ],
   config_approver: ['tenant:read', 'org:read', 'config:read', 'config:publish', 'scorecard:read', 'kpi:read'],
   auditor: ['tenant:read', 'audit:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read'],
@@ -247,10 +251,52 @@ async function main() {
   const t2 = await seedTenant('T2.TEST', 'Tenant kiểm thử cô lập', 'opco');
 
   // 4. Feature flags mặc định (global, tắt)
-  for (const key of ['config_studio', 'ai_gateway', 'integration_hub']) {
+  // ai_gateway_live = OFF ⇒ ai-gateway luôn dùng MockLlmClient (RED-LINE: không gọi API thật)
+  for (const key of ['config_studio', 'ai_gateway', 'integration_hub', 'ai_gateway_live']) {
     const found = await prisma.featureFlag.findFirst({ where: { tenantId: null, key } });
     if (!found) {
       await prisma.featureFlag.create({ data: { id: uuidv7(), tenantId: null, key, enabled: false } });
+    }
+  }
+
+  // 5. MCP tool catalog global (Spec Config Studio §9) — read-only + propose (HITL)
+  const MCP_TOOLS: Array<{
+    name: string; descriptionVi: string; scopePermission: string; readOnly: boolean;
+    inputSchema: Record<string, unknown>;
+  }> = [
+    { name: 'ipms.get_org', descriptionVi: 'Đọc cây cơ cấu tổ chức của tenant',
+      scopePermission: 'org:read', readOnly: true,
+      inputSchema: { type: 'object', properties: {} } },
+    { name: 'ipms.get_kpi', descriptionVi: 'Đọc danh mục KPI (KPI Dictionary)',
+      scopePermission: 'kpi:read', readOnly: true,
+      inputSchema: { type: 'object', properties: { status: { type: 'string' } } } },
+    { name: 'ipms.get_scorecard', descriptionVi: 'Đọc scorecard + items',
+      scopePermission: 'scorecard:read', readOnly: true,
+      inputSchema: { type: 'object', properties: { scorecardId: { type: 'string' } } } },
+    { name: 'ipms.get_task_dictionary', descriptionVi: 'Đọc Từ điển Tác vụ (Task Cell)',
+      scopePermission: 'taskcell:read', readOnly: true,
+      inputSchema: { type: 'object', properties: { configVersionId: { type: 'string' } } } },
+    { name: 'ipms.propose_org_change', descriptionVi:
+        'Đề xuất thay đổi cơ cấu tổ chức — tạo ai_suggestion chờ người duyệt (KHÔNG tự ghi)',
+      scopePermission: 'config:write', readOnly: false,
+      inputSchema: { type: 'object', required: ['proposal'],
+        properties: { configVersionId: { type: 'string' }, proposal: { type: 'object' }, reason: { type: 'string' } } } },
+    { name: 'ipms.propose_derivation_rule', descriptionVi:
+        'Đề xuất derivation rule (kéo theo KPI) — tạo ai_suggestion chờ người duyệt',
+      scopePermission: 'config:write', readOnly: false,
+      inputSchema: { type: 'object', required: ['proposal'],
+        properties: { configVersionId: { type: 'string' }, proposal: { type: 'object' }, reason: { type: 'string' } } } },
+  ];
+  for (const t of MCP_TOOLS) {
+    const found = await prisma.mcpTool.findFirst({ where: { tenantId: null, name: t.name } });
+    if (!found) {
+      await prisma.mcpTool.create({
+        data: {
+          id: uuidv7(), tenantId: null, name: t.name, descriptionVi: t.descriptionVi,
+          inputSchema: t.inputSchema as any, scopePermission: t.scopePermission,
+          readOnly: t.readOnly, enabled: true,
+        },
+      });
     }
   }
 

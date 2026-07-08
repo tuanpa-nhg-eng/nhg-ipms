@@ -6,7 +6,7 @@
 ---
 
 ## RED-LINE chờ duyệt
-1. **[05/07/2026] Anthropic API key + budget cho ai-gateway** — lát 4 Phase 3 (MCP server, AI Config Copilot, eval harness) và 11 AI agent cần gọi Claude API = **chi tiền thật**. Chờ chủ dự án cấp key + trần budget/tháng (đề xuất: dev/staging cap $50/tháng, model Haiku/Sonnet). Trong lúc chờ: build khung ai-gateway với **mock LLM client** (không chặn).
+1. **[05/07/2026] Anthropic API key + budget cho ai-gateway** — lát 4 Phase 3 (MCP server, AI Config Copilot, eval harness) và 11 AI agent cần gọi Claude API = **chi tiền thật**. Chờ chủ dự án cấp key + trần budget/tháng (đề xuất: dev/staging cap $50/tháng, model Haiku/Sonnet). *Cập nhật 08/07: khung ai-gateway + MCP + eval ĐÃ build xong trên mock (lát 4a) — khi có key chỉ cần cài SDK, implement `AnthropicLlmClient`, bật flag `ai_gateway_live`.*
 2. **[05/07/2026] Token Notion/Microsoft Graph (Planner)** — connector 2 chiều cần integration token thật + đẩy dữ liệu ra hệ ngoài. Dev sẽ dùng mock connector; chỉ nối thật khi chủ dự án cấp token sandbox/workspace test.
 
 ---
@@ -105,3 +105,20 @@
 - **⑥ Integration Hub (lát CSV/ETL — fallback đã chốt):** data_contract validate per-row (lỗi vào failed[], không chặn batch) · integration_run stats success/partial/failed · outbox_event pending (dispatcher BullMQ lát sau) · connection không nhận token thô (authRef → Key Vault) · idempotent theo (source, external_id).
 
 **Chưa build (lát 4+):** Notion/MS Planner connector 2 chiều (**cần token thật — sẽ dừng ở RED-LINE nếu đẩy data thật ra ngoài; dev dùng mock trước**) · outbox dispatcher BullMQ · MCP server + AI Config Copilot + eval harness (#3/#4/#10 — cần dựng app ai-gateway + Claude API key: **chi phí API = RED-LINE chờ chủ dự án cấp key/budget**) · Cedar access_policy · FE canvas react-flow · morning-todos job.
+
+---
+
+## Phase 3 — Lát 4a: bộ ba AI (ai-gateway mock + MCP server + eval harness) · **08/07/2026 · HOÀN THÀNH — Reviewer PASS-WITH-FIXES → đã fix F55–F57, 139/139 PASS**
+
+> **Verdict Reviewer (SoD):** PASS-WITH-FIXES — 0 BLOCKER/MAJOR, 6 MINOR. Bất biến cốt lõi giữ vững: RED-LINE fail-closed về mock, RLS chuẩn F44, HITL không lách được, race F28, prototype-chain F14. Đã fix ngay: **F55** (canonical min-permission per handler trong CODE — tenant override mcp_tool không hạ được gate) · **F56** (partial unique index chặn 2 row global trùng tên tool) · **F57** (trần 10K ký tự input regex/contains — chặn ReDoS) + 2 test HITL bổ sung (propose/accept vào version PUBLISHED → 409). Ticket nợ: **F58** (eval run kẹt `running` nếu process chết — cần job dọn) · **F59** (ai_interaction log full prompt/context — cần hook khử PII TRƯỚC khi bật client thật) · **F60** (chưa cap kích thước JSON case/args).
+
+**Đã build (không chi tiền — toàn mock, RED-LINE giữ nguyên):**
+- **Schema 7 bảng mới + RLS:** `mcp_tool` (registry, global+tenant override, F44 SELECT⟂WRITE) · `ai_interaction` (log mọi lượt gọi AI — **APPEND-ONLY trigger như audit_log**, chặn cả owner) · `ai_suggestion` (đề xuất AI chờ duyệt) · `ai_eval_suite/case/run/result`. Permission mới `ai:invoke`/`ai:eval` (config_designer có, approver/employee KHÔNG — SoD giữ).
+- **ai-gateway:** interface `LlmClient` + **`MockLlmClient` TẤT ĐỊNH** (FNV-1a seed — cùng input ⇒ cùng output byte-một-byte, cost=0) + `AnthropicLlmClient` stub ném NotImplemented. Backend chọn qua `selectLlmBackend` (pure): chỉ 'anthropic' khi flag `ai_gateway_live` ON **và** có API key — mọi trường hợp khác fail-closed về mock. Flag seed OFF. Mọi lượt gọi ghi `ai_interaction` (kể cả error/blocked).
+- **MCP server (#3):** registry 6 tool seed (`ipms.get_org/get_kpi/get_scorecard/get_task_dictionary` read-only + `ipms.propose_org_change/propose_derivation_rule`), transport HTTP nội bộ shape tương thích MCP (adapter stdio mount 1:1 sau). **Guard 2 lớp fail-closed:** endpoint `ai:invoke` + per-tool `scope_permission` + [F55] canonical min-permission trong code. **HITL tuyệt đối:** propose_* KHÔNG chạm nghiệp vụ — chỉ tạo `ai_suggestion` pending; accept (config:write) materialize vào `config_change` của DRAFT (conditional update chống double-accept F28) — vẫn đi tiếp vòng publish SoD.
+- **AI eval harness (#10):** suite/case với assertions cứng (`equals/contains/regex/exists`, dot-path chặn prototype-chain F14, regex hỏng/case không assertion ⇒ fail-closed); runner chạy qua ai-gateway mock ⇒ **tất định, gắn CI được** (test chứng minh: 2 lần chạy cùng summary + score). GET run trả kết quả + judge details explainable.
+- **Test: 139/139 PASS** (59 unit + 80 integration) — 28 test mới: guard 2 lớp, tenant override thắng global, HITL không chạm org + không lách vào published, double-accept 409, append-only, cô lập T2, RED-LINE flag OFF + tổng cost=0.
+
+**Sửa môi trường (phát hiện khi verify baseline):** bản copy folder OneDrive làm mất `.env` (gitignored) → integration fail toàn bộ. Đã tái tạo `.env` từ example + thêm default DB dev-only vào `test/setup-env.ts` (chỉ áp khi biến chưa set — CI override được).
+
+**Còn lại Phase 3 (lát 4b+):** outbox dispatcher BullMQ · Cedar access_policy · Notion/Planner mock connector · FE canvas react-flow · morning-todos job · ticket F42/F43 (policy chờ user) / F58–F60 / throttle resolver.
