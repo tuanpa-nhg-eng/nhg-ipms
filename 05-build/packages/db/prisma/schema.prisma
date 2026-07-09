@@ -1297,6 +1297,32 @@ model AiEvalRun {
   @@map("ai_eval_run")
 }
 
+// Policy-as-Code (#2) — Spec Config Studio §4.4/§7: Cedar policy phủ ABAC lên nền RBAC.
+// tenant_id NULL = policy global (guardrail nền tảng, chỉ owner/B3 ghi — app KHÔNG ghi được qua RLS).
+// Vòng đời: draft (sửa tự do) → active (PolicyGuard enforce) → disabled.
+// Kích hoạt yêu cầu config:publish + toàn bộ `tests` PASS (chống hồi quy phân quyền).
+model AccessPolicy {
+  id         String  @id @db.Uuid
+  tenantId   String? @map("tenant_id") @db.Uuid
+  name       String
+  engine     String  @default("cedar") // cedar | opa (chỉ cedar được hỗ trợ lát này)
+  policyText String  @map("policy_text") // nội dung Cedar (permit/forbid + when/unless)
+  scope      String? // action-prefix áp dụng ('kpi' ⇒ kpi:*); null = mọi action
+  tests      Json    @default("[]") // [{name, principal:{attrs}, action, context, expect:'allow'|'deny'}]
+  status     String  @default("draft") // draft|active|disabled
+  note       String?
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  version   Int       @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, name])
+  @@index([tenantId, status])
+  @@map("access_policy")
+}
+
 model AiEvalResult {
   id          String   @id @db.Uuid
   tenantId    String   @map("tenant_id") @db.Uuid

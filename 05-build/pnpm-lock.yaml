@@ -10,6 +10,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@cedar-policy/cedar-wasm':
+        specifier: ^4.11.2
+        version: 4.11.2
       '@ipms/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -281,6 +284,9 @@ packages:
 
   '@borewit/text-codec@0.2.2':
     resolution: {integrity: sha512-DDaRehssg1aNrH4+2hnj1B7vnUGEjU6OIlyRdkMd0aUdIUvKXrJfXsy8LVtXAy7DRvYVluWbMspsRhz2lcW0mQ==}
+
+  '@cedar-policy/cedar-wasm@4.11.2':
+    resolution: {integrity: sha512-WirTj7pAQnP2fRAuJ5OLIl4VmQiUiyGgHku+eNTSXm9LJHMU/v14vHz6nEcxAQjR6oXtm21zRsHEBIbWP9TJ5A==}
 
   '@cspotcode/source-map-support@0.8.1':
     resolution: {integrity: sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw==}
@@ -2291,6 +2297,8 @@ snapshots:
   '@bcoe/v8-coverage@0.2.3': {}
 
   '@borewit/text-codec@0.2.2': {}
+
+  '@cedar-policy/cedar-wasm@4.11.2': {}
 
   '@cspotcode/source-map-support@0.8.1':
     dependencies:

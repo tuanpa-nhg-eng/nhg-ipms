@@ -26,6 +26,9 @@ export class EvalService {
 
   createSuite(user: RequestUser, input: CreateSuiteInput) {
     if (!input.cases?.length) throw new UnprocessableEntityException('Suite cần ≥1 case');
+    if (input.cases.length > 100) {
+      throw new UnprocessableEntityException('Suite tối đa 100 case — chia nhiều suite');
+    }
     for (const c of input.cases) {
       if (!c.assertions?.length) {
         throw new UnprocessableEntityException(`Case '${c.name ?? '?'}' thiếu assertions — eval fail-closed`);
@@ -37,8 +40,17 @@ export class EvalService {
       if (typeof c.input?.prompt !== 'string' || c.input.prompt.length === 0 || c.input.prompt.length > 4_000) {
         throw new UnprocessableEntityException(`Case '${c.name ?? '?'}': prompt bắt buộc, tối đa 4000 ký tự`);
       }
-      if (c.input.context !== undefined && JSON.stringify(c.input.context).length > 8_000) {
+      // [F64] đo BYTES (không đếm ký tự — multibyte lách được) + cap TỔNG mỗi case:
+      // expected/assertions to cũng vòng qua được cap context nếu chỉ cap từng phần
+      if (c.input.context !== undefined
+        && Buffer.byteLength(JSON.stringify(c.input.context), 'utf8') > 8_192) {
         throw new UnprocessableEntityException(`Case '${c.name ?? '?'}': context tối đa 8KB`);
+      }
+      const totalBytes = Buffer.byteLength(
+        JSON.stringify({ input: c.input, expected: c.expected ?? null, assertions: c.assertions }), 'utf8',
+      );
+      if (totalBytes > 32_768) {
+        throw new UnprocessableEntityException(`Case '${c.name ?? '?'}': tổng JSON tối đa 32KB (hiện ${totalBytes} bytes)`);
       }
     }
     return this.prisma.withTenant(user.tenantId, async (tx) => {

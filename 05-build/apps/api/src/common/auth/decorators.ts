@@ -14,6 +14,16 @@ export const Audited = (action: string) => SetMetadata(AUDIT_KEY, action);
 /** Endpoint public (bỏ qua guard pipeline) — chỉ dùng cho /auth/dev-token & health. */
 export const Public = () => SetMetadata(PUBLIC_KEY, true);
 
+export const POLICY_EXEMPT_KEY = 'ipms:policy-exempt';
+
+/**
+ * [F68] VAN AN TOÀN — miễn trừ tầng PolicyGuard (ABAC), RBAC vẫn gác đầy đủ.
+ * CHỈ dùng cho bề mặt quản trị chính access_policy (list/get/disable): nếu không,
+ * một policy forbid config:publish tự khoá tenant vĩnh viễn (không ai disable được nữa,
+ * chỉ còn đường owner/B3 sửa DB). KHÔNG miễn trừ create/update/activate/test.
+ */
+export const PolicyExempt = () => SetMetadata(POLICY_EXEMPT_KEY, true);
+
 /** Scope mà user có cho permission đang yêu cầu (từ các role cấp permission đó). */
 export interface PermissionScope {
   scopeType: 'tenant' | 'org_unit' | 'self' | null; // null = coi như tenant (role cũ)

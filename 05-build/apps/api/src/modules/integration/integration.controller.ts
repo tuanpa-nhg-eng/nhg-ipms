@@ -30,6 +30,13 @@ class CreateBindingDto {
   @IsOptional() @IsObject() syncPolicy?: Record<string, unknown>;
 }
 
+class ReplayOutboxDto {
+  @IsIn(['skipped', 'dead']) status!: 'skipped' | 'dead';
+  // id outbox_event (BIGINT — nhận string); bỏ trống = replay toàn bộ status đó của tenant
+  @IsOptional() @IsArray() @ArrayMaxSize(500) @Matches(/^\d+$/, { each: true })
+  eventIds?: string[];
+}
+
 class MorningTodosDto {
   @IsOptional() @Matches(/^\d{4}-\d{2}-\d{2}$/) date?: string;
 }
@@ -84,6 +91,16 @@ export class IntegrationController {
   @Audited('outbox.dispatch')
   dispatchOutbox(@CurrentUser() user: RequestUser) {
     return this.outbox.dispatchTenant(user.tenantId);
+  }
+
+  /** [F65] Replay event skipped/dead → pending (vd sau khi thêm binding khớp / hệ ngoài đã phục hồi). */
+  @Post('outbox/replay')
+  @RequirePermission('integration:run')
+  @Audited('outbox.replay')
+  replayOutbox(@CurrentUser() user: RequestUser, @Body() dto: ReplayOutboxDto) {
+    return this.outbox.replayTenant(
+      user.tenantId, dto.status, dto.eventIds?.map((id) => BigInt(id)),
+    );
   }
 
   /** Job morning-todos: goal active/at_risk/off_track → todo hệ ngoài (mock) — idempotent theo ngày. */

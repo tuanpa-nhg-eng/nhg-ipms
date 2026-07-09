@@ -45,16 +45,30 @@ describe('Phase 3 lát 4b — outbox dispatcher + mock connectors + morning-todo
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
     await app.init();
 
-    // dọn state còn sót (lần chạy trước trên dev DB) — spec này đếm chính xác stats:
-    // outbox pending cũ + binding cũ (binding match-all cũ làm sai test skipped)
+    // [F66] dọn state còn sót của CHÍNH SPEC NÀY (lần chạy trước trên dev DB) — scope
+    // theo pattern spec tạo ra, KHÔNG quét sạch state dev dùng chung
     await owner.outboxEvent.updateMany({
-      where: { tenantId: admin.id, status: 'pending' },
+      where: {
+        tenantId: admin.id, status: 'pending',
+        OR: [
+          { eventType: 'evidence.batch_imported' },
+          { eventType: { startsWith: 'other.event_' } },
+          { eventType: { startsWith: 'fail.event_' } },
+          { eventType: { startsWith: 'iso.event_' } },
+          { eventType: { startsWith: 'replay.event_' } },
+        ],
+      },
       data: { status: 'skipped', dispatchedAt: new Date() },
     });
-    await owner.integrationBinding.updateMany({
-      where: { tenantId: admin.id, deletedAt: null },
-      data: { deletedAt: new Date() },
-    });
+    for (const prefix of ['ws-', 'todos-']) {
+      await owner.integrationBinding.updateMany({
+        where: {
+          tenantId: admin.id, deletedAt: null,
+          externalTarget: { path: ['workspace'], string_starts_with: prefix },
+        },
+        data: { deletedAt: new Date() },
+      });
+    }
   });
 
   afterAll(async () => {
@@ -157,6 +171,35 @@ describe('Phase 3 lát 4b — outbox dispatcher + mock connectors + morning-todo
     const dead = await owner.outboxEvent.findUnique({ where: { id: ev.id } });
     expect(dead!.status).toBe('dead');
     expect(dead!.retryCount).toBe(5);
+  });
+
+  it('[F65] replay skipped → pending → dispatch được sau khi thêm binding khớp', async () => {
+    const ev = await owner.outboxEvent.create({
+      data: {
+        tenantId: admin.id, aggregateType: 'test', aggregateId: null,
+        eventType: `replay.event_${uniq}`, payload: { r: 1 } as any,
+      },
+    });
+    const d1 = await api().post('/api/v1/integrations/outbox/dispatch').set(as(admin));
+    expect(d1.body.skipped).toBe(1);
+
+    // giờ mới có binding khớp — replay đích danh event (không kéo skipped cũ dậy)
+    await api().post('/api/v1/integrations/bindings').set(as(admin)).send({
+      connectionId, localType: 'evidence', direction: 'out',
+      externalTarget: { workspace: `ws-${uniq}` },
+      fieldMap: {}, syncPolicy: { events: [`replay.event_${uniq}`] },
+    });
+    const rep = await api().post('/api/v1/integrations/outbox/replay').set(as(admin))
+      .send({ status: 'skipped', eventIds: [String(ev.id)] });
+    expect(rep.status).toBe(201);
+    expect(rep.body.replayed).toBe(1);
+
+    const d2 = await api().post('/api/v1/integrations/outbox/dispatch').set(as(admin));
+    expect(d2.body.dispatched).toBe(1);
+
+    // emp không có integration:run → 403
+    expect((await api().post('/api/v1/integrations/outbox/replay').set(as(emp))
+      .send({ status: 'skipped' })).status).toBe(403);
   });
 
   it('morning-todos: chưa có binding → 422; có binding → push goal active, chạy lại idempotent', async () => {

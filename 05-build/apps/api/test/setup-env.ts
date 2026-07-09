@@ -9,3 +9,6 @@ process.env.DATABASE_URL =
 process.env.OWNER_DATABASE_URL =
   process.env.OWNER_DATABASE_URL ??
   'postgresql://ipms_owner:ipms_dev_only@localhost:55432/ipms?schema=public';
+// Lát 4c: tắt cache PolicyGuard trong test — policy global do owner ghi thẳng DB
+// (không qua API nên không invalidate được cache) phải có hiệu lực ngay
+process.env.POLICY_CACHE_TTL_MS = process.env.POLICY_CACHE_TTL_MS ?? '0';

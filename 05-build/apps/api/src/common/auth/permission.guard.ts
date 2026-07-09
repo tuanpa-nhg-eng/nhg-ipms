@@ -53,6 +53,8 @@ export class PermissionGuard implements CanActivate {
     }
     const user: RequestUser = { claims: req.ipmsClaims, tenantId, permissions, scopes };
     req.ipmsUser = user;
+    // [Lát 4c] PolicyGuard (tầng ABAC đứng sau) cần biết permission đang yêu cầu
+    req.ipmsRequiredPermission = required;
     return true;
   }
 }

@@ -173,6 +173,24 @@ export class OutboxDispatcher implements OnModuleDestroy {
     return stats;
   }
 
+  /**
+   * [F65] Replay event skipped/dead → pending để dispatch quét lại.
+   * Dùng khi: (skipped) tenant vừa thêm binding khớp event cũ · (dead) sự cố hệ ngoài
+   * đã khắc phục. Reset retry_count để dead-letter được chu kỳ retry mới đầy đủ.
+   * Per-tenant qua RLS; idempotent theo sync_record như dispatch bình thường.
+   */
+  async replayTenant(
+    tenantId: string, status: 'skipped' | 'dead', eventIds?: bigint[],
+  ): Promise<{ replayed: number }> {
+    const result = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.outboxEvent.updateMany({
+        where: { status, ...(eventIds?.length ? { id: { in: eventIds } } : {}) },
+        data: { status: 'pending', retryCount: 0, dispatchedAt: null },
+      }),
+    );
+    return { replayed: result.count };
+  }
+
   async onModuleDestroy() {
     await this.worker?.close();
     await this.queue?.close();

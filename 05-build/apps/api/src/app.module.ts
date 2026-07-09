@@ -47,6 +47,9 @@ import { McpController } from './modules/ai/mcp/mcp.controller';
 import { McpService } from './modules/ai/mcp/mcp.service';
 import { EvalController } from './modules/ai/eval/eval.controller';
 import { EvalService } from './modules/ai/eval/eval.service';
+import { PolicyController } from './modules/policy/policy.controller';
+import { PolicyService } from './modules/policy/policy.service';
+import { PolicyGuard } from './modules/policy/policy.guard';
 
 @Module({
   controllers: [
@@ -56,7 +59,7 @@ import { EvalService } from './modules/ai/eval/eval.service';
     ExportController,
     ConfigController, BrandController, OrgFunctionController, DerivationController,
     ProcessController, IntegrationController,
-    McpController, EvalController,
+    McpController, EvalController, PolicyController,
   ],
   providers: [
     PrismaService,
@@ -80,10 +83,12 @@ import { EvalService } from './modules/ai/eval/eval.service';
     AiGatewayService,
     McpService,
     EvalService,
-    // Guard pipeline TDD §11: Jwt → Tenant → Permission (Scope Phase 0 = tenant-level)
+    PolicyService,
+    // Guard pipeline Spec Config Studio §7: Jwt → Tenant → Permission (RBAC) → Policy (ABAC #2)
     { provide: APP_GUARD, useClass: JwtGuard },
     { provide: APP_GUARD, useClass: TenantGuard },
     { provide: APP_GUARD, useClass: PermissionGuard },
+    { provide: APP_GUARD, useClass: PolicyGuard },
     { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
     { provide: APP_FILTER, useClass: ApiErrorFilter },
   ],
