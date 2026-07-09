@@ -156,3 +156,24 @@
 **Giả định mặc định đã dùng:** ① ABAC ở tầng GUARD (action=permission, chưa per-resource attrs — policy theo resource cụ thể sẽ thêm khi có nhu cầu, cắm vào assertScope) ② policy do `config_designer` soạn / `config_approver` kích hoạt (reuse config:write⟂config:publish + SoD rule sẵn có, không thêm permission mới) ③ policy KHÔNG version-scoped theo config_version (vòng đời riêng draft→active→disabled như spec DDL) ④ sự cố khoá toàn tenant do policy global hỏng: khắc phục tầng owner/B3 (runbook: xoá/sửa row `access_policy` global).
 
 **Còn lại Phase 3:** FE canvas react-flow · connector Notion/Planner THẬT (RED-LINE chờ token) · AI Config Copilot khi có key · ticket F42/F43 (chờ user) / F55-còn lại / F59 / F70-còn lại / throttle resolver.
+
+---
+
+## Phase 3 — Lát 4d: FE canvas react-flow (Configuration Studio UI) + backend hỗ trợ · **09/07/2026 · HOÀN THÀNH — Reviewer PASS-WITH-FIXES → đã fix F73–F78+F80/F81, 187/187 PASS**
+
+> **Verdict Reviewer (SoD):** PASS-WITH-FIXES — 0 BLOCKER, 1 MAJOR (**F73** DTO `edges` khai `@IsObject` nhưng GET trả mảng → round-trip GET→PUT sẽ 400; đã fix `@IsArray` + test round-trip). Đã fix luôn: **F74** (validate UUID query tại cửa — hết 500 khi refId rác) · **F75** (upsert race: catch P2002 → update, unique constraint đỡ data) · **F77** (chuẩn hoá pos chỉ giữ {x,y} — strip key thừa) · **F78** (FE: nối edge/thêm bước không reset vị trí node đang kéo chưa lưu) · **F80** (CORS default dev KHÔNG bao giờ bật ở NODE_ENV=production kể cả ALLOW_DEV_TOKEN đặt nhầm) · **F81** (dotenv quiet). **Backlog:** F76 (canvas_layout chưa optimistic-lock — chấp nhận vì thuần bố cục hiển thị) · F79 (token sessionStorage — chuyển httpOnly/BFF khi lên OIDC Entra; form dev-login ship trong prod bundle nhưng BE gate 403) · F82 (lọc Task Cell theo prefix client-side → API filter theo processId lát sau).
+
+**FE (05-build/web — LẦN ĐẦU nối backend thật, dep mới `reactflow`):** khu `/studio` 3 màn:
+- **Login gate dev** (`lib/api.ts` + `lib/studio.tsx` + `studio/layout.tsx`): dev-token → session ở sessionStorage (hết khi đóng tab), quick-login designer@/approver@/admin@ theo seed; production thay bằng OIDC Entra.
+- **Config Versions + Publish bar** (`/studio`): tạo draft → chọn version làm việc → diff summary → publish (hiển thị đúng lỗi SoD 403/409 từ API) → rollback.
+- **⑤ Process Designer** (`/studio/process`, react-flow): node = step (màu theo 5 loại), kéo–thả vị trí → PUT canvas-layout, nối node → POST edges (validate BE: chặn self-loop…), thêm bước, panel thuộc tính step, nút **Sinh Task Cell** → bảng cell `<PROCESS>-Snn` kèm mã KPI.
+- **② Org Designer** (`/studio/org`, react-flow): graph cây tổ chức (edge cha–con, không nối tay), tạo đơn vị (code/tên/cấp/trực thuộc), kéo–thả layout lưu per-tenant, fallback tree layout BFS (chịu được org data có cycle).
+- Sidebar nhóm "Configuration Studio" + i18n VI/EN + light/dark theo NHG DS (bất biến giữ nguyên).
+
+**Backend:** bảng `canvas_layout` (kind org|process CHECK tầng DB, unique (tenant,kind,ref), RLS tenant-bound, thuần bố cục hiển thị — KHÔNG đi qua config_change/publish) · `GET /canvas-layout` (config:read) + `PUT /canvas-layout/org|process` (permission per-kind org:design/process:design fail-closed; org ref = chính tenant; cap 64KB bytes chuẩn F64) · `GET /task-cells` + `/:code` (taskcell:read, filter bắt buộc — chặn dump) · **CORS fail-closed** (chỉ bật khi CORS_ORIGINS set, hoặc dev-default localhost khi ALLOW_DEV_TOKEN + non-production) · **fix nền: API chưa từng nạp `.env`** (trước giờ dev-token/CORS chết khi chạy `pnpm api:dev` — thêm `dotenv/config` đầu main.ts, không override env platform).
+
+**Kiểm chứng:** 187/187 PASS (81 unit + 106 integration, thêm canvas-layout.spec 7 test) · `npm run build` web pass (3 route studio) · **E2E smoke qua HTTP pass trọn mạch**: dev-token → tạo version → process → step → PUT layout → generate-cells → GET task-cells (`SMK-S01`) · CORS header xác nhận đúng origin :3001.
+
+**Sự cố dev đã xử lý:** trang trắng /studio = dev server :3001 cũ (chạy từ trước khi cài reactflow) — kill + xoá `.next` (OneDrive giữ file gây EINVAL readlink) + start lại là hết. Dev flow chuẩn: `pnpm api:dev` (API :4000) + `cd web && npx next dev -p 3001`.
+
+**Còn lại Phase 3:** Studio lát kế (gán org_function kéo–thả, Derivation preview UI bảng diff+reason, Brand Kit editor, field-mapping Integration) · connector thật + Copilot (RED-LINE chờ token/key) · ticket F42/F43 (chờ user) / F55-còn lại / F59 / F70-còn lại / F76/F79/F82 / throttle resolver.

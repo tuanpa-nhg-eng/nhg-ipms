@@ -6,7 +6,7 @@ import {
   LayoutDashboard, TriangleAlert, Target, ClipboardCheck, BookMarked, Sparkles,
   Network, Users, Scale, ScrollText, FileCheck, Rocket,
   Bot, UserCog, CalendarCog, Grid3x3, ShieldCheck, MessageSquareText, CalendarCheck,
-  ChevronDown,
+  ChevronDown, SlidersHorizontal, Workflow, Building2,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
@@ -57,6 +57,12 @@ export function Sidebar() {
       { href: "/hr/calibration", label: t("nav.calibration"), icon: <Scale size={ICON} /> },
       { href: "/hr/talent-matrix", label: t("nav.talentmatrix"), icon: <Grid3x3 size={ICON} /> },
       { href: "/hr/policy", label: t("nav.policy"), icon: <ShieldCheck size={ICON} /> },
+    ]},
+    // Configuration Studio — khu nối API thật (role-gated ở BE; sidebar mock chưa gate)
+    { id: "studio", group: t("nav.studio"), links: [
+      { href: "/studio", label: t("nav.studioversions"), icon: <SlidersHorizontal size={ICON} /> },
+      { href: "/studio/org", label: t("nav.orgdesigner"), icon: <Building2 size={ICON} /> },
+      { href: "/studio/process", label: t("nav.processdesigner"), icon: <Workflow size={ICON} /> },
     ]},
     { id: "audit", group: t("nav.audit"), links: [
       { href: "/audit/logs", label: t("nav.auditlog"), icon: <ScrollText size={ICON} /> },

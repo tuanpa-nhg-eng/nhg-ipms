@@ -1297,6 +1297,25 @@ model AiEvalRun {
   @@map("ai_eval_run")
 }
 
+// Canvas layout (Spec Config Studio §4.3/§13) — vị trí node kéo–thả cho Org/Process Designer.
+// Chỉ là bố cục hiển thị (không phải dữ liệu nghiệp vụ): kind 'org' (ref = tenant) |
+// 'process' (ref = process.id). nodes = {nodeId: {x,y}}.
+model CanvasLayout {
+  id       String @id @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  kind     String // 'org' | 'process'
+  refId    String @map("ref_id") @db.Uuid
+  nodes    Json   @default("{}")
+  edges    Json   @default("[]") // dự phòng edge tuỳ biến (routing) — hiện FE chưa dùng
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy String?  @map("updated_by") @db.Uuid
+  version   Int      @default(1)
+
+  @@unique([tenantId, kind, refId])
+  @@map("canvas_layout")
+}
+
 // Policy-as-Code (#2) — Spec Config Studio §4.4/§7: Cedar policy phủ ABAC lên nền RBAC.
 // tenant_id NULL = policy global (guardrail nền tảng, chỉ owner/B3 ghi — app KHÔNG ghi được qua RLS).
 // Vòng đời: draft (sửa tự do) → active (PolicyGuard enforce) → disabled.

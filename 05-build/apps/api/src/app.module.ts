@@ -33,6 +33,8 @@ import { ConfigController } from './modules/config/config.controller';
 import { ConfigService } from './modules/config/config.service';
 import { BrandController } from './modules/config/brand.controller';
 import { OrgFunctionController } from './modules/config/org-function.controller';
+import { CanvasController } from './modules/config/canvas.controller';
+import { TaskCellController } from './modules/config/taskcell.controller';
 import { DerivationController } from './modules/derivation/derivation.controller';
 import { DerivationService } from './modules/derivation/derivation.service';
 import { ProcessController } from './modules/process/process.controller';
@@ -57,7 +59,8 @@ import { PolicyGuard } from './modules/policy/policy.guard';
     KpiController, ScorecardController, StrategyController, GoalController,
     EvidenceController, CheckinController, ReviewController, CalibrationController,
     ExportController,
-    ConfigController, BrandController, OrgFunctionController, DerivationController,
+    ConfigController, BrandController, OrgFunctionController, CanvasController,
+    TaskCellController, DerivationController,
     ProcessController, IntegrationController,
     McpController, EvalController, PolicyController,
   ],
