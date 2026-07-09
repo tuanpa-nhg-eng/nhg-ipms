@@ -625,6 +625,10 @@ model KpiTemplate {
   functionTags    String[] @map("function_tags")
   roleFamilyCodes String[] @map("role_family_codes")
   taskCellRefs    String[] @map("task_cell_refs")
+  // BU Authoring Gate (§5.1)
+  origin        String  @default("library")
+  libScope      String  @default("tenant") @map("lib_scope")
+  contributedBy String? @map("contributed_by") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   createdBy String?  @map("created_by") @db.Uuid
@@ -634,6 +638,119 @@ model KpiTemplate {
 
   @@unique([tenantId, code])
   @@map("kpi_template")
+}
+
+// ===== BU Authoring Gate (Spec_BU_Authoring_Gate §5) — thư viện 3 tầng =====
+
+// Gói đóng góp — wrapper 1 lần submit của BU Author (payload = snapshot 7 nhóm + KPI)
+model LibraryContribution {
+  id            String    @id @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  authorId      String    @map("author_id") @db.Uuid
+  orgUnitId     String?   @map("org_unit_id") @db.Uuid
+  functionId    String?   @map("function_id") @db.Uuid
+  type          String // task_cell | kpi | task_cell_with_kpi
+  taskCellId    String?   @map("task_cell_id") @db.Uuid
+  kpiRef        String?   @map("kpi_ref")
+  payload       Json
+  status        String    @default("draft") // draft→submitted→in_review→needs_changes→approved→published | rejected|deprecated
+  qualityScore  Decimal?  @map("quality_score") @db.Decimal(5, 2)
+  qualityReport Json?     @map("quality_report") // chi tiết gate — explainable
+  targetScope   String    @default("tenant") @map("target_scope") // tenant | group
+  curatorId     String?   @map("curator_id") @db.Uuid
+  submittedAt   DateTime? @map("submitted_at") @db.Timestamptz(6)
+  decidedAt     DateTime? @map("decided_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version   Int       @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  reviews         LibraryReview[]
+  dedupCandidates LibraryDedupCandidate[]
+
+  @@index([tenantId, status])
+  @@index([authorId])
+  @@map("library_contribution")
+}
+
+// Audit trail curation (comment/request_changes/approve/reject/merge/publish)
+model LibraryReview {
+  id             String   @id @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  contributionId String   @map("contribution_id") @db.Uuid
+  reviewerId     String?  @map("reviewer_id") @db.Uuid
+  action         String
+  note           String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  contribution LibraryContribution @relation(fields: [contributionId], references: [id])
+
+  @@index([contributionId])
+  @@map("library_review")
+}
+
+// Ứng viên trùng — hệ gợi ý (exact code / normalized name), NGƯỜI quyết
+model LibraryDedupCandidate {
+  id                   String   @id @db.Uuid
+  tenantId             String   @map("tenant_id") @db.Uuid
+  contributionId       String   @map("contribution_id") @db.Uuid
+  similarTaskCellId    String?  @map("similar_task_cell_id") @db.Uuid
+  similarKpiTemplateId String?  @map("similar_kpi_template_id") @db.Uuid
+  similarity           Decimal? @db.Decimal(4, 3)
+  reason               String?
+  resolution           String   @default("pending") // pending|merge|keep_both|discard
+  resolvedBy           String?  @map("resolved_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  contribution LibraryContribution @relation(fields: [contributionId], references: [id])
+
+  @@index([contributionId])
+  @@map("library_dedup_candidate")
+}
+
+// Template pack chuẩn hoá (§6.5) — tenant NULL = pack dùng chung (curator/B1 phát hành)
+model LibraryTemplate {
+  id       String  @id @db.Uuid
+  tenantId String? @map("tenant_id") @db.Uuid
+  code     String
+  nameVi   String  @map("name_vi")
+  nameEn   String? @map("name_en")
+  domain   String?
+  format   String  @default("json") // excel|csv|json (lát này: json rows inline)
+  schema   Json    @default("{}")
+  version  Int     @default(1)
+  status   String  @default("published")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?   @map("created_by") @db.Uuid
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, code, version])
+  @@map("library_template")
+}
+
+// 1 lần import (idempotent): preview (diff/stats) → apply (conditional — chuẩn F28)
+model LibraryImportRun {
+  id              String  @id @db.Uuid
+  tenantId        String  @map("tenant_id") @db.Uuid
+  templateId      String? @map("template_id") @db.Uuid
+  sourceRef       String? @map("source_ref")
+  mode            String // as_local | as_submission | as_canonical
+  configVersionId String? @map("config_version_id") @db.Uuid // bắt buộc khi as_local
+  orgUnitId       String? @map("org_unit_id") @db.Uuid // [F92b] scope của người import
+  rows            Json    @default("[]") // snapshot rows đã validate ở preview
+  status          String  @default("preview") // preview|applied|failed
+  diff            Json?
+  stats           Json?
+  error           Json?
+  importedBy      String? @map("imported_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version   Int      @default(1)
+
+  @@index([tenantId])
+  @@map("library_import_run")
 }
 
 model TaskCell {
@@ -660,6 +777,13 @@ model TaskCell {
   kpiRef          String? @map("kpi_ref")
   processStepId   String? @map("process_step_id") @db.Uuid
   attrs           Json    @default("{}")
+  // BU Authoring Gate (§5.1): nguồn gốc + tầng thư viện. Canonical = configVersionId NULL
+  // + libScope tenant/group (partial unique theo (tenant,code) trong migration).
+  origin        String  @default("library") // library|bu_authored|imported|ai_drafted
+  libScope      String  @default("local") @map("lib_scope") // local|tenant|group
+  contributedBy String? @map("contributed_by") @db.Uuid
+  canonicalId   String? @map("canonical_id") @db.Uuid // trỏ bản canonical nếu là biến thể
+  usageCount    Int     @default(0) @map("usage_count") // promotion theo tần suất (§8)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   createdBy String?  @map("created_by") @db.Uuid

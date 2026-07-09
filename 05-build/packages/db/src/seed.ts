@@ -41,6 +41,10 @@ const PERMISSIONS = [
   'integration:connect', 'integration:bind',
   // Phase 3 lát 4a — ai-gateway + MCP + eval harness
   'ai:invoke', 'ai:eval',
+  // Phase 3 lát 4f — BU Authoring Gate (Spec_BU_Authoring_Gate §4 + §6.5)
+  'taskcell:author', 'kpi:propose',
+  'library:submit', 'library:curate', 'library:publish', 'library:deprecate',
+  'library:import', 'library:import:canonical',
 ];
 
 // Role toàn cục (tenant_id = null) + permission mặc định
@@ -74,6 +78,17 @@ const GLOBAL_ROLES: Record<string, string[]> = {
     'ai:invoke', 'ai:eval',
   ],
   config_approver: ['tenant:read', 'org:read', 'config:read', 'config:publish', 'scorecard:read', 'kpi:read'],
+  // BU Authoring Gate §4 — SoD: soạn (bu_author) ⟂ duyệt/publish (library_curator)
+  bu_author: [
+    'tenant:read', 'org:read', 'person:read', 'kpi:read', 'taskcell:read',
+    'taskcell:author', 'kpi:propose', 'library:submit', 'library:import',
+    'ai:invoke', // AI soạn nháp (human-in-the-loop)
+  ],
+  library_curator: [
+    'tenant:read', 'org:read', 'person:read', 'kpi:read', 'taskcell:read', 'config:read',
+    'library:curate', 'library:publish', 'library:deprecate',
+    'library:import', 'library:import:canonical',
+  ],
   auditor: ['tenant:read', 'audit:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read'],
   exec_viewer: ['tenant:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read'],
 };
@@ -198,7 +213,10 @@ async function main() {
     }
 
     // Config Studio: Designer + Approver (SoD — 2 người khác nhau)
-    async function seedStudioUser(prefix: string, roleCode: string) {
+    async function seedStudioUser(
+      prefix: string, roleCode: string,
+      scope: { scopeType: string; scopeId?: string } = { scopeType: 'tenant' },
+    ) {
       const p = await prisma.person.upsert({
         where: { tenantId_employeeCode: { tenantId: tenant.id, employeeCode: `${code}-${prefix.toUpperCase()}` } },
         update: {},
@@ -221,13 +239,24 @@ async function main() {
         await prisma.userRole.create({
           data: {
             id: uuidv7(), tenantId: tenant.id, appUserId: u.id,
-            roleId: roleIds[roleCode], scopeType: 'tenant',
+            roleId: roleIds[roleCode], scopeType: scope.scopeType, scopeId: scope.scopeId,
           },
+        });
+      } else if (
+        existing.scopeType !== scope.scopeType || (existing.scopeId ?? null) !== (scope.scopeId ?? null)
+      ) {
+        // [F100] scope thiết kế đổi → seed tự đồng bộ (idempotent không có nghĩa là đóng băng)
+        await prisma.userRole.update({
+          where: { id: existing.id },
+          data: { scopeType: scope.scopeType, scopeId: scope.scopeId ?? null },
         });
       }
     }
     await seedStudioUser('designer', 'config_designer');
     await seedStudioUser('approver', 'config_approver');
+    // BU Authoring Gate: author (soạn, SCOPE ORG_UNIT — spec §4) ⟂ curator (duyệt/publish)
+    await seedStudioUser('author', 'bu_author', { scopeType: 'org_unit', scopeId: dept.id });
+    await seedStudioUser('curator', 'library_curator');
 
     // [F53] SoD mặc định fail-closed: config:write ⟂ config:publish
     // (tenant muốn tắt → soft-delete rule; mặc định KHÔNG ai vừa sửa vừa publish)
@@ -242,6 +271,20 @@ async function main() {
         id: uuidv7(), tenantId: tenant.id,
         permissionA: 'config:write', permissionB: 'config:publish',
         severity: 'high', note: 'SoD mặc định — tách vai Designer/Approver',
+      },
+    });
+    // [4f] SoD mặc định BU Authoring — soạn ⟂ publish thư viện (Spec §4)
+    await prisma.sodRule.upsert({
+      where: {
+        tenantId_permissionA_permissionB: {
+          tenantId: tenant.id, permissionA: 'taskcell:author', permissionB: 'library:publish',
+        },
+      },
+      update: {},
+      create: {
+        id: uuidv7(), tenantId: tenant.id,
+        permissionA: 'taskcell:author', permissionB: 'library:publish',
+        severity: 'high', note: 'SoD mặc định — BU Author ⟂ Library Curator',
       },
     });
     return tenant;

@@ -32,6 +32,10 @@ export const PERMISSIONS = [
   'integration:connect', 'integration:bind',
   // Phase 3 lát 4a — ai-gateway + MCP + eval harness
   'ai:invoke', 'ai:eval',
+  // Phase 3 lát 4f — BU Authoring Gate
+  'taskcell:author', 'kpi:propose',
+  'library:submit', 'library:curate', 'library:publish', 'library:deprecate',
+  'library:import', 'library:import:canonical',
 ] as const;
 export type PermissionCode = (typeof PERMISSIONS)[number];
 
