@@ -8,11 +8,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import ReactFlow, {
   applyNodeChanges, Background, Controls, Edge, MiniMap, Node, NodeChange,
 } from "reactflow";
-import { Building2, Network, Plus, Save } from "lucide-react";
+import { Building2, ListChecks, Plus, Save } from "lucide-react";
 import { AppShell } from "@/components/shell/AppShell";
 import { Badge, Card } from "@/components/ui";
 import { useStudio } from "@/lib/studio";
-import { CanvasLayoutData, OrgUnit } from "@/lib/api";
+import { CanvasLayoutData, OrgFunction, OrgUnit, UnitFunction } from "@/lib/api";
 
 const LEVELS = ["group", "bu", "department", "team"] as const;
 const LEVEL_COLOR: Record<string, string> = {
@@ -53,6 +53,10 @@ export default function OrgDesignerPage() {
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ code: "", nameVi: "", level: "department", parentId: "" });
+  // gán chức năng (feed Derivation Engine)
+  const [functions, setFunctions] = useState<OrgFunction[]>([]);
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [fnForm, setFnForm] = useState({ code: "", nameVi: "" });
 
   const fail = (e: unknown) => setMsg({ kind: "err", text: (e as Error).message });
 
@@ -84,6 +88,51 @@ export default function OrgDesignerPage() {
     } catch (e) { fail(e); }
   }, [call, session]);
   useEffect(() => { void reload(); }, [reload]);
+
+  useEffect(() => {
+    call<OrgFunction[]>("/org-functions").then(setFunctions).catch(fail);
+  }, [call]);
+
+  // chọn đơn vị → nạp bộ chức năng đang gán
+  useEffect(() => {
+    if (!selected) { setChecked(new Set()); return; }
+    call<UnitFunction[]>(`/org-units/${selected.id}/functions`)
+      .then((list) => setChecked(new Set(list.map((f) => f.functionId))))
+      .catch(fail);
+  }, [selected, call]);
+
+  const toggleFn = (id: string) =>
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const saveFunctions = async () => {
+    if (!selected) return;
+    setBusy(true);
+    try {
+      await call(`/org-units/${selected.id}/functions`, {
+        method: "PUT",
+        json: { functions: [...checked].map((functionId) => ({ functionId })) },
+      });
+      setMsg({ kind: "ok", text: `Đã gán ${checked.size} chức năng cho ${selected.code} — Derivation Engine sẽ kéo KPI theo function` });
+    } catch (e) { fail(e); } finally { setBusy(false); }
+  };
+
+  const createFunction = async () => {
+    setBusy(true);
+    try {
+      await call("/org-functions", {
+        method: "POST",
+        json: { code: fnForm.code.toUpperCase(), nameVi: fnForm.nameVi },
+      });
+      setFnForm({ code: "", nameVi: "" });
+      setFunctions(await call<OrgFunction[]>("/org-functions"));
+      setMsg({ kind: "ok", text: "Đã thêm chức năng vào catalog" });
+    } catch (e) { fail(e); } finally { setBusy(false); }
+  };
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => setNodes((ns) => applyNodeChanges(changes, ns)),
@@ -181,22 +230,63 @@ export default function OrgDesignerPage() {
           </div>
         </div>
 
-        <Card title={<><Building2 size={15} /> Đơn vị đang chọn</>}
-          sub={selected ? selected.nameVi : "Click một node trên sơ đồ"}>
-          {selected && (
-            <dl className="kv">
-              <dt>Mã</dt><dd><b>{selected.code}</b></dd>
-              <dt>Cấp</dt><dd><Badge tone="gray">{selected.level}</Badge></dd>
-              <dt>Tên EN</dt><dd>{selected.nameEn ?? "—"}</dd>
-              <dt>Trực thuộc</dt>
-              <dd>{units.find((u) => u.id === selected.parentId)?.code ?? "— (gốc)"}</dd>
-            </dl>
-          )}
-          <div style={{ marginTop: 12, fontSize: 11.5, color: "var(--nhg-text-secondary)" }}>
-            <Network size={12} style={{ verticalAlign: -2 }} /> Gán chức năng cho đơn vị (org_function)
-            dùng API <code>/org-functions</code> — UI gán kéo–thả vào lát Studio kế tiếp.
-          </div>
-        </Card>
+        <div>
+          <Card title={<><Building2 size={15} /> Đơn vị đang chọn</>}
+            sub={selected ? selected.nameVi : "Click một node trên sơ đồ"}>
+            {selected && (
+              <dl className="kv">
+                <dt>Mã</dt><dd><b>{selected.code}</b></dd>
+                <dt>Cấp</dt><dd><Badge tone="gray">{selected.level}</Badge></dd>
+                <dt>Tên EN</dt><dd>{selected.nameEn ?? "—"}</dd>
+                <dt>Trực thuộc</dt>
+                <dd>{units.find((u) => u.id === selected.parentId)?.code ?? "— (gốc)"}</dd>
+              </dl>
+            )}
+          </Card>
+          <div style={{ height: 12 }} />
+          <Card title={<><ListChecks size={15} /> Chức năng của đơn vị</>}
+            sub={selected
+              ? "Tick chức năng rồi Lưu — Derivation Engine kéo KPI theo function"
+              : "Chọn đơn vị trước"}>
+            {selected && (
+              <>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 180, overflowY: "auto" }}>
+                  {functions.map((f) => (
+                    <label key={f.id} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12.5, cursor: "pointer" }}>
+                      <input type="checkbox" checked={checked.has(f.id)} onChange={() => toggleFn(f.id)} />
+                      <b>{f.code}</b> <span style={{ color: "var(--nhg-text-secondary)" }}>{f.nameVi}</span>
+                    </label>
+                  ))}
+                  {functions.length === 0 && (
+                    <span style={{ fontSize: 12, color: "var(--nhg-text-secondary)" }}>
+                      Catalog trống — thêm chức năng bên dưới.
+                    </span>
+                  )}
+                </div>
+                <button className="btn primary sm" style={{ marginTop: 10 }} disabled={busy}
+                  onClick={() => void saveFunctions()}>
+                  <Save size={13} /> Lưu chức năng
+                </button>
+              </>
+            )}
+            <div className="studio-toolbar" style={{ marginTop: 12 }}>
+              <div className="studio-field">
+                <label>Mã mới</label>
+                <input className="studio-input" style={{ width: 100 }} placeholder="ADMISSION"
+                  value={fnForm.code} onChange={(e) => setFnForm({ ...fnForm, code: e.target.value })} />
+              </div>
+              <div className="studio-field" style={{ flex: 1 }}>
+                <label>Tên chức năng</label>
+                <input className="studio-input" value={fnForm.nameVi}
+                  onChange={(e) => setFnForm({ ...fnForm, nameVi: e.target.value })} />
+              </div>
+              <button className="btn ghost sm" disabled={busy || !fnForm.code || !fnForm.nameVi}
+                onClick={() => void createFunction()}>
+                <Plus size={13} /> Thêm
+              </button>
+            </div>
+          </Card>
+        </div>
       </div>
     </AppShell>
   );

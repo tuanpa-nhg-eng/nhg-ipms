@@ -6,7 +6,7 @@ import {
   LayoutDashboard, TriangleAlert, Target, ClipboardCheck, BookMarked, Sparkles,
   Network, Users, Scale, ScrollText, FileCheck, Rocket,
   Bot, UserCog, CalendarCog, Grid3x3, ShieldCheck, MessageSquareText, CalendarCheck,
-  ChevronDown, SlidersHorizontal, Workflow, Building2,
+  ChevronDown, SlidersHorizontal, Workflow, Building2, GitFork, Palette,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
@@ -63,6 +63,8 @@ export function Sidebar() {
       { href: "/studio", label: t("nav.studioversions"), icon: <SlidersHorizontal size={ICON} /> },
       { href: "/studio/org", label: t("nav.orgdesigner"), icon: <Building2 size={ICON} /> },
       { href: "/studio/process", label: t("nav.processdesigner"), icon: <Workflow size={ICON} /> },
+      { href: "/studio/derivation", label: t("nav.derivation"), icon: <GitFork size={ICON} /> },
+      { href: "/studio/brand", label: t("nav.brandkit"), icon: <Palette size={ICON} /> },
     ]},
     { id: "audit", group: t("nav.audit"), links: [
       { href: "/audit/logs", label: t("nav.auditlog"), icon: <ScrollText size={ICON} /> },

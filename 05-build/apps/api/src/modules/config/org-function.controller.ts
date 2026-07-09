@@ -56,6 +56,15 @@ export class OrgFunctionController {
     });
   }
 
+  /** [Lát 4e] Đọc bộ chức năng hiện gán của đơn vị — FE panel cần pre-check. */
+  @Get('org-units/:id/functions')
+  @RequirePermission('org:design')
+  getFunctions(@CurrentUser() user: RequestUser, @Param('id', ParseUUIDPipe) orgUnitId: string) {
+    return this.prisma.withTenant(user.tenantId, (tx) =>
+      tx.orgUnitFunction.findMany({ where: { orgUnitId }, include: { function: true } }),
+    );
+  }
+
   /** Gán bộ chức năng cho phòng ban (thay toàn bộ — idempotent). */
   @Put('org-units/:id/functions')
   @RequirePermission('org:design')

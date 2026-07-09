@@ -92,7 +92,8 @@ describe('Phase 3 — Configuration Studio E2E', () => {
     const res = await api().put('/api/v1/brand-kit').set(as(designer)).send({
       configVersionId: draftId,
       displayName: `Trường Hội nhập ${uniq}`,
-      tokens: { color: { primary: '#0055AA' } },
+      // [F83] shape chuẩn hoá: CSS custom properties phẳng, key whitelist, value màu
+      tokens: { '--nhg-primary': '#0055AA' },
       a11yChecked: true,
     });
     expect(res.status).toBe(200);
@@ -310,12 +311,12 @@ describe('Phase 3 — Configuration Studio E2E', () => {
 
   it('⑦ sau publish: theming resolver trả brand tokens; version published khoá sửa', async () => {
     const resolve = await api().get('/api/v1/brand-kit/resolve?tenant=H.01');
-    expect(resolve.body.tokens.color.primary).toBe('#0055AA');
+    expect(resolve.body.tokens['--nhg-primary']).toBe('#0055AA');
     expect(resolve.body.source).toContain(`${uniq}`);
 
     // sửa brand trên version đã published → 409
     const locked = await api().put('/api/v1/brand-kit').set(as(designer)).send({
-      configVersionId: draftId, tokens: { color: { primary: '#FF0000' } },
+      configVersionId: draftId, tokens: { '--nhg-primary': '#FF0000' },
     });
     expect(locked.status).toBe(409);
   });

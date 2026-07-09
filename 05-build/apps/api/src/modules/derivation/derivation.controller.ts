@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { UnprocessableEntityException } from '@nestjs/common';
 import {
-  IsArray, IsIn, IsInt, IsObject, IsOptional, IsString, IsUUID, Length, Min,
+  IsArray, IsIn, IsInt, IsObject, IsOptional, IsString, IsUUID, isUUID, Length, Min,
 } from 'class-validator';
 import { Audited, CurrentUser, RequirePermission, RequestUser } from '../../common/auth/decorators';
 import { DerivationService } from './derivation.service';
@@ -40,6 +41,10 @@ export class DerivationController {
   @Get('derivation-rules')
   @RequirePermission('derivation:run')
   listRules(@CurrentUser() user: RequestUser, @Query('configVersionId') configVersionId: string) {
+    // [F88][F74] uuid tại cửa — thiếu/rác không được thành "trả hết rules" hay 500
+    if (!configVersionId || !isUUID(configVersionId)) {
+      throw new UnprocessableEntityException('Cần configVersionId (uuid)');
+    }
     return this.derivation.listRules(user, configVersionId);
   }
 
@@ -55,6 +60,13 @@ export class DerivationController {
   @Audited('kpi_template.create')
   createTemplate(@CurrentUser() user: RequestUser, @Body() dto: CreateTemplateDto) {
     return this.derivation.createTemplate(user, dto);
+  }
+
+  /** [Lát 4e] Thư viện KPI template (picker cho emit của rule — RLS trả global + tenant). */
+  @Get('kpi-templates')
+  @RequirePermission('config:read')
+  listTemplates(@CurrentUser() user: RequestUser) {
+    return this.derivation.listTemplates(user);
   }
 
   /** Chạy engine → PREVIEW (diff + reason explainable). Không ghi cấu hình. */

@@ -177,3 +177,21 @@
 **Sự cố dev đã xử lý:** trang trắng /studio = dev server :3001 cũ (chạy từ trước khi cài reactflow) — kill + xoá `.next` (OneDrive giữ file gây EINVAL readlink) + start lại là hết. Dev flow chuẩn: `pnpm api:dev` (API :4000) + `cd web && npx next dev -p 3001`.
 
 **Còn lại Phase 3:** Studio lát kế (gán org_function kéo–thả, Derivation preview UI bảng diff+reason, Brand Kit editor, field-mapping Integration) · connector thật + Copilot (RED-LINE chờ token/key) · ticket F42/F43 (chờ user) / F55-còn lại / F59 / F70-còn lại / F76/F79/F82 / throttle resolver.
+
+---
+
+## Phase 3 — Lát 4e: Studio UI phần 2 (org_function · Derivation UI · Brand Kit editor) · **09/07/2026 · HOÀN THÀNH — Reviewer PASS-WITH-FIXES → đã fix F83–F84, F87–F89, 189/189 PASS**
+
+> **Verdict Reviewer (SoD):** PASS-WITH-FIXES — 0 BLOCKER, 1 MAJOR (**F83**: BE nhận brand tokens tự do trong khi whitelist chỉ ở FE — resolver `/brand-kit/resolve` là PUBLIC nên token độc hại `url(http://attacker/px)` sau publish sẽ phát tán cho mọi client (CSS beacon/exfil). Đã fix: **validate tại BE** — whitelist 6 key `--nhg-*` + value bắt buộc là màu (#hex/rgb/hsl), 422 tại cửa; chuẩn hoá luôn shape tokens = CSS custom properties PHẲNG (spec cũ dùng nested `{color:{primary}}` → đã đổi spec test theo shape chuẩn §13). Đã fix thêm: **F84** (FE chặn weight NaN tại chỗ nhập) · **F87** (test: approver SoD chiều dương, T2 cô lập functions, brand round-trip + token 422, F88/F89) · **F88** (GET /derivation-rules validate uuid — hết đường "trả hết rules" khi thiếu param) · **F89** (displayName "" = xoá tên, hết kẹt tên cũ vĩnh viễn). **Backlog:** F85 (GET functions không check unit tồn tại — bất đối xứng với PUT, chấp nhận) · F86 (PUT functions replace-all last-write-wins + chưa preserve weight — UI cột weight lát sau).
+
+**FE (05-build/web — 2 trang mới + 1 panel), khép mạch tailor-made ①②④ trên UI:**
+- **② Org Designer + panel "Chức năng của đơn vị":** catalog org_function (tạo mới inline) + checkbox gán cho đơn vị đang chọn → PUT replace-all — feed trực tiếp Derivation Engine.
+- **④ `/studio/derivation` — Derivation Engine UI:** thư viện KPI template (list global+tenant, tạo nhanh với functionTags/taskCellRefs) · rules version-scoped (tạo match function/role/level/grade + emit templates/weight/nhóm — nhập csv thân thiện) · **Chạy preview → bảng diff kèm cột "Vì sao" (reason explainable từ engine)** + summary add/keep/error · **Apply vào draft** (double-gate: FE disable khi có error + BE 422; publish vẫn là bước SoD riêng).
+- **① `/studio/brand` — Brand Kit editor:** displayName + 3 token màu (color picker), lưu vào draft (mustGetDraft), **preview trực tiếp** áp CSS custom properties lên khối mẫu; publish xong resolver public mới trả token mới.
+- Sidebar 5 mục Studio, i18n VI/EN đủ.
+
+**Backend (3 GET read-only mới):** `GET /brand-kit?configVersionId` (config:read — editor đọc draft) · `GET /kpi-templates` (config:read — RLS trả global+tenant) · `GET /org-units/:id/functions` (org:design — pre-check checkbox). Tất cả validate uuid tại cửa (chuẩn F74).
+
+**Kiểm chứng:** 189/189 PASS (81 unit + 108 integration) · web build pass (5 route studio).
+
+**Còn lại Phase 3:** field-mapping Integration UI + BU Authoring Gate UI (lát sau) · connector thật + Copilot (RED-LINE chờ token/key) · ticket F42/F43 (chờ user) / F55-còn lại / F59 / F70-còn lại / F76/F79/F82/F85/F86 / throttle resolver.

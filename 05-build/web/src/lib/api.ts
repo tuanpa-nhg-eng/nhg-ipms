@@ -127,6 +127,74 @@ export interface TaskCellRow {
   processStepId?: string | null;
 }
 
+export interface OrgFunction {
+  id: string;
+  code: string;
+  nameVi: string;
+  nameEn?: string | null;
+}
+
+export interface UnitFunction {
+  functionId: string;
+  weight?: number | null;
+  function: OrgFunction;
+}
+
+export interface KpiTemplate {
+  id: string;
+  tenantId?: string | null; // null = template dùng chung (global)
+  code: string;
+  nameVi: string;
+  method?: string | null;
+  frequency?: string | null;
+  functionTags: string[];
+  roleFamilyCodes: string[];
+  taskCellRefs: string[];
+}
+
+export interface DerivationRule {
+  id: string;
+  priority: number;
+  match: {
+    function_codes?: string[];
+    role_family_codes?: string[];
+    org_level?: string[];
+    grade?: string[];
+  };
+  emit: {
+    kpi_template_codes?: string[];
+    task_cell_refs?: string[];
+    weight?: number;
+    group_label?: string;
+    group_weight?: number;
+  };
+  note?: string | null;
+}
+
+export interface DerivationResult {
+  targetType: string;
+  action: "add" | "update" | "keep" | "error";
+  payload: Record<string, unknown>;
+  reason: string;
+}
+
+export interface DerivationRunOut {
+  run: { id: string; status: string };
+  summary: { add: number; update: number; keep: number; error: number };
+  results: DerivationResult[];
+}
+
+export interface BrandKitData {
+  id?: string;
+  configVersionId: string;
+  displayName?: string | null;
+  logoLightUri?: string | null;
+  logoDarkUri?: string | null;
+  tokens: Record<string, string>;
+  status?: string;
+  a11yChecked?: boolean;
+}
+
 export interface CanvasLayoutData {
   kind: string;
   refId: string;

@@ -19,6 +19,7 @@ describe('Phase 3 lát 4d — canvas layout + task-cells API', () => {
   let app: INestApplication;
   let owner: PrismaClient;
   let designer: Ctx;
+  let approver: Ctx;
   let emp: Ctx;
   let t2designer: Ctx;
   const uniq = Date.now();
@@ -37,6 +38,7 @@ describe('Phase 3 lát 4d — canvas layout + task-cells API', () => {
       return { id: tenant!.id, token, userId: user!.id };
     }
     designer = await ctxFor('H.01', 'designer@');
+    approver = await ctxFor('H.01', 'approver@');
     emp = await ctxFor('H.01', 'emp1@');
     t2designer = await ctxFor('T2.TEST', 'designer@');
 
@@ -142,6 +144,69 @@ describe('Phase 3 lát 4d — canvas layout + task-cells API', () => {
     const r = await api().get(`/api/v1/canvas-layout?kind=process&refId=${processId}`).set(as(t2designer));
     expect(r.status).toBe(200);
     expect(r.body.nodes).toEqual({});
+  });
+
+  it('[4e] GET brand-kit/kpi-templates/org-unit-functions: designer đọc được, emp 403, uuid rác 422', async () => {
+    // brand-kit: version chưa có brand → default rỗng
+    const b = await api().get(`/api/v1/brand-kit?configVersionId=${versionId}`).set(as(designer));
+    expect(b.status).toBe(200);
+    expect(b.body.tokens).toEqual({});
+    expect((await api().get('/api/v1/brand-kit?configVersionId=rac').set(as(designer))).status).toBe(422);
+    expect((await api().get(`/api/v1/brand-kit?configVersionId=${versionId}`).set(as(emp))).status).toBe(403);
+
+    // kpi-templates: list (global + tenant qua RLS SELECT)
+    const t = await api().get('/api/v1/kpi-templates').set(as(designer));
+    expect(t.status).toBe(200);
+    expect(Array.isArray(t.body)).toBe(true);
+    expect((await api().get('/api/v1/kpi-templates').set(as(emp))).status).toBe(403);
+
+    // org-unit functions: đọc mapping hiện tại
+    const unit = await owner.orgUnit.findFirst({ where: { tenantId: designer.id, code: 'ROOT' } });
+    const f = await api().get(`/api/v1/org-units/${unit!.id}/functions`).set(as(designer));
+    expect(f.status).toBe(200);
+    expect(Array.isArray(f.body)).toBe(true);
+    expect((await api().get(`/api/v1/org-units/${unit!.id}/functions`).set(as(emp))).status).toBe(403);
+  });
+
+  it('[F87] approver đọc được (SoD chiều dương) · T2 cô lập · brand round-trip + F83 token whitelist · F88', async () => {
+    // approver có config:read → đọc brand + templates OK
+    expect((await api().get(`/api/v1/brand-kit?configVersionId=${versionId}`).set(as(approver))).status).toBe(200);
+    expect((await api().get('/api/v1/kpi-templates').set(as(approver))).status).toBe(200);
+
+    // cô lập: T2 designer đọc functions của unit H.01 → rỗng (RLS), không lộ tồn tại
+    const unit = await owner.orgUnit.findFirst({ where: { tenantId: designer.id, code: 'ROOT' } });
+    const iso = await api().get(`/api/v1/org-units/${unit!.id}/functions`).set(as(t2designer));
+    expect(iso.status).toBe(200);
+    expect(iso.body).toEqual([]);
+
+    // [F83] token ngoài whitelist / value không phải màu → 422 (resolver là public — fail-closed tại BE)
+    expect((await api().put('/api/v1/brand-kit').set(as(designer)).send({
+      configVersionId: versionId, tokens: { '--evil': '#ffffff' },
+    })).status).toBe(422);
+    expect((await api().put('/api/v1/brand-kit').set(as(designer)).send({
+      configVersionId: versionId, tokens: { '--nhg-primary': 'url(http://attacker/px)' },
+    })).status).toBe(422);
+
+    // round-trip: PUT hợp lệ → GET trả đúng dữ liệu
+    const put = await api().put('/api/v1/brand-kit').set(as(designer)).send({
+      configVersionId: versionId, displayName: 'Brand 4e',
+      tokens: { '--nhg-primary': '#0055AA' },
+    });
+    expect(put.status).toBe(200);
+    const got = await api().get(`/api/v1/brand-kit?configVersionId=${versionId}`).set(as(designer));
+    expect(got.body.displayName).toBe('Brand 4e');
+    expect(got.body.tokens['--nhg-primary']).toBe('#0055AA');
+
+    // [F89] displayName "" = xoá tên
+    await api().put('/api/v1/brand-kit').set(as(designer)).send({
+      configVersionId: versionId, displayName: '', tokens: { '--nhg-primary': '#0055AA' },
+    });
+    const cleared = await api().get(`/api/v1/brand-kit?configVersionId=${versionId}`).set(as(designer));
+    expect(cleared.body.displayName).toBeNull();
+
+    // [F88] derivation-rules uuid rác → 422 (không 500, không "trả hết")
+    expect((await api().get('/api/v1/derivation-rules?configVersionId=rac').set(as(designer))).status).toBe(422);
+    expect((await api().get('/api/v1/derivation-rules').set(as(designer))).status).toBe(422);
   });
 
   it('task-cells: generate → GET list theo version + GET :code; emp 403; thiếu filter 422', async () => {

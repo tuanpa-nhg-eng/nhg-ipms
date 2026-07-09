@@ -51,6 +51,13 @@ export class DerivationService {
     });
   }
 
+  /** [Lát 4e] Thư viện template cho FE picker — RLS SELECT trả global (tenant NULL) + tenant. */
+  listTemplates(user: RequestUser) {
+    return this.prisma.withTenant(user.tenantId, (tx) =>
+      tx.kpiTemplate.findMany({ where: { deletedAt: null }, orderBy: { code: 'asc' } }),
+    );
+  }
+
   listRules(user: RequestUser, configVersionId: string) {
     return this.prisma.withTenant(user.tenantId, (tx) =>
       tx.derivationRule.findMany({
