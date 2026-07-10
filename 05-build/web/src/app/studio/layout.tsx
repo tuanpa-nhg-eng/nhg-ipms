@@ -63,10 +63,14 @@ function LoginCard() {
           </div>
         </form>
         <div className="quick">
-          {(["designer", "approver", "admin"] as const).map((p) => (
+          {([
+            ["designer", "soạn cấu hình"], ["approver", "duyệt cấu hình"],
+            ["author", "BU soạn thư viện"], ["curator", "gác thư viện"],
+            ["admin", "tenant admin"],
+          ] as const).map(([p, label]) => (
             <button key={p} className="btn ghost sm" disabled={busy}
               onClick={() => void doLogin(seedEmail(p))}>
-              {p}@ ({p === "designer" ? "soạn" : p === "approver" ? "duyệt" : "tenant admin"})
+              {p}@ ({label})
             </button>
           ))}
         </div>

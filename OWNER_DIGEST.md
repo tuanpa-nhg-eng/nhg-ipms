@@ -211,3 +211,18 @@
 - **Test: 217/217 PASS** (98 unit + 119 integration; 28 test mới cho gate + vòng đời + SoD + dedup + import).
 
 **Còn lại Phase 3:** Task Cell Studio UI + Curation Queue UI (FE của gate này) · field-mapping Integration UI · Dedup/Drafting Agent (bước 4–5 spec — chờ AI key thì chạy thật, mock được ngay) · connector thật + Copilot (RED-LINE) · ticket F42/F43 / F55 / F59 / F70 / F76/F79/F82/F85/F86 / F97–F102 / throttle resolver.
+
+---
+
+## Phase 3 — Lát 4g: FE BU Authoring Gate (Task Cell Studio + Curation Queue) · **10/07/2026 · HOÀN THÀNH — Reviewer PASS-WITH-FIXES → đã fix F103/F104/F106, web build pass**
+
+> **Verdict Reviewer (SoD):** PASS-WITH-FIXES — không lỗi hợp đồng API (đối chiếu field-by-field với BE lát 4f: khớp hết). **F103 MEDIUM** (vòng needs_changes cụt trong UI — author không sửa được contribution, resubmit nguyên bản cũ hoặc tạo bản mới tự đấu dedup với chính mình; đã fix: nút **Sửa** nạp payload vào form → PATCH, BE tự quay draft + re-gate) · **F104** (nút review hiện cả ở trạng thái BE sẽ 409 — đã gate theo transition) · **F106** (render "undefined" với payload dị dạng — đã `?? "—"`). **F105 giữ chủ đích:** cho phép lưu draft fail gate (report explainable chỉ ra ngay) — không chặn sớm ở form.
+
+**Đã build (2 trang FE, backend không đổi):**
+- **`/studio/library` — Task Cell Studio (đăng nhập author@):** form tập bắt buộc 7 nhóm (A mã+tên · B RACI · C I/O csv · D measures csv · E mức AI) + chọn đơn vị scope + **KPI Linker** (method=system hiện ô data_source) → lưu draft → **Quality report explainable** từng check ✓/✗ kèm note → Sửa/Gửi duyệt → xem lịch sử review từ curator.
+- **`/studio/curation` — Curation Queue (đăng nhập curator@):** hàng đợi submitted/in_review (lọc trạng thái; KHÔNG thấy draft local của BU — đúng spec §3) → panel chi tiết: gate fails, payload, **dedup candidates với nút merge/keep_both/discard** ("hệ gợi ý, người quyết") → Góp ý / Yêu cầu sửa / Từ chối / **Duyệt** / **Publish canonical** (nút gate theo đúng transition BE).
+- LoginCard thêm quick-login author@/curator@; sidebar 7 mục Studio; i18n VI/EN.
+
+**Khép kín trên UI toàn vòng spec:** BU soạn → gate report → submit → curator duyệt (SoD chặn tự duyệt hiển thị trung thực) → publish → thư viện canonical → Derivation Engine kéo theo (trang "Kéo theo KPI" lát 4e dùng được cell/template vừa publish).
+
+**Còn lại Phase 3:** field-mapping Integration UI · Dedup/Drafting Agent (mock được ngay) · connector thật + Copilot (RED-LINE chờ token/key) · ticket tồn: F42/F43 / F55 / F59 / F70 / F76/F79/F82/F85/F86 / F97–F102 / F105 / throttle resolver.

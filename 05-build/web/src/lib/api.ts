@@ -195,6 +195,71 @@ export interface BrandKitData {
   a11yChecked?: boolean;
 }
 
+// ===== BU Authoring Gate (lát 4g) =====
+
+export interface KpiBlock {
+  code?: string;
+  nameVi?: string;
+  method?: "manual" | "system";
+  direction?: "forward" | "reverse";
+  unit?: string;
+  frequency?: string;
+  formulaExpr?: string;
+  dataSource?: string;
+}
+
+export interface CellPayload {
+  code?: string;
+  nameVi?: string;
+  nameEn?: string;
+  responsibleRole?: string;
+  accountableRole?: string;
+  inputs?: string[];
+  outputs?: string[];
+  measures?: Array<string | { name: string }>;
+  aiLevel?: string;
+  riskLevel?: string;
+  kpi?: KpiBlock;
+}
+
+export interface GateCheck {
+  id: string;
+  label: string;
+  passed: boolean;
+  note?: string;
+}
+
+export interface DedupCandidate {
+  id: string;
+  similarTaskCellId?: string | null;
+  similarity?: string | number | null;
+  reason?: string | null;
+  resolution: "pending" | "merge" | "keep_both" | "discard";
+}
+
+export interface LibraryReviewRow {
+  id: string;
+  action: string;
+  note?: string | null;
+  createdAt: string;
+}
+
+export interface LibraryContribution {
+  id: string;
+  type: "task_cell" | "kpi" | "task_cell_with_kpi";
+  status: string;
+  payload: CellPayload;
+  qualityScore?: string | number | null;
+  qualityReport?: { ok: boolean; score: number; checks: GateCheck[] } | null;
+  orgUnitId?: string | null;
+  authorId: string;
+  targetScope: string;
+  version: number;
+  submittedAt?: string | null;
+  dedupCandidates?: DedupCandidate[];
+  reviews?: LibraryReviewRow[];
+}
+
 export interface CanvasLayoutData {
   kind: string;
   refId: string;
