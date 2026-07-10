@@ -7,7 +7,7 @@ import { PrismaService } from '../../prisma.service';
 import type { RequestUser } from '../../common/auth/decorators';
 import { effectiveScope } from '../../common/auth/scope.util';
 import {
-  CellPayload, ContributionType, evaluateQualityGate, GateResult, normalizeName,
+  CellPayload, ContributionType, evaluateQualityGate, GateResult, normalizeName, resolveKpiRef,
 } from './quality-gate';
 
 /** Marker SoD violation trong tx — audit incident ghi ngoài tx (chuẩn F48). */
@@ -77,6 +77,26 @@ export class LibraryService {
     return { configVersionId: null, libScope: { in: ['tenant', 'group'] }, deletedAt: null };
   }
 
+  /**
+   * [4h · Q1 CHẶN CỨNG] Mọi task_cell canonical/active PHẢI gắn KPI THẬT — kpiRef trỏ tới
+   * một kpi_template đang tồn tại (Từ điển KPI chuẩn hoặc KPI đã publish). Không cho mã treo,
+   * không placeholder. Gọi tại canonical publish + import as_canonical + (lát 4k) active-transition.
+   */
+  private async assertKpiRefExists(tx: TenantTx, kpiRef: string | undefined) {
+    if (!kpiRef) {
+      throw new UnprocessableEntityException('Tác vụ canonical bắt buộc gắn mã KPI (payload.kpiRef hoặc kpi) — không có ngoại lệ');
+    }
+    const kpi = await tx.kpiTemplate.findFirst({
+      where: { code: kpiRef, deletedAt: null }, // RLS: thấy global + tenant
+      select: { id: true },
+    });
+    if (!kpi) {
+      throw new UnprocessableEntityException(
+        `Mã KPI '${kpiRef}' không tồn tại trong Từ điển KPI — gắn KPI thật (xem /kpi-dictionary) trước khi đưa vào thư viện`,
+      );
+    }
+  }
+
   // ===== Contributions (author) =====
 
   create(user: RequestUser, input: ContributionInput) {
@@ -95,7 +115,7 @@ export class LibraryService {
           id: uuidv7(), tenantId: user.tenantId, authorId: user.claims.sub,
           orgUnitId: input.orgUnitId, functionId: input.functionId,
           type: input.type, payload: input.payload as object,
-          kpiRef: input.payload.kpi?.code,
+          kpiRef: resolveKpiRef(input.payload),
           status: 'draft', targetScope: input.targetScope ?? 'tenant',
           qualityScore: gate.score, qualityReport: gate as unknown as object,
         },
@@ -123,7 +143,7 @@ export class LibraryService {
       const count = await tx.libraryContribution.updateMany({
         where: { id, version: c.version, status: { in: ['draft', 'needs_changes'] } },
         data: {
-          ...(input.payload !== undefined ? { payload: input.payload as object, kpiRef: input.payload.kpi?.code } : {}),
+          ...(input.payload !== undefined ? { payload: input.payload as object, kpiRef: resolveKpiRef(input.payload) } : {}),
           ...(input.targetScope !== undefined ? { targetScope: input.targetScope } : {}),
           qualityScore: gate.score, qualityReport: gate as unknown as object,
           status: 'draft', // sửa sau needs_changes → quay về draft, submit lại
@@ -420,7 +440,7 @@ export class LibraryService {
               aiLevel: target.aiLevel ?? payload.aiLevel,
               governance: (target.governance ?? payload.governance ?? undefined) as object,
               riskLevel: target.riskLevel ?? payload.riskLevel,
-              kpiRef: target.kpiRef ?? payload.kpi?.code,
+              kpiRef: target.kpiRef ?? resolveKpiRef(payload),
               updatedBy: user.claims.sub, version: { increment: 1 },
             },
           });
@@ -449,7 +469,7 @@ export class LibraryService {
               aiLevel: payload.aiLevel, aiDimension: (payload.aiDimension ?? undefined) as object,
               governance: (payload.governance ?? undefined) as object,
               riskLevel: payload.riskLevel, lifecycle: (payload.lifecycle ?? undefined) as object,
-              kpiRef: payload.kpi?.code,
+              kpiRef: resolveKpiRef(payload),
               origin: 'bu_authored', libScope: c.targetScope,
               contributedBy: c.authorId,
               canonicalId: keepBoth?.similarTaskCellId ?? null,
@@ -493,6 +513,12 @@ export class LibraryService {
         if (cellId) {
           await tx.taskCell.update({ where: { id: cellId }, data: { kpiRef: kpiCode } });
         }
+      }
+
+      // [4h · Q1 CHẶN CỨNG] cell canonical vừa tạo/merge PHẢI kết thúc với kpiRef trỏ KPI thật
+      if (cellId) {
+        const finalCell = await tx.taskCell.findFirst({ where: { id: cellId }, select: { kpiRef: true } });
+        await this.assertKpiRefExists(tx, finalCell?.kpiRef ?? undefined);
       }
 
       const count = await tx.libraryContribution.updateMany({
@@ -804,7 +830,7 @@ export class LibraryService {
               id: uuidv7(), tenantId: user.tenantId, authorId: user.claims.sub,
               orgUnitId: run.orgUnitId, // [F92b] mang scope của người import
               type: row.kpi ? 'task_cell_with_kpi' : 'task_cell',
-              payload: row as object, kpiRef: row.kpi?.code,
+              payload: row as object, kpiRef: resolveKpiRef(row),
               status: 'submitted', submittedAt: new Date(),
               qualityScore: this.gateFor(row, row.kpi ? 'task_cell_with_kpi' : 'task_cell').score,
             },
@@ -815,6 +841,12 @@ export class LibraryService {
           continue;
         }
 
+        // [4h · Q1 CHẶN CỨNG] cell canonical (as_canonical) phải gắn KPI thật.
+        // as_local là bản nháp version → chưa bắt buộc (được active sau khi bổ sung KPI).
+        const rowKpiRef = resolveKpiRef(row);
+        if (run.mode === 'as_canonical') {
+          await this.assertKpiRefExists(tx, rowKpiRef);
+        }
         const where = run.mode === 'as_local'
           ? { tenantId: user.tenantId, code, configVersionId: run.configVersionId, deletedAt: null }
           : { tenantId: user.tenantId, code, ...this.canonicalWhere() };
@@ -830,7 +862,7 @@ export class LibraryService {
           aiLevel: row.aiLevel, aiDimension: (row.aiDimension ?? undefined) as object,
           governance: (row.governance ?? undefined) as object,
           riskLevel: row.riskLevel, lifecycle: (row.lifecycle ?? undefined) as object,
-          kpiRef: row.kpi?.code,
+          kpiRef: rowKpiRef,
           updatedBy: user.claims.sub,
         };
         const existing = await tx.taskCell.findFirst({ where });

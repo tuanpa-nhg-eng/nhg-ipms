@@ -5,6 +5,25 @@
 
 ---
 
+## ❓ CHỜ CHỦ DỰ ÁN PHẢN HỒI (không chặn — có mặc định)
+- **[10/07/2026] F107 — "KPI thật" nghĩa là gì trong hard-block Q1?** Hiện `assertKpiRefExists` chấp nhận **mọi kpi_template đã tồn tại** (20 dictionary + KPI do BU tự đề xuất & đã publish qua gate 4f). Cách này KHÔNG chặn luồng BU-authored KPI hợp lệ. Nếu anh muốn **siết chỉ 20 dictionary** (isDictionary=true), báo để đổi 1 dòng. *Mặc định giữ: mọi KPI đã tồn tại.*
+
+---
+
+## Module Từ điển Tác vụ hoàn thiện — **[10/07/2026] Kế hoạch DUYỆT + đang build tuần tự 4h→4l**
+- Spec: `02-dac-ta/NHG_iPMS_Spec_Task_Dictionary_Hoan_Thien.md`. Nguồn: `gg-io-nhg/` (815 tác vụ + 20 KPI chuẩn).
+- **Chủ dự án CHỐT:** ① build tuần tự 4h→4l (dừng báo cáo sau mỗi lát) · ② **Q1 = CHẶN CỨNG** (tác vụ phải gắn KPI thật mới active/canonical).
+- **3 năng lực MỚI (khác BU Authoring Gate 4f/4g):** A. trưởng phòng ủy quyền soạn cho nhân viên · B. trưởng phòng là cổng duyệt active của phòng mình · C. vòng lặp tối ưu liên tục (active→góp ý→reopen→sửa→duyệt→active v+1, lưu lịch sử).
+
+### Lát 4h — Từ điển KPI chuẩn + hard-block gắn KPI · **10/07/2026 · HOÀN THÀNH — Reviewer verdict PASS, 229/229 test**
+- **20 KPI chuẩn** trích từ Semantic Dictionary → `packages/db/src/kpi-dictionary.data.ts` (code/domain/definition/formula/grain/classification/source/ai-boundary) → seed vào kpi_template (isDictionary=true, method=system, idempotent). Migration mở rộng kpi_template + metadata + is_dictionary + index.
+- **Hard-block Q1:** `CellPayload.kpiRef` (link KPI có sẵn) + `resolveKpiRef` (kpi.code ?? kpiRef) + `assertKpiRefExists` (422 nếu thiếu/treo/soft-deleted/cross-tenant). Wire vào **canonical publish** (assert cell.kpiRef cuối cùng SAU merge/create/tạo-KPI) + **import as_canonical** (assert mỗi row, 1 row treo → rollback cả run). **as_local KHÔNG bắt buộc** (bản nháp version, active sau khi bổ sung KPI).
+- **GET /kpi-dictionary** (kpi:read, lọc ?domain) — nguồn gắn KPI cho FE.
+- Reviewer SoD **PASS** (không blocker): xác nhận 2 đường vào canonical đều gated, không đường nào để cell canonical có kpiRef null/treo. Ghi chú: **F108** (active-transition qua config publish của cell version-scoped — enforce ở **lát 4k**, đã đưa vào checklist spec) · F107 (câu hỏi ngữ nghĩa ở trên) · F110 (import as_canonical không tạo KPI mới — phải có KPI trước).
+- Test: 229/229 PASS (103 unit + 126 integration; +12 test mới: resolve-kpi 5, kpi-dictionary 7). Sửa library.spec cellPayload gắn KPI dictionary mặc định (phản ánh rule mới: mọi cell canonical đều có KPI).
+
+---
+
 ## RED-LINE chờ duyệt
 1. **[05/07/2026] Anthropic API key + budget cho ai-gateway** — lát 4 Phase 3 (MCP server, AI Config Copilot, eval harness) và 11 AI agent cần gọi Claude API = **chi tiền thật**. Chờ chủ dự án cấp key + trần budget/tháng (đề xuất: dev/staging cap $50/tháng, model Haiku/Sonnet). *Cập nhật 08/07: khung ai-gateway + MCP + eval ĐÃ build xong trên mock (lát 4a) — khi có key chỉ cần cài SDK, implement `AnthropicLlmClient`, bật flag `ai_gateway_live`.*
 2. **[05/07/2026] Token Notion/Microsoft Graph (Planner)** — connector 2 chiều cần integration token thật + đẩy dữ liệu ra hệ ngoài. Dev sẽ dùng mock connector; chỉ nối thật khi chủ dự án cấp token sandbox/workspace test.

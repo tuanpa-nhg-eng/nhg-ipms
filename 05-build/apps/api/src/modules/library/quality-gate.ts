@@ -34,7 +34,15 @@ export interface CellPayload {
   governance?: unknown;
   riskLevel?: string;
   lifecycle?: unknown;
+  // [4h] LINK tới KPI có sẵn (thường là mã trong Từ điển KPI chuẩn). Phân biệt với `kpi`:
+  //   kpiRef = trỏ KPI đã tồn tại · kpi = ĐỀ XUẤT KPI mới (BU authoring).
+  kpiRef?: string;
   kpi?: KpiPayload;
+}
+
+/** [4h] Mã KPI cuối cùng của cell: ưu tiên KPI đề xuất mới, sau đó link tới KPI có sẵn. */
+export function resolveKpiRef(payload: CellPayload): string | undefined {
+  return payload.kpi?.code?.trim() || payload.kpiRef?.trim() || undefined;
 }
 
 export type ContributionType = 'task_cell' | 'kpi' | 'task_cell_with_kpi';

@@ -58,6 +58,16 @@ export class DerivationService {
     );
   }
 
+  /** [Lát 4h] Từ điển KPI chuẩn — 20 metric semantic, nguồn gắn BẮT BUỘC cho tác vụ (Q1). */
+  listKpiDictionary(user: RequestUser, domain?: string) {
+    return this.prisma.withTenant(user.tenantId, (tx) =>
+      tx.kpiTemplate.findMany({
+        where: { deletedAt: null, isDictionary: true, ...(domain ? { domain } : {}) },
+        orderBy: { code: 'asc' },
+      }),
+    );
+  }
+
   listRules(user: RequestUser, configVersionId: string) {
     return this.prisma.withTenant(user.tenantId, (tx) =>
       tx.derivationRule.findMany({

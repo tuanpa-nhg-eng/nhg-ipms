@@ -69,6 +69,13 @@ export class DerivationController {
     return this.derivation.listTemplates(user);
   }
 
+  /** [Lát 4h] Từ điển KPI chuẩn (20 metric) — mọi tác vụ active phải gắn mã trong đây. */
+  @Get('kpi-dictionary')
+  @RequirePermission('kpi:read')
+  listKpiDictionary(@CurrentUser() user: RequestUser, @Query('domain') domain?: string) {
+    return this.derivation.listKpiDictionary(user, domain);
+  }
+
   /** Chạy engine → PREVIEW (diff + reason explainable). Không ghi cấu hình. */
   @Post('derivation/run')
   @RequirePermission('derivation:run')

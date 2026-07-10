@@ -20,6 +20,8 @@ const cellPayload = (code: string, over: Record<string, unknown> = {}) => ({
   code, nameVi: `Tư vấn ${code}`,
   responsibleRole: 'admissions_officer', accountableRole: 'admissions_manager',
   inputs: ['lead'], outputs: ['log'], measures: [{ name: 'SLA' }], aiLevel: 'assist',
+  // [4h] gắn KPI dictionary thật để qua hard-block canonical publish/import (Q1)
+  kpiRef: 'ADM-LEAD-001',
   ...over,
 });
 

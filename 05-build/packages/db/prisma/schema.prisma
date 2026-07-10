@@ -629,6 +629,14 @@ model KpiTemplate {
   origin        String  @default("library")
   libScope      String  @default("tenant") @map("lib_scope")
   contributedBy String? @map("contributed_by") @db.Uuid
+  // Từ điển KPI chuẩn (lát 4h) — metadata semantic + cờ nguồn tham chiếu bắt buộc
+  definition         String?
+  grain              String?
+  dataClassification String?  @map("data_classification")
+  aiBoundary         String?  @map("ai_boundary")
+  sourceSystem       String?  @map("source_system")
+  domain             String?
+  isDictionary       Boolean  @default(false) @map("is_dictionary")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   createdBy String?  @map("created_by") @db.Uuid
@@ -637,6 +645,7 @@ model KpiTemplate {
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
 
   @@unique([tenantId, code])
+  @@index([tenantId, isDictionary])
   @@map("kpi_template")
 }
 
