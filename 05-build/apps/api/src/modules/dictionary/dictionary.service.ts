@@ -52,15 +52,18 @@ export class DictionaryService {
       if (capped) all.length = LIST_CAP;
 
       // Facets trên toàn bộ canonical (ổn định, không đổi theo filter)
-      const groupFacet = new Map<string, { count: number; label: string | null }>();
+      const groupFacet = new Map<string, { count: number; label: string | null; dept: string | null }>();
       const aiFacet = new Map<string, number>();
       const kpiFacet = new Map<string, number>();
       for (const c of all) {
         const g = c.groupCode ?? '(không nhóm)';
-        const label = (c.lifecycle as { groupLabel?: string } | null)?.groupLabel ?? null;
-        const gf = groupFacet.get(g) ?? { count: 0, label };
+        const life = c.lifecycle as { groupLabel?: string; catalogDept?: string } | null;
+        const label = life?.groupLabel ?? null;
+        const dept = life?.catalogDept ?? null; // tên phòng thân thiện ("Tuyển sinh") thay mã slug
+        const gf = groupFacet.get(g) ?? { count: 0, label, dept };
         gf.count += 1;
         if (!gf.label && label) gf.label = label;
+        if (!gf.dept && dept) gf.dept = dept;
         groupFacet.set(g, gf);
         if (c.aiLevel) aiFacet.set(c.aiLevel, (aiFacet.get(c.aiLevel) ?? 0) + 1);
         if (c.kpiRef) kpiFacet.set(c.kpiRef, (kpiFacet.get(c.kpiRef) ?? 0) + 1);
@@ -96,7 +99,7 @@ export class DictionaryService {
         })),
         facets: {
           groups: [...groupFacet.entries()]
-            .map(([groupCode, v]) => ({ groupCode, groupLabel: v.label, count: v.count }))
+            .map(([groupCode, v]) => ({ groupCode, groupLabel: v.label, dept: v.dept, count: v.count }))
             .sort((a, b) => a.groupCode.localeCompare(b.groupCode)),
           aiLevels: [...aiFacet.entries()].map(([aiLevel, count]) => ({ aiLevel, count })),
           kpis: [...kpiFacet.entries()].map(([kpiRef, count]) => ({ kpiRef, count }))

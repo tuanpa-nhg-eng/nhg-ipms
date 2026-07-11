@@ -288,7 +288,7 @@ export interface DictListResponse {
   capped?: boolean; // true = vượt trần LIST_CAP, list/facet chỉ trên phần đầu
   cells: DictCellRow[];
   facets: {
-    groups: Array<{ groupCode: string; groupLabel?: string | null; count: number }>;
+    groups: Array<{ groupCode: string; groupLabel?: string | null; dept?: string | null; count: number }>;
     aiLevels: Array<{ aiLevel: string; count: number }>;
     kpis: Array<{ kpiRef: string; count: number }>;
   };
