@@ -46,6 +46,8 @@ const PERMISSIONS = [
   'taskcell:author', 'kpi:propose',
   'library:submit', 'library:curate', 'library:publish', 'library:deprecate',
   'library:import', 'library:import:canonical',
+  // Phase 3 lát 4j–4k — Từ điển Tác vụ hoàn thiện (Spec Task Dictionary §5)
+  'taskcell:delegate', 'taskcell:approve', 'task:reopen', 'task:feedback',
 ];
 
 // Role toàn cục (tenant_id = null) + permission mặc định
@@ -89,6 +91,17 @@ const GLOBAL_ROLES: Record<string, string[]> = {
     'tenant:read', 'org:read', 'person:read', 'kpi:read', 'taskcell:read', 'config:read',
     'library:curate', 'library:publish', 'library:deprecate',
     'library:import', 'library:import:canonical',
+  ],
+  // [4j] Từ điển Tác vụ §5 — SoD: nhân viên soạn (staff_author) ⟂ trưởng phòng duyệt (dept_head)
+  // staff_author KHÔNG gán tay: materialize qua authoring_grant (trưởng phòng cấp, scope org_unit)
+  staff_author: [
+    'tenant:read', 'org:read', 'person:read', 'kpi:read', 'taskcell:read',
+    'taskcell:author', 'library:submit', 'task:feedback',
+  ],
+  dept_head: [
+    'tenant:read', 'org:read', 'person:read', 'kpi:read', 'taskcell:read',
+    'taskcell:delegate', 'taskcell:approve', 'task:reopen', 'task:feedback',
+    'library:curate',
   ],
   auditor: ['tenant:read', 'audit:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read'],
   exec_viewer: ['tenant:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read'],
@@ -258,6 +271,8 @@ async function main() {
     // BU Authoring Gate: author (soạn, SCOPE ORG_UNIT — spec §4) ⟂ curator (duyệt/publish)
     await seedStudioUser('author', 'bu_author', { scopeType: 'org_unit', scopeId: dept.id });
     await seedStudioUser('curator', 'library_curator');
+    // [4j] Trưởng phòng — cổng ủy quyền + duyệt active của phòng (scope org_unit)
+    await seedStudioUser('dept', 'dept_head', { scopeType: 'org_unit', scopeId: dept.id });
 
     // [F53] SoD mặc định fail-closed: config:write ⟂ config:publish
     // (tenant muốn tắt → soft-delete rule; mặc định KHÔNG ai vừa sửa vừa publish)
@@ -286,6 +301,20 @@ async function main() {
         id: uuidv7(), tenantId: tenant.id,
         permissionA: 'taskcell:author', permissionB: 'library:publish',
         severity: 'high', note: 'SoD mặc định — BU Author ⟂ Library Curator',
+      },
+    });
+    // [4j] SoD mặc định Từ điển Tác vụ §5 — người soạn ⟂ người duyệt active
+    await prisma.sodRule.upsert({
+      where: {
+        tenantId_permissionA_permissionB: {
+          tenantId: tenant.id, permissionA: 'taskcell:author', permissionB: 'taskcell:approve',
+        },
+      },
+      update: {},
+      create: {
+        id: uuidv7(), tenantId: tenant.id,
+        permissionA: 'taskcell:author', permissionB: 'taskcell:approve',
+        severity: 'high', note: 'SoD mặc định — nhân viên soạn ⟂ trưởng phòng duyệt active',
       },
     });
 

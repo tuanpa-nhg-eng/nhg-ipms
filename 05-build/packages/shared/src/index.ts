@@ -36,6 +36,8 @@ export const PERMISSIONS = [
   'taskcell:author', 'kpi:propose',
   'library:submit', 'library:curate', 'library:publish', 'library:deprecate',
   'library:import', 'library:import:canonical',
+  // Phase 3 lát 4j–4k — Từ điển Tác vụ hoàn thiện (ủy quyền + vòng lặp tối ưu)
+  'taskcell:delegate', 'taskcell:approve', 'task:reopen', 'task:feedback',
 ] as const;
 export type PermissionCode = (typeof PERMISSIONS)[number];
 

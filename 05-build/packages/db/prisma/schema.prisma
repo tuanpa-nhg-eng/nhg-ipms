@@ -1490,3 +1490,26 @@ model AiEvalResult {
   @@index([runId])
   @@map("ai_eval_result")
 }
+
+// [Lát 4j] Ủy quyền phân cấp — trưởng phòng cấp quyền soạn tác vụ cho nhân viên
+// trong phòng mình (Spec Task Dictionary §4.4). Grant = bản ghi vòng đời/audit;
+// hiệu lực RBAC materialize qua user_role(staff_author, scope org_unit) cùng tx.
+model AuthoringGrant {
+  id         String    @id @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  granterId  String    @map("granter_id") @db.Uuid  // trưởng phòng (dept_head)
+  granteeId  String    @map("grantee_id") @db.Uuid  // nhân viên được cấp
+  orgUnitId  String    @map("org_unit_id") @db.Uuid // phạm vi = phòng của granter
+  capability String    @default("taskcell:author")  // allowlist hẹp — enforce trong CODE (F55)
+  status     String    @default("active")           // active|revoked
+  userRoleId String?   @map("user_role_id") @db.Uuid // user_role đã materialize (revoke đúng bản ghi)
+  grantedAt  DateTime  @default(now()) @map("granted_at") @db.Timestamptz(6)
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokedBy  String?   @map("revoked_by") @db.Uuid
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version    Int       @default(1)
+
+  @@index([tenantId, orgUnitId, status])
+  @@index([tenantId, granteeId, status])
+  @@map("authoring_grant")
+}
