@@ -185,10 +185,15 @@ export class LibraryService {
     });
   }
 
-  /** Dedup scan — hệ GỢI Ý (exact code = 1.000, trùng tên chuẩn hoá = 0.900), người quyết. */
-  private async scanDedup(tx: TenantTx, user: RequestUser, contributionId: string, payload: CellPayload) {
+  /** Dedup scan — hệ GỢI Ý (exact code = 1.000, trùng tên chuẩn hoá = 0.900), người quyết.
+   * [F112] `canonicalCache`: batch lớn (import as_submission) fetch thư viện canonical
+   * MỘT lần rồi truyền vào — tránh O(rows×canonical) query tuần tự trong tx trần 20s. */
+  private async scanDedup(
+    tx: TenantTx, user: RequestUser, contributionId: string, payload: CellPayload,
+    canonicalCache?: Array<{ id: string; code: string; nameVi: string }>,
+  ) {
     if (!payload.code && !payload.nameVi) return;
-    const canonical = await tx.taskCell.findMany({
+    const canonical = canonicalCache ?? await tx.taskCell.findMany({
       where: this.canonicalWhere(),
       select: { id: true, code: true, nameVi: true },
     });
@@ -822,6 +827,13 @@ export class LibraryService {
       let updated = 0;
       let contributions = 0;
 
+      // [F112] fetch thư viện canonical MỘT lần cho cả batch dedup scan
+      const canonicalCache = run.mode === 'as_submission'
+        ? await tx.taskCell.findMany({
+            where: this.canonicalWhere(), select: { id: true, code: true, nameVi: true },
+          })
+        : undefined;
+
       for (const row of rows) {
         const code = row.code!.trim();
         if (run.mode === 'as_submission') {
@@ -836,7 +848,7 @@ export class LibraryService {
             },
           });
           // [F92a] cùng pipeline dedup như submit tay — curator không nhận "0 pending" giả
-          await this.scanDedup(tx, user, created.id, row);
+          await this.scanDedup(tx, user, created.id, row, canonicalCache);
           contributions += 1;
           continue;
         }
