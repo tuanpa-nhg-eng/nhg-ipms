@@ -7,6 +7,7 @@ import {
   Network, Users, Scale, ScrollText, FileCheck, Rocket,
   Bot, UserCog, CalendarCog, Grid3x3, ShieldCheck, MessageSquareText, CalendarCheck,
   ChevronDown, SlidersHorizontal, Workflow, Building2, GitFork, Palette, BookPlus, Inbox,
+  BookOpenText,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
@@ -33,6 +34,10 @@ export function Sidebar() {
     });
 
   const groups = [
+    // Tra cứu — tài nguyên tham chiếu toàn hàng, mọi persona (nối API thật)
+    { id: "reference", group: t("nav.reference"), links: [
+      { href: "/dictionary", label: t("nav.taskdict"), icon: <BookOpenText size={ICON} /> },
+    ]},
     { id: "exec", group: t("nav.exec"), links: [
       { href: "/exec/cockpit", label: t("nav.cockpit"), icon: <LayoutDashboard size={ICON} /> },
       { href: "/exec/strategy", label: t("nav.strategy"), icon: <Network size={ICON} /> },

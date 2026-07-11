@@ -38,6 +38,8 @@ export const PERMISSIONS = [
   'library:import', 'library:import:canonical',
   // Phase 3 lát 4j–4k — Từ điển Tác vụ hoàn thiện (ủy quyền + vòng lặp tối ưu)
   'taskcell:delegate', 'taskcell:approve', 'task:reopen', 'task:feedback',
+  // Go-live Từ điển Tác vụ — tra cứu canonical toàn hàng (read-only, mọi persona)
+  'taskdict:read',
 ] as const;
 export type PermissionCode = (typeof PERMISSIONS)[number];
 

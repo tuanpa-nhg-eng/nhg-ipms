@@ -48,6 +48,8 @@ const PERMISSIONS = [
   'library:import', 'library:import:canonical',
   // Phase 3 lát 4j–4k — Từ điển Tác vụ hoàn thiện (Spec Task Dictionary §5)
   'taskcell:delegate', 'taskcell:approve', 'task:reopen', 'task:feedback',
+  // Go-live Từ điển Tác vụ — tra cứu canonical toàn hàng (read-only, mọi persona)
+  'taskdict:read',
 ];
 
 // Role toàn cục (tenant_id = null) + permission mặc định
@@ -106,6 +108,12 @@ const GLOBAL_ROLES: Record<string, string[]> = {
   auditor: ['tenant:read', 'audit:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read'],
   exec_viewer: ['tenant:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read'],
 };
+
+// [Go-live Từ điển Tác vụ] Tra cứu Từ điển canonical là tài nguyên tham chiếu TOÀN HÀNG
+// (read-only) — MỌI vai trò đọc được. Cấp taskdict:read cho từng role một cách tường minh.
+for (const perms of Object.values(GLOBAL_ROLES)) {
+  if (!perms.includes('taskdict:read')) perms.push('taskdict:read');
+}
 
 async function main() {
   // 1. Permission catalog

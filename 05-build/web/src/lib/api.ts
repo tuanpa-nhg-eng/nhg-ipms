@@ -266,3 +266,72 @@ export interface CanvasLayoutData {
   nodes: Record<string, { x: number; y: number }>;
   edges: unknown[];
 }
+
+// ===== Từ điển Tác vụ — tra cứu canonical (read-only) =====
+
+export interface DictCellRow {
+  code: string;
+  groupCode?: string | null;
+  clusterCode?: string | null;
+  nameVi: string;
+  nameEn?: string | null;
+  responsibleRole?: string | null;
+  aiLevel?: string | null;
+  riskLevel?: string | null;
+  kpiRef?: string | null;
+  origin?: string | null;
+}
+
+export interface DictListResponse {
+  total: number;
+  matched: number;
+  capped?: boolean; // true = vượt trần LIST_CAP, list/facet chỉ trên phần đầu
+  cells: DictCellRow[];
+  facets: {
+    groups: Array<{ groupCode: string; groupLabel?: string | null; count: number }>;
+    aiLevels: Array<{ aiLevel: string; count: number }>;
+    kpis: Array<{ kpiRef: string; count: number }>;
+  };
+}
+
+/** Chi tiết cell canonical — đủ 7 nhóm thuộc tính + KPI join (nếu resolve được). */
+export interface DictCellDetail {
+  cell: {
+    code: string;
+    groupCode?: string | null;
+    clusterCode?: string | null;
+    nameVi: string;
+    nameEn?: string | null;
+    responsibleRole?: string | null;
+    accountableRole?: string | null;
+    consulted?: unknown;
+    informed?: unknown;
+    inputs?: unknown;
+    outputs?: unknown;
+    measures?: unknown;
+    aiLevel?: string | null;
+    aiDimension?: unknown;
+    governance?: Record<string, unknown> | null;
+    riskLevel?: string | null;
+    lifecycle?: Record<string, unknown> | null;
+    kpiRef?: string | null;
+    origin?: string | null;
+    libScope?: string | null;
+    usageCount?: number | null;
+  };
+  kpi: {
+    code: string;
+    nameVi: string;
+    method?: string | null;
+    direction?: string | null;
+    unit?: string | null;
+    frequency?: string | null;
+    domain?: string | null;
+    definition?: string | null;
+    grain?: string | null;
+    dataClassification?: string | null;
+    aiBoundary?: string | null;
+    sourceSystem?: string | null;
+    isDictionary?: boolean;
+  } | null;
+}
