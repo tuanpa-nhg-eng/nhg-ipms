@@ -58,11 +58,16 @@ const GLOBAL_ROLES: Record<string, string[]> = {
     'tenant:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read',
     'goal:read', 'goal:write', 'evidence:read', 'evidence:write',
     'checkin:read', 'checkin:write', 'review:read', 'review:write',
+    // [4k] "mọi người dùng" góp ý tác vụ active (Spec Task Dictionary §5).
+    // KHÔNG cấp taskcell:read (đó là API Config Studio version-scoped — lộ draft);
+    // đọc từ điển + lịch sử phiên bản đi qua taskdict:read (đã cấp mọi role).
+    'task:feedback',
   ],
   manager: [
     'tenant:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read',
     'goal:read', 'goal:write', 'evidence:read', 'evidence:write', 'evidence:verify',
     'checkin:read', 'checkin:write', 'checkin:review', 'review:read', 'review:write', 'rating:approve',
+    'task:feedback', // [4k] mọi người dùng góp ý tác vụ active
   ],
   hrbp: [
     'tenant:read', 'org:read', 'org:write', 'person:read', 'person:write', 'user:read',
@@ -144,6 +149,14 @@ async function main() {
         create: { roleId: role.id, permissionId: permIds[p] },
       });
     }
+  }
+
+  // 2b. [4k] Thu hồi cấp nhầm (seed upsert chỉ THÊM — thu hồi phải tường minh):
+  // taskcell:read là API Config Studio version-scoped, KHÔNG thuộc employee/manager
+  for (const rc of ['employee', 'manager']) {
+    await prisma.rolePermission.deleteMany({
+      where: { roleId: roleIds[rc], permissionId: permIds['taskcell:read'] },
+    });
   }
 
   // 3. Tenants

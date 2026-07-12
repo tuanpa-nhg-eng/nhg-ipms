@@ -793,6 +793,11 @@ model TaskCell {
   contributedBy String? @map("contributed_by") @db.Uuid
   canonicalId   String? @map("canonical_id") @db.Uuid // trỏ bản canonical nếu là biến thể
   usageCount    Int     @default(0) @map("usage_count") // promotion theo tần suất (§8)
+  // [Lát 4k] Vòng lặp tối ưu (§4.1): vòng đời vận hành + phòng sở hữu + chuỗi bản active
+  status         String  @default("draft") // draft|active|reopened|deprecated
+  ownerOrgUnitId String? @map("owner_org_unit_id") @db.Uuid // phòng sở hữu (trưởng phòng gác)
+  activeVersion  Int     @default(0) @map("active_version") // số vòng tối ưu đã qua
+  supersedesId   String? @map("supersedes_id") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   createdBy String?  @map("created_by") @db.Uuid
@@ -800,8 +805,52 @@ model TaskCell {
   version   Int      @default(1)
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
 
+  revisions TaskRevision[]
+  feedbacks TaskFeedback[]
+
   @@unique([tenantId, code, configVersionId])
   @@map("task_cell")
+}
+
+// [Lát 4k · §4.2] Lịch sử phiên bản — mỗi lần active ghi 1 snapshot BẤT BIẾN
+// (append-only trigger như audit_log; grant ipms_app KHÔNG có UPDATE/DELETE).
+model TaskRevision {
+  id             String   @id @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  taskCellId     String   @map("task_cell_id") @db.Uuid
+  version        Int      // 1,2,3… tăng mỗi vòng tối ưu
+  snapshot       Json     // toàn bộ 7 nhóm thuộc tính + kpiRef tại thời điểm active
+  contributionId String?  @map("contribution_id") @db.Uuid // phiếu sửa tạo ra bản này
+  changeSummary  String?  @map("change_summary") // "vì sao sửa" (từ góp ý/curation)
+  activatedBy    String?  @map("activated_by") @db.Uuid
+  activatedAt    DateTime @default(now()) @map("activated_at") @db.Timestamptz(6)
+
+  taskCell TaskCell @relation(fields: [taskCellId], references: [id])
+
+  @@unique([taskCellId, version])
+  @@index([tenantId, taskCellId])
+  @@map("task_revision")
+}
+
+// [Lát 4k · §4.3] Góp ý sử dụng thực tế — kênh phát hiện "cần tối ưu thêm".
+model TaskFeedback {
+  id                     String   @id @db.Uuid
+  tenantId               String   @map("tenant_id") @db.Uuid
+  taskCellId             String   @map("task_cell_id") @db.Uuid
+  authorId               String   @map("author_id") @db.Uuid
+  version                Int?     // góp ý cho phiên bản active nào
+  body                   String
+  category               String   @default("optimize") // optimize|defect|question
+  status                 String   @default("open")     // open|triaged|reopened|resolved|wontfix
+  triagedBy              String?  @map("triaged_by") @db.Uuid
+  reopenedContributionId String?  @map("reopened_contribution_id") @db.Uuid
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  taskCell TaskCell @relation(fields: [taskCellId], references: [id])
+
+  @@index([tenantId, taskCellId, status])
+  @@map("task_feedback")
 }
 
 model DerivationRule {

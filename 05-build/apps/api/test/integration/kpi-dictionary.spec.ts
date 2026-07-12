@@ -44,7 +44,7 @@ describe('Phase 3 lát 4h — KPI dictionary + hard-block', () => {
     curator = await ctxFor('H.01', 'curator@');
     emp = await ctxFor('H.01', 'emp1@');
     deptId = (await owner.orgUnit.findFirst({ where: { tenantId: author.id, code: 'ADMISSIONS' } }))!.id;
-    await owner.taskCell.deleteMany({ where: { code: { startsWith: 'BU4H-' } } });
+    await cleanCells();
 
     const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = mod.createNestApplication();
@@ -53,8 +53,22 @@ describe('Phase 3 lát 4h — KPI dictionary + hard-block', () => {
     await app.init();
   });
 
+  // [4k] publish/import as_canonical giờ tạo task_revision (append-only) — dọn revisions trước cell
+  async function cleanCells() {
+    const cells = await owner.taskCell.findMany({
+      where: { code: { startsWith: 'BU4H-' } }, select: { id: true },
+    });
+    const ids = cells.map((x) => x.id);
+    if (ids.length === 0) return;
+    await owner.taskFeedback.deleteMany({ where: { taskCellId: { in: ids } } });
+    await owner.$executeRaw`ALTER TABLE task_revision DISABLE TRIGGER task_revision_append_only`;
+    await owner.taskRevision.deleteMany({ where: { taskCellId: { in: ids } } });
+    await owner.$executeRaw`ALTER TABLE task_revision ENABLE TRIGGER task_revision_append_only`;
+    await owner.taskCell.deleteMany({ where: { id: { in: ids } } });
+  }
+
   afterAll(async () => {
-    await owner?.taskCell.deleteMany({ where: { code: { startsWith: 'BU4H-' } } });
+    await cleanCells();
     await app?.close();
     await owner?.$disconnect();
   });

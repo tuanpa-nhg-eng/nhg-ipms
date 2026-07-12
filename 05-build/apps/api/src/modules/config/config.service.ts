@@ -4,6 +4,7 @@ import {
 import { uuidv7, TenantTx } from '@ipms/db';
 import { PrismaService } from '../../prisma.service';
 import type { RequestUser } from '../../common/auth/decorators';
+import { findCellsWithDanglingKpi } from '../library/kpi-guard';
 
 /** Marker nội bộ: vi phạm SoD phát hiện trong transaction — audit incident ghi ở catch. */
 class SodViolationError extends Error {
@@ -105,6 +106,16 @@ export class ConfigService {
       });
       if (sod && user.permissions.has('config:write') && user.permissions.has('config:publish')) {
         throw new SodViolationError(sod.severity);
+      }
+
+      // [F108 · Q1 CHẶN CỨNG] publish = active-transition của cell version-scoped
+      // trong version → mọi cell phải gắn KPI THẬT trước khi version thành hiện hành
+      const dangling = await findCellsWithDanglingKpi(tx, id);
+      if (dangling.length > 0) {
+        throw new UnprocessableEntityException(
+          `[Q1/F108] ${dangling.length} task cell trong version chưa gắn KPI thật — không publish được `
+          + `(active-transition): ${dangling.slice(0, 10).join(', ')}${dangling.length > 10 ? '…' : ''}`,
+        );
       }
 
       // archive bản published hiện tại (nếu có)

@@ -48,7 +48,7 @@ describe('Phase 3 lát 4i — seed Task Catalog 815 tác vụ', () => {
     // lần đầu: imported 283 + contributions 532; DB đã seed trước: updated/protected/skipped thay thế
     const canon = r1.batches.filter((b) => b.mode === 'as_canonical');
     const subs = r1.batches.filter((b) => b.mode === 'as_submission');
-    expect(canon.reduce((s, b) => s + b.imported + b.updated + b.protected + b.skipped, 0)).toBe(283);
+    expect(canon.reduce((s, b) => s + b.imported + b.updated + b.unchanged + b.protected + b.skipped, 0)).toBe(283);
     expect(subs.reduce((s, b) => s + b.contributions + b.skipped, 0)).toBe(532);
   });
 
@@ -92,12 +92,14 @@ describe('Phase 3 lát 4i — seed Task Catalog 815 tác vụ', () => {
     });
 
     const r2 = await seedTaskCatalog({ tenantCode: 'H.01', prisma, log: () => undefined });
-    expect(r2.totals.imported).toBe(0);          // canonical: update/giữ nguyên, không cell mới
+    expect(r2.totals.imported).toBe(0);          // canonical: unchanged/giữ nguyên, không cell mới
     expect(r2.totals.contributions).toBe(0);     // submission: bỏ qua toàn bộ
     const canon2 = r2.batches.filter((b) => b.mode === 'as_canonical');
     const subs2 = r2.batches.filter((b) => b.mode === 'as_submission');
-    expect(canon2.reduce((s, b) => s + b.updated + b.protected + b.skipped, 0)).toBe(283);
+    expect(canon2.reduce((s, b) => s + b.updated + b.unchanged + b.protected + b.skipped, 0)).toBe(283);
     expect(subs2.reduce((s, b) => s + b.skipped, 0)).toBe(532);
+    // [F132a] re-seed nội dung y hệt KHÔNG sinh revision nhiễu (unchanged, không update)
+    expect(r2.totals.updated).toBe(0);
 
     expect(await owner.taskCell.count({
       where: { tenantId: h01, configVersionId: null, deletedAt: null, code: { in: allCodes } },

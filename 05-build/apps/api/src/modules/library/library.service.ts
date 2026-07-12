@@ -9,6 +9,7 @@ import { effectiveScope } from '../../common/auth/scope.util';
 import {
   CellPayload, ContributionType, evaluateQualityGate, GateResult, normalizeName, resolveKpiRef,
 } from './quality-gate';
+import { assertKpiRefExists } from './kpi-guard';
 
 /** Marker SoD violation trong tx — audit incident ghi ngoài tx (chuẩn F48). */
 class SodViolationError extends Error {
@@ -77,25 +78,8 @@ export class LibraryService {
     return { configVersionId: null, libScope: { in: ['tenant', 'group'] }, deletedAt: null };
   }
 
-  /**
-   * [4h · Q1 CHẶN CỨNG] Mọi task_cell canonical/active PHẢI gắn KPI THẬT — kpiRef trỏ tới
-   * một kpi_template đang tồn tại (Từ điển KPI chuẩn hoặc KPI đã publish). Không cho mã treo,
-   * không placeholder. Gọi tại canonical publish + import as_canonical + (lát 4k) active-transition.
-   */
-  private async assertKpiRefExists(tx: TenantTx, kpiRef: string | undefined) {
-    if (!kpiRef) {
-      throw new UnprocessableEntityException('Tác vụ canonical bắt buộc gắn mã KPI (payload.kpiRef hoặc kpi) — không có ngoại lệ');
-    }
-    const kpi = await tx.kpiTemplate.findFirst({
-      where: { code: kpiRef, deletedAt: null }, // RLS: thấy global + tenant
-      select: { id: true },
-    });
-    if (!kpi) {
-      throw new UnprocessableEntityException(
-        `Mã KPI '${kpiRef}' không tồn tại trong Từ điển KPI — gắn KPI thật (xem /kpi-dictionary) trước khi đưa vào thư viện`,
-      );
-    }
-  }
+  // [4h · Q1 CHẶN CỨNG] helper dùng chung — xem modules/library/kpi-guard.ts
+  // (tách ra lát 4k để approve-active + config publish F108 dùng cùng một cửa).
 
   // ===== Contributions (author) =====
 
@@ -299,6 +283,14 @@ export class LibraryService {
         throw new SodViolationError('high');
       }
 
+      // [F132a·4k] phiếu VÒNG TỐI ƯU (taskCellId ≠ null, spawn từ reopen) KHÔNG đi đường
+      // curation approve/publish — phải qua approve-active (có Q1 + revision + scope phòng)
+      if (action === 'approve' && c.taskCellId) {
+        throw new UnprocessableEntityException(
+          'Phiếu vòng tối ưu (gắn task cell) — duyệt bằng POST /library/contributions/:id/approve-active',
+        );
+      }
+
       if (action === 'approve') {
         const payload = c.payload as CellPayload;
         const gate = this.gateFor(payload, c.type as ContributionType);
@@ -346,6 +338,19 @@ export class LibraryService {
       });
       if (count.count !== 1) throw new ConflictException('Review thất bại — version lệch (reload)');
 
+      // [F131a·4k] reject phiếu vòng tối ưu KHÔNG được bỏ cell kẹt 'reopened' vĩnh viễn:
+      // trả cell về active (nội dung/activeVersion GIỮ NGUYÊN) + feedback về triaged
+      if (action === 'reject' && c.taskCellId) {
+        await tx.taskCell.updateMany({
+          where: { id: c.taskCellId, status: 'reopened' },
+          data: { status: 'active', updatedBy: user.claims.sub, version: { increment: 1 } },
+        });
+        await tx.taskFeedback.updateMany({
+          where: { reopenedContributionId: c.id, status: 'reopened' },
+          data: { status: 'triaged' },
+        });
+      }
+
       await tx.libraryReview.create({
         data: {
           id: uuidv7(), tenantId: user.tenantId, contributionId: id,
@@ -391,6 +396,12 @@ export class LibraryService {
       if (c.status !== 'approved') {
         throw new ConflictException(`Chỉ publish được contribution approved (hiện: ${c.status})`);
       }
+      // [F132a·4k] phiếu vòng tối ưu không đi đường publish (defense-in-depth với review)
+      if (c.taskCellId) {
+        throw new UnprocessableEntityException(
+          'Phiếu vòng tối ưu (gắn task cell) — duyệt bằng POST /library/contributions/:id/approve-active',
+        );
+      }
       // SoD bất biến — kể cả tenant tắt sod_rule
       if (c.authorId === user.claims.sub) throw new SodViolationError('high');
       // SoD runtime rule (chuẩn F48 — check trong tx)
@@ -420,6 +431,9 @@ export class LibraryService {
       const needsKpi = c.type === 'kpi' || c.type === 'task_cell_with_kpi';
       let cellId: string | null = null;
       let cellCode = payload.code?.trim() ?? null;
+      // [F130/F132c·4k] revision version cần ghi sau khi cell chốt nội dung:
+      // cell MỚI → v1 · merge vào cell ĐANG ACTIVE → v+1 (đổi nội dung active phải có vết)
+      let revisionVersion: number | null = null;
 
       if (needsCell) {
         const merge = c.dedupCandidates.find((d) => d.resolution === 'merge' && d.similarTaskCellId);
@@ -431,6 +445,9 @@ export class LibraryService {
             where: { id: merge.similarTaskCellId!, deletedAt: null },
           });
           if (!target) throw new UnprocessableEntityException('Canonical cell để merge không còn tồn tại');
+          // [F132c·4k] merge làm ĐỔI nội dung cell đang active → phải bump activeVersion
+          // + ghi revision (nếu target chưa active thì merge tự do như cũ)
+          const mergeIntoActive = target.status === 'active';
           await tx.taskCell.update({
             where: { id: target.id },
             data: {
@@ -446,11 +463,13 @@ export class LibraryService {
               governance: (target.governance ?? payload.governance ?? undefined) as object,
               riskLevel: target.riskLevel ?? payload.riskLevel,
               kpiRef: target.kpiRef ?? resolveKpiRef(payload),
+              ...(mergeIntoActive ? { activeVersion: target.activeVersion + 1 } : {}),
               updatedBy: user.claims.sub, version: { increment: 1 },
             },
           });
           cellId = target.id;
           cellCode = target.code;
+          if (mergeIntoActive) revisionVersion = target.activeVersion + 1;
         } else {
           // cell mới — mã không được đụng canonical (partial unique đỡ tầng DB)
           if (!cellCode) throw new UnprocessableEntityException('payload.code bắt buộc');
@@ -459,6 +478,16 @@ export class LibraryService {
           });
           if (clash) {
             throw new ConflictException(`Mã '${cellCode}' đã có trong thư viện canonical — resolve dedup (merge/keep_both) trước`);
+          }
+          // [F134·4k] mã đã DEPRECATE không được hồi sinh âm thầm bằng cell mới cùng mã
+          // (mất lineage revisions) — quyết định hồi sinh phải tường minh (đổi mã/B1 xử lý)
+          const deprecated = await tx.taskCell.findFirst({
+            where: { tenantId: user.tenantId, code: cellCode, configVersionId: null, deletedAt: { not: null } },
+          });
+          if (deprecated) {
+            throw new UnprocessableEntityException(
+              `Mã '${cellCode}' đã deprecate — không tái sử dụng mã (giữ lineage lịch sử); dùng mã mới`,
+            );
           }
           const created = await tx.taskCell.create({
             data: {
@@ -479,9 +508,13 @@ export class LibraryService {
               contributedBy: c.authorId,
               canonicalId: keepBoth?.similarTaskCellId ?? null,
               createdBy: user.claims.sub,
+              // [F130·4k] publish canonical = active-transition: cell VÀO VẬN HÀNH ngay
+              // (Q1 assert bên dưới) — nếu không, vòng lặp tối ưu chết cho mọi cell mới
+              status: 'active', activeVersion: 1,
             },
           });
           cellId = created.id;
+          revisionVersion = 1;
         }
       }
 
@@ -523,7 +556,23 @@ export class LibraryService {
       // [4h · Q1 CHẶN CỨNG] cell canonical vừa tạo/merge PHẢI kết thúc với kpiRef trỏ KPI thật
       if (cellId) {
         const finalCell = await tx.taskCell.findFirst({ where: { id: cellId }, select: { kpiRef: true } });
-        await this.assertKpiRefExists(tx, finalCell?.kpiRef ?? undefined);
+        await assertKpiRefExists(tx, finalCell?.kpiRef ?? undefined);
+
+        // [F130/F132c·4k] active-transition có vết: revision v1 (cell mới) / v+1 (merge active)
+        if (revisionVersion !== null) {
+          await tx.taskRevision.create({
+            data: {
+              id: uuidv7(), tenantId: user.tenantId, taskCellId: cellId,
+              version: revisionVersion,
+              snapshot: { ...payload, kpiRef: finalCell?.kpiRef ?? null } as object,
+              contributionId: c.id,
+              changeSummary: revisionVersion === 1
+                ? 'Publish canonical — kích hoạt v1 (BU Authoring Gate)'
+                : 'Merge bổ sung thuộc tính vào cell đang active (curation)',
+              activatedBy: user.claims.sub,
+            },
+          });
+        }
       }
 
       const count = await tx.libraryContribution.updateMany({
@@ -577,16 +626,22 @@ export class LibraryService {
     });
   }
 
-  /** Deprecate canonical cell — soft-delete (giữ vết), derivation ngừng emit. */
+  /** Deprecate canonical cell — soft-delete + status 'deprecated' (giữ vết), derivation ngừng emit. */
   deprecate(user: RequestUser, taskCellId: string) {
     return this.prisma.withTenant(user.tenantId, async (tx) => {
       const cell = await tx.taskCell.findFirst({
         where: { id: taskCellId, ...this.canonicalWhere() },
       });
       if (!cell) throw new NotFoundException('Canonical task cell không tồn tại');
+      // [F134·4k] cell đang GIỮA vòng tối ưu → đóng vòng trước (reject/cancel) rồi mới nghỉ hưu,
+      // không bỏ rơi phiếu sửa + feedback đang gắn vòng
+      if (cell.status === 'reopened') {
+        throw new ConflictException('Cell đang giữa vòng tối ưu (reopened) — đóng vòng (reject/cancel) trước khi deprecate');
+      }
       await tx.taskCell.update({
         where: { id: taskCellId },
-        data: { deletedAt: new Date(), updatedBy: user.claims.sub },
+        // [F134·4k] status='deprecated' tường minh — phân biệt "nghỉ hưu" với dữ liệu xoá khác
+        data: { deletedAt: new Date(), status: 'deprecated', updatedBy: user.claims.sub },
       });
       return { deprecated: cell.code };
     });
@@ -825,6 +880,7 @@ export class LibraryService {
       const rows = run.rows as unknown as CellPayload[];
       let imported = 0;
       let updated = 0;
+      let unchanged = 0; // [F132a·4k] row y hệt cell hiện hữu → không ghi (không nhiễu revision)
       let contributions = 0;
 
       // [F112] fetch thư viện canonical MỘT lần cho cả batch dedup scan
@@ -857,7 +913,7 @@ export class LibraryService {
         // as_local là bản nháp version → chưa bắt buộc (được active sau khi bổ sung KPI).
         const rowKpiRef = resolveKpiRef(row);
         if (run.mode === 'as_canonical') {
-          await this.assertKpiRefExists(tx, rowKpiRef);
+          await assertKpiRefExists(tx, rowKpiRef);
         }
         const where = run.mode === 'as_local'
           ? { tenantId: user.tenantId, code, configVersionId: run.configVersionId, deletedAt: null }
@@ -879,12 +935,51 @@ export class LibraryService {
         };
         const existing = await tx.taskCell.findFirst({ where });
         if (existing) {
+          // [F132a·4k] so nội dung: row y hệt → SKIP (import lặp không sinh revision nhiễu)
+          const same = (Object.keys(data) as Array<keyof typeof data>)
+            .filter((k) => k !== 'updatedBy')
+            .every((k) => JSON.stringify(data[k] ?? null)
+              === JSON.stringify((existing as Record<string, unknown>)[k] ?? null));
+          if (same) {
+            unchanged += 1;
+            continue;
+          }
+          // nội dung ĐỔI trên cell canonical đang ACTIVE = active-transition mới
+          // → bump activeVersion + ghi revision (lịch sử bất biến không bị trôi)
+          const intoActive = run.mode === 'as_canonical' && existing.status === 'active';
           await tx.taskCell.update({
-            where: { id: existing.id }, data: { ...data, version: { increment: 1 } },
+            where: { id: existing.id },
+            data: {
+              ...data,
+              ...(intoActive ? { activeVersion: existing.activeVersion + 1 } : {}),
+              version: { increment: 1 },
+            },
           });
+          if (intoActive) {
+            await tx.taskRevision.create({
+              data: {
+                id: uuidv7(), tenantId: user.tenantId, taskCellId: existing.id,
+                version: existing.activeVersion + 1,
+                snapshot: { ...row, kpiRef: rowKpiRef ?? null } as object,
+                changeSummary: `Import as_canonical re-baseline (run ${run.id})`,
+                activatedBy: user.claims.sub,
+              },
+            });
+          }
           updated += 1;
         } else {
-          await tx.taskCell.create({
+          // [F134·4k] mã đã deprecate không hồi sinh âm thầm qua import (giữ lineage)
+          if (run.mode === 'as_canonical') {
+            const deprecated = await tx.taskCell.findFirst({
+              where: { tenantId: user.tenantId, code, configVersionId: null, deletedAt: { not: null } },
+            });
+            if (deprecated) {
+              throw new UnprocessableEntityException(
+                `Mã '${code}' đã deprecate — không tái sử dụng qua import; dùng mã mới hoặc B1 xử lý tường minh`,
+              );
+            }
+          }
+          const created = await tx.taskCell.create({
             data: {
               ...data,
               id: uuidv7(), tenantId: user.tenantId,
@@ -893,14 +988,26 @@ export class LibraryService {
               origin: 'imported',
               libScope: run.mode === 'as_local' ? 'local' : 'tenant',
               contributedBy: user.claims.sub, createdBy: user.claims.sub,
+              // [F130·4k] import as_canonical = active-transition (Q1 đã assert per-row)
+              ...(run.mode === 'as_canonical' ? { status: 'active', activeVersion: 1 } : {}),
             },
           });
+          if (run.mode === 'as_canonical') {
+            await tx.taskRevision.create({
+              data: {
+                id: uuidv7(), tenantId: user.tenantId, taskCellId: created.id,
+                version: 1, snapshot: { ...row, kpiRef: rowKpiRef ?? null } as object,
+                changeSummary: `Import as_canonical — kích hoạt v1 (run ${run.id})`,
+                activatedBy: user.claims.sub,
+              },
+            });
+          }
           imported += 1;
         }
       }
 
       const stats = {
-        ...(run.stats as object), imported, updated, contributions,
+        ...(run.stats as object), imported, updated, unchanged, contributions,
       };
       await tx.libraryImportRun.update({ where: { id }, data: { stats: stats as object } });
       await tx.auditLog.create({

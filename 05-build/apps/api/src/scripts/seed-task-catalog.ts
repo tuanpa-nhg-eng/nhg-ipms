@@ -31,6 +31,7 @@ export interface SeedBatchStat {
   rows: number;
   skipped: number;    // submission đã có phiếu/cell · canonical đã deprecate (tôn trọng governance)
   protected: number;  // [F109] cell canonical đã bị người khác hiệu chỉnh — KHÔNG đè
+  unchanged: number;  // [F132a] row y hệt cell hiện hữu — import bỏ qua, không revision nhiễu
   imported: number;
   updated: number;
   contributions: number;
@@ -40,7 +41,7 @@ export interface SeedResult {
   tenantCode: string;
   batches: SeedBatchStat[];
   totals: {
-    rows: number; skipped: number; protected: number;
+    rows: number; skipped: number; protected: number; unchanged: number;
     imported: number; updated: number; contributions: number;
   };
 }
@@ -91,7 +92,7 @@ export async function seedTaskCatalog(opts: {
     // hoặc đã thành canonical → không tạo phiếu lặp khi chạy lại seed.
     const existingContribs = await owner.libraryContribution.findMany({
       where: { tenantId: tenant.id, deletedAt: null },
-      select: { payload: true },
+      select: { payload: true, taskCellId: true },
     });
     const existingCanonical = await owner.taskCell.findMany({
       where: { tenantId: tenant.id, configVersionId: null, deletedAt: null },
@@ -107,16 +108,22 @@ export async function seedTaskCatalog(opts: {
     const existingNameByCode = new Map<string, string>();
     for (const c of existingContribs) {
       const p = c.payload as { code?: string; nameVi?: string } | null;
-      if (p?.code) {
-        alreadySubmitted.add(p.code);
-        if (p.nameVi) existingNameByCode.set(p.code, normalizeName(p.nameVi));
-      }
+      // [F135] phiếu KHÔNG vào drift map: mã đã có phiếu luôn bị SKIP (alreadySubmitted)
+      // nên seed không ghi gì lên chúng — tên phiếu có thể đã sửa HỢP LỆ (needs_changes,
+      // vòng tối ưu 4k) → so với catalog là fail oan. Drift nguồn được gác bởi
+      // (a) drift-check cell canonical seed sẽ update + (b) unit test PIN sha256 toàn plan.
+      if (p?.code) alreadySubmitted.add(p.code);
     }
     const activeCanonical = new Map<string, { name: string; updatedBy: string | null }>();
     for (const c of existingCanonical) {
       alreadySubmitted.add(c.code);
       activeCanonical.set(c.code, { name: normalizeName(c.nameVi), updatedBy: c.updatedBy });
-      existingNameByCode.set(c.code, normalizeName(c.nameVi));
+      // [4k] cell đã được PHÒNG TỐI ƯU (updatedBy ≠ seed curator) → seed không ghi đè (F109)
+      // nên cũng KHÔNG drift-check theo tên hiện tại — tên có thể đã đổi HỢP LỆ qua vòng lặp;
+      // drift guard F110 chỉ áp cho cell mà seed sẽ thật sự cập nhật
+      if (!c.updatedBy || c.updatedBy === curator.claims.sub) {
+        existingNameByCode.set(c.code, normalizeName(c.nameVi));
+      }
     }
     const deprecatedCodes = new Set(
       deprecatedCanonical.map((c) => c.code).filter((code) => !activeCanonical.has(code)),
@@ -148,7 +155,7 @@ export async function seedTaskCatalog(opts: {
     for (const batch of plan) {
       const stat: SeedBatchStat = {
         dept: batch.dept, mode: batch.mode, rows: batch.rows.length,
-        skipped: 0, protected: 0, imported: 0, updated: 0, contributions: 0,
+        skipped: 0, protected: 0, unchanged: 0, imported: 0, updated: 0, contributions: 0,
       };
 
       let rows = batch.rows as unknown as CellPayload[];
@@ -200,24 +207,26 @@ export async function seedTaskCatalog(opts: {
 
       const applied = await library.applyImport(actor, preview.id);
       const stats = applied!.stats as unknown as {
-        imported?: number; updated?: number; contributions?: number;
+        imported?: number; updated?: number; unchanged?: number; contributions?: number;
       };
       stat.imported = stats.imported ?? 0;
       stat.updated = stats.updated ?? 0;
+      stat.unchanged = stats.unchanged ?? 0;
       stat.contributions = stats.contributions ?? 0;
       batches.push(stat);
-      log(`  · ${batch.dept}: ${batch.mode} — mới ${stat.imported}/cập nhật ${stat.updated}/phiếu ${stat.contributions}${stat.skipped ? `/bỏ qua ${stat.skipped}` : ''}${stat.protected ? `/giữ nguyên (đã hiệu chỉnh) ${stat.protected}` : ''}`);
+      log(`  · ${batch.dept}: ${batch.mode} — mới ${stat.imported}/cập nhật ${stat.updated}/không đổi ${stat.unchanged}/phiếu ${stat.contributions}${stat.skipped ? `/bỏ qua ${stat.skipped}` : ''}${stat.protected ? `/giữ nguyên (đã hiệu chỉnh) ${stat.protected}` : ''}`);
     }
 
     const totals = batches.reduce(
       (s, b) => ({
         rows: s.rows + b.rows, skipped: s.skipped + b.skipped, protected: s.protected + b.protected,
+        unchanged: s.unchanged + b.unchanged,
         imported: s.imported + b.imported, updated: s.updated + b.updated,
         contributions: s.contributions + b.contributions,
       }),
-      { rows: 0, skipped: 0, protected: 0, imported: 0, updated: 0, contributions: 0 },
+      { rows: 0, skipped: 0, protected: 0, unchanged: 0, imported: 0, updated: 0, contributions: 0 },
     );
-    log(`Seed Task Catalog '${tenantCode}': ${totals.rows} tác vụ — canonical mới ${totals.imported}, cập nhật ${totals.updated}, giữ nguyên (đã hiệu chỉnh) ${totals.protected}, phiếu submission ${totals.contributions}, bỏ qua ${totals.skipped}`);
+    log(`Seed Task Catalog '${tenantCode}': ${totals.rows} tác vụ — canonical mới ${totals.imported}, cập nhật ${totals.updated}, không đổi ${totals.unchanged}, giữ nguyên (đã hiệu chỉnh) ${totals.protected}, phiếu submission ${totals.contributions}, bỏ qua ${totals.skipped}`);
     return { tenantCode, batches, totals };
   } finally {
     await owner.$disconnect();

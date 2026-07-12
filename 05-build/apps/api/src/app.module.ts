@@ -55,6 +55,8 @@ import { AuthoringController } from './modules/authoring/authoring.controller';
 import { AuthoringService } from './modules/authoring/authoring.service';
 import { DictionaryController } from './modules/dictionary/dictionary.controller';
 import { DictionaryService } from './modules/dictionary/dictionary.service';
+import { TaskLoopController } from './modules/taskloop/taskloop.controller';
+import { TaskLoopService } from './modules/taskloop/taskloop.service';
 import { PolicyController } from './modules/policy/policy.controller';
 import { PolicyService } from './modules/policy/policy.service';
 import { PolicyGuard } from './modules/policy/policy.guard';
@@ -69,7 +71,7 @@ import { PolicyGuard } from './modules/policy/policy.guard';
     TaskCellController, DerivationController,
     ProcessController, IntegrationController,
     McpController, EvalController, PolicyController, LibraryController,
-    AuthoringController, DictionaryController,
+    AuthoringController, DictionaryController, TaskLoopController,
   ],
   providers: [
     PrismaService,
@@ -97,6 +99,7 @@ import { PolicyGuard } from './modules/policy/policy.guard';
     LibraryService,
     AuthoringService,
     DictionaryService,
+    TaskLoopService,
     // Guard pipeline Spec Config Studio §7: Jwt → Tenant → Permission (RBAC) → Policy (ABAC #2)
     { provide: APP_GUARD, useClass: JwtGuard },
     { provide: APP_GUARD, useClass: TenantGuard },

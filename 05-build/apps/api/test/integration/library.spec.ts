@@ -61,7 +61,18 @@ describe('Phase 3 lát 4f — BU Authoring Gate', () => {
     deptId = dept!.id;
 
     // [F66-chuẩn] dọn artefact của CHÍNH spec này từ lần chạy trước
-    await owner.taskCell.deleteMany({ where: { code: { startsWith: 'BU4F-' } } });
+    // (4k: cell canonical giờ kéo theo task_revision append-only + task_feedback — dọn trước)
+    const oldCells = await owner.taskCell.findMany({
+      where: { code: { startsWith: 'BU4F-' } }, select: { id: true },
+    });
+    const oldCellIds = oldCells.map((x) => x.id);
+    if (oldCellIds.length > 0) {
+      await owner.taskFeedback.deleteMany({ where: { taskCellId: { in: oldCellIds } } });
+      await owner.$executeRaw`ALTER TABLE task_revision DISABLE TRIGGER task_revision_append_only`;
+      await owner.taskRevision.deleteMany({ where: { taskCellId: { in: oldCellIds } } });
+      await owner.$executeRaw`ALTER TABLE task_revision ENABLE TRIGGER task_revision_append_only`;
+      await owner.taskCell.deleteMany({ where: { id: { in: oldCellIds } } });
+    }
     await owner.kpiTemplate.deleteMany({ where: { code: { startsWith: 'KPI-BU4F-' } } });
 
     const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
@@ -284,14 +295,16 @@ describe('Phase 3 lát 4f — BU Authoring Gate', () => {
     expect((await api().post(`/api/v1/library/import-runs/${prev.body.id}/apply`)
       .set(as(curator))).status).toBe(409);
 
-    // chạy lại từ preview mới cùng rows → idempotent: toàn update, không nhân bản
+    // chạy lại từ preview mới cùng rows → idempotent: nội dung Y HỆT → unchanged
+    // ([F132a·4k] không update — không sinh revision nhiễu trên cell active)
     const prev2 = await api().post('/api/v1/library/import').set(as(curator)).send({
       mode: 'as_canonical', rows: rows.slice(0, 2),
     });
     expect(prev2.body.diff.update).toEqual(expect.arrayContaining([code('I001'), code('I002')]));
     const applied2 = await api().post(`/api/v1/library/import-runs/${prev2.body.id}/apply`).set(as(curator));
     expect(applied2.body.stats.imported).toBe(0);
-    expect(applied2.body.stats.updated).toBe(2);
+    expect(applied2.body.stats.updated).toBe(0);
+    expect(applied2.body.stats.unchanged).toBe(2);
     const count = await owner.taskCell.count({
       where: { tenantId: curator.id, code: code('I001'), deletedAt: null },
     });
