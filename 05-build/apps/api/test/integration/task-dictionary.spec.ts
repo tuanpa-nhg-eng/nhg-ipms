@@ -139,6 +139,20 @@ describe('Go-live — GET /task-dictionary (tra cứu canonical)', () => {
     expect(r.body.kpi.code).toBe(r.body.cell.kpiRef);
     expect(r.body.kpi.isDictionary).toBe(true);
     expect(r.body.kpi.definition).toBeTruthy();
+    // [F122] tra cứu công khai KHÔNG lộ metadata nội bộ
+    for (const leak of ['id', 'tenantId', 'contributedBy', 'createdBy', 'updatedBy', 'attrs', 'canonicalId', 'deletedAt']) {
+      expect(r.body.cell[leak]).toBeUndefined();
+    }
+  });
+
+  it('[F123] tìm theo MÃ tác vụ (q=TS-G01) phải khớp — mã cũng qua normalize bỏ dấu/gạch', async () => {
+    const r = await api().get('/api/v1/task-dictionary?q=TS-G01').set(as(emp));
+    expect(r.status).toBe(200);
+    expect(r.body.matched).toBeGreaterThan(0);
+    expect(r.body.cells.every((c: { code: string }) => c.code.startsWith('TS-G01'))).toBe(true);
+    // tìm theo mã đầy đủ 1 cell
+    const one = await api().get(`/api/v1/task-dictionary?q=${r.body.cells[0].code}`).set(as(emp));
+    expect(one.body.matched).toBeGreaterThanOrEqual(1);
   });
 
   it('RBAC: không có taskdict:read → 403 (token không role)', async () => {

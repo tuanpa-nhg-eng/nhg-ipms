@@ -77,7 +77,8 @@ export class DictionaryService {
         if (filter.aiLevel && c.aiLevel !== filter.aiLevel) return false;
         if (filter.kpiRef && c.kpiRef !== filter.kpiRef) return false;
         if (qn) {
-          const hay = `${c.code} ${normalizeName(c.nameVi)} ${c.nameEn ? normalizeName(c.nameEn) : ''}`;
+          // [F123] mã cũng phải qua normalizeName — 'TS-G01' → 'ts g01' mới khớp qn
+          const hay = `${normalizeName(c.code)} ${normalizeName(c.nameVi)} ${c.nameEn ? normalizeName(c.nameEn) : ''}`;
           if (!hay.includes(qn)) return false;
         }
         if (roleN) {
@@ -115,18 +116,35 @@ export class DictionaryService {
     return this.prisma.withTenant(user.tenantId, async (tx) => {
       const cell = await tx.taskCell.findFirst({
         where: { ...this.canonicalWhere(), code },
+        // [F122] whitelist select — tra cứu công khai KHÔNG lộ metadata nội bộ
+        // (contributedBy/createdBy/updatedBy UUID, tenantId, id, attrs, canonicalId…)
+        select: {
+          code: true, groupCode: true, clusterCode: true,
+          nameVi: true, nameEn: true,
+          responsibleRole: true, accountableRole: true, consulted: true, informed: true,
+          inputs: true, outputs: true, measures: true,
+          aiLevel: true, aiDimension: true,
+          governance: true, riskLevel: true, lifecycle: true,
+          kpiRef: true, origin: true, libScope: true, usageCount: true,
+        },
       });
       if (!cell) throw new UnprocessableEntityException(`Tác vụ '${code}' không có trong Từ điển canonical`);
 
       let kpi = null;
       if (cell.kpiRef) {
+        const kpiSelect = {
+          code: true, nameVi: true, method: true, direction: true, unit: true,
+          frequency: true, domain: true, definition: true, grain: true,
+          dataClassification: true, aiBoundary: true, sourceSystem: true, isDictionary: true,
+        } as const;
+        // [F124] ưu tiên KPI của TENANT (Từ điển chuẩn seed tenant-scoped) trước
+        // KPI global cùng mã — findFirst không orderBy là không tất định
         kpi = await tx.kpiTemplate.findFirst({
-          where: { code: cell.kpiRef, deletedAt: null }, // RLS: global + tenant
-          select: {
-            code: true, nameVi: true, method: true, direction: true, unit: true,
-            frequency: true, domain: true, definition: true, grain: true,
-            dataClassification: true, aiBoundary: true, sourceSystem: true, isDictionary: true,
-          },
+          where: { code: cell.kpiRef, deletedAt: null, tenantId: user.tenantId },
+          select: kpiSelect,
+        }) ?? await tx.kpiTemplate.findFirst({
+          where: { code: cell.kpiRef, deletedAt: null }, // fallback: global (RLS cho thấy)
+          select: kpiSelect,
         });
       }
       return { cell, kpi };
