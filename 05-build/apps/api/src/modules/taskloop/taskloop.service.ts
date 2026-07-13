@@ -84,6 +84,111 @@ export class TaskLoopService {
     };
   }
 
+  /** Resolve cell canonical theo MÃ (đường tra cứu — dictionary không lộ id, F122). */
+  private async mustGetCanonicalByCode(tx: TenantTx, code: string) {
+    if (!code || code.length > 64) throw new UnprocessableEntityException('code không hợp lệ');
+    const cell = await tx.taskCell.findFirst({
+      where: { code, configVersionId: null, deletedAt: null }, select: { id: true },
+    });
+    if (!cell) throw new NotFoundException(`Tác vụ '${code}' không có trong Từ điển canonical`);
+    return cell.id;
+  }
+
+  listFeedbackByCode(user: RequestUser, code: string, status?: string) {
+    return this.prisma.withTenant(user.tenantId, async (tx) => {
+      const id = await this.mustGetCanonicalByCode(tx, code);
+      return tx.taskFeedback.findMany({
+        where: { taskCellId: id, ...(status ? { status } : {}) },
+        orderBy: { createdAt: 'desc' },
+      });
+    });
+  }
+
+  async createFeedbackByCode(user: RequestUser, code: string, input: { body: string; category?: string }) {
+    const id = await this.prisma.withTenant(user.tenantId, (tx) => this.mustGetCanonicalByCode(tx, code));
+    return this.createFeedback(user, id, input);
+  }
+
+  listRevisionsByCode(user: RequestUser, code: string) {
+    return this.prisma.withTenant(user.tenantId, async (tx) => {
+      const id = await this.mustGetCanonicalByCode(tx, code);
+      return tx.taskRevision.findMany({
+        where: { taskCellId: id },
+        select: {
+          id: true, version: true, changeSummary: true,
+          contributionId: true, activatedAt: true, // KHÔNG activatedBy — tra cứu công khai
+        },
+        orderBy: { version: 'desc' },
+      });
+    });
+  }
+
+  getRevisionByCode(user: RequestUser, code: string, version: number) {
+    return this.prisma.withTenant(user.tenantId, async (tx) => {
+      const id = await this.mustGetCanonicalByCode(tx, code);
+      const rev = await tx.taskRevision.findFirst({
+        where: { taskCellId: id, version },
+        select: { version: true, snapshot: true, changeSummary: true, activatedAt: true },
+      });
+      if (!rev) throw new NotFoundException(`Không có revision v${version}`);
+      return rev;
+    });
+  }
+
+  // ===== Board — bàn làm việc trưởng phòng (4l) =====
+
+  /** Cells phòng mình (mọi trạng thái) + cells CHƯA CÓ CHỦ (để claim) + đếm góp ý mở
+   * + hàng đợi phiếu vòng tối ưu chờ duyệt. Permission taskcell:approve (trưởng phòng). */
+  board(user: RequestUser) {
+    const scope = effectiveScope(user);
+    return this.prisma.withTenant(user.tenantId, async (tx) => {
+      const mineWhere = scope.mode === 'tenant'
+        ? { ownerOrgUnitId: { not: null } }
+        : { ownerOrgUnitId: { in: scope.orgUnitIds } };
+      const select = {
+        id: true, code: true, nameVi: true, status: true, activeVersion: true,
+        ownerOrgUnitId: true, kpiRef: true, aiLevel: true,
+      };
+      const [mine, unclaimed] = await Promise.all([
+        tx.taskCell.findMany({
+          where: { configVersionId: null, deletedAt: null, ...mineWhere },
+          select, orderBy: { code: 'asc' }, take: 500,
+        }),
+        tx.taskCell.findMany({
+          where: { configVersionId: null, deletedAt: null, ownerOrgUnitId: null },
+          select, orderBy: { code: 'asc' }, take: 500,
+        }),
+      ]);
+      const ids = mine.map((c) => c.id);
+      const fb = ids.length > 0
+        ? await tx.taskFeedback.groupBy({
+            by: ['taskCellId'], where: { taskCellId: { in: ids }, status: { in: ['open', 'triaged'] } },
+            _count: { _all: true },
+          })
+        : [];
+      const fbMap = new Map(fb.map((x) => [x.taskCellId, x._count._all]));
+      // hàng đợi phiếu vòng tối ưu của các cell phòng mình
+      const queue = ids.length > 0
+        ? await tx.libraryContribution.findMany({
+            where: {
+              taskCellId: { in: ids }, deletedAt: null,
+              status: { in: ['submitted', 'in_review', 'needs_changes', 'draft'] },
+            },
+            select: {
+              id: true, taskCellId: true, status: true, authorId: true,
+              kpiRef: true, qualityScore: true, submittedAt: true, payload: true,
+            },
+            orderBy: { submittedAt: 'asc' },
+          })
+        : [];
+      return {
+        mine: mine.map((c) => ({ ...c, openFeedback: fbMap.get(c.id) ?? 0 })),
+        unclaimed,
+        queue,
+      };
+    });
+  }
+
   // ===== Claim — trưởng phòng nhận cell về phòng (Q5: seed để trống owner) =====
 
   claim(user: RequestUser, cellId: string, orgUnitId: string) {

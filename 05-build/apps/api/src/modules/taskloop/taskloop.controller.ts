@@ -32,6 +32,55 @@ class ApproveActiveDto {
 export class TaskLoopController {
   constructor(private svc: TaskLoopService) {}
 
+  // [4l] Bàn làm việc trưởng phòng — cells phòng mình + chưa chủ + hàng đợi phiếu
+  // (path riêng /task-board, KHÔNG nằm dưới /task-cells để tránh nuốt bởi GET :code)
+  @Get('task-board')
+  @RequirePermission('taskcell:approve')
+  board(@CurrentUser() user: RequestUser) {
+    return this.svc.board(user);
+  }
+
+  // [4l] Đường TRA CỨU theo MÃ (dictionary không lộ id — F122): feedback + revisions
+  @Get('task-dictionary/:code/feedback')
+  @RequirePermission('task:feedback')
+  listFeedbackByCode(
+    @CurrentUser() user: RequestUser,
+    @Param('code') code: string,
+    @Query('status') status?: string,
+  ) {
+    if (status && !['open', 'triaged', 'reopened', 'resolved', 'wontfix'].includes(status)) {
+      status = undefined;
+    }
+    return this.svc.listFeedbackByCode(user, code, status);
+  }
+
+  @Post('task-dictionary/:code/feedback')
+  @RequirePermission('task:feedback')
+  @Audited('task.feedback')
+  createFeedbackByCode(
+    @CurrentUser() user: RequestUser,
+    @Param('code') code: string,
+    @Body() dto: FeedbackDto,
+  ) {
+    return this.svc.createFeedbackByCode(user, code, dto);
+  }
+
+  @Get('task-dictionary/:code/revisions')
+  @RequirePermission('taskdict:read')
+  listRevisionsByCode(@CurrentUser() user: RequestUser, @Param('code') code: string) {
+    return this.svc.listRevisionsByCode(user, code);
+  }
+
+  @Get('task-dictionary/:code/revisions/:version')
+  @RequirePermission('taskdict:read')
+  getRevisionByCode(
+    @CurrentUser() user: RequestUser,
+    @Param('code') code: string,
+    @Param('version', ParseIntPipe) version: number,
+  ) {
+    return this.svc.getRevisionByCode(user, code, version);
+  }
+
   @Post('task-cells/:id/claim')
   @RequirePermission('taskcell:approve')
   @Audited('task.claim')

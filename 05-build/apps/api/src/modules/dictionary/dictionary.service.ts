@@ -42,6 +42,8 @@ export class DictionaryService {
           nameVi: true, nameEn: true, responsibleRole: true, accountableRole: true,
           aiLevel: true, riskLevel: true, kpiRef: true, origin: true,
           lifecycle: true,
+          // [4l] trạng thái vận hành + phòng sở hữu — FE hiện badge + lối vào vòng lặp
+          status: true, ownerOrgUnitId: true, activeVersion: true,
         },
         orderBy: { code: 'asc' },
         take: LIST_CAP + 1,
@@ -97,6 +99,7 @@ export class DictionaryService {
           nameVi: c.nameVi, nameEn: c.nameEn,
           responsibleRole: c.responsibleRole, aiLevel: c.aiLevel,
           riskLevel: c.riskLevel, kpiRef: c.kpiRef, origin: c.origin,
+          status: c.status, activeVersion: c.activeVersion,
         })),
         facets: {
           groups: [...groupFacet.entries()]
@@ -126,6 +129,7 @@ export class DictionaryService {
           aiLevel: true, aiDimension: true,
           governance: true, riskLevel: true, lifecycle: true,
           kpiRef: true, origin: true, libScope: true, usageCount: true,
+          status: true, activeVersion: true, // [4l] vòng đời vận hành (không lộ id/user UUID)
         },
       });
       if (!cell) throw new UnprocessableEntityException(`Tác vụ '${code}' không có trong Từ điển canonical`);

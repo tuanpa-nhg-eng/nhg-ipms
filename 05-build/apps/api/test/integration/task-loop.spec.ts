@@ -505,6 +505,35 @@ describe('Phase 3 lát 4k — vòng lặp tối ưu liên tục', () => {
     expect(await owner.taskRevision.count({ where: { taskCellId: newCellId } })).toBe(2);
   });
 
+  it('[4l] task-board: dept_head thấy cells phòng mình + chưa chủ + hàng đợi phiếu; emp 403', async () => {
+    expect((await api().get('/api/v1/task-board').set(as(emp))).status).toBe(403);
+    const r = await api().get('/api/v1/task-board').set(as(dept));
+    expect(r.status).toBe(200);
+    // cell1 đã claim về ADMISSIONS → nằm trong mine, kèm đếm góp ý mở
+    const mine = r.body.mine as Array<{ id: string; openFeedback: number; status: string }>;
+    expect(mine.some((c) => c.id === cellId)).toBe(true);
+    // cells chưa chủ (seed 4i chưa claim) có để nhận
+    expect((r.body.unclaimed as unknown[]).length).toBeGreaterThan(0);
+  });
+
+  it('[4l] tra cứu theo MÃ: revisions + feedback qua /task-dictionary/:code (không cần id)', async () => {
+    const revs = await api().get(`/api/v1/task-dictionary/${cellCode}/revisions`).set(as(emp));
+    expect(revs.status).toBe(200);
+    expect(revs.body.length).toBeGreaterThanOrEqual(2);
+    expect(revs.body[0].activatedBy).toBeUndefined(); // tra cứu công khai không lộ user UUID
+    const v1 = await api().get(`/api/v1/task-dictionary/${cellCode}/revisions/1`).set(as(emp));
+    expect(v1.status).toBe(200);
+    expect(v1.body.snapshot).toBeTruthy();
+
+    const fb = await api().post(`/api/v1/task-dictionary/${cellCode}/feedback`).set(as(emp))
+      .send({ body: 'Góp ý qua đường tra cứu theo mã' });
+    expect(fb.status).toBe(201);
+    const list = await api().get(`/api/v1/task-dictionary/${cellCode}/feedback`).set(as(emp));
+    expect((list.body as Array<{ id: string }>).some((x) => x.id === fb.body.id)).toBe(true);
+    // mã không tồn tại → 404
+    expect((await api().get('/api/v1/task-dictionary/KHONG-TON-TAI/revisions').set(as(emp))).status).toBe(404);
+  });
+
   it('cô lập tenant: dept_head T2 không thấy cell H.01 — không claim/reopen được', async () => {
     // orgUnit H.01 → 403 (scope chặn trước, fail-closed); orgUnit của CHÍNH T2 → 404 (RLS không thấy cell)
     expect((await api().post(`/api/v1/task-cells/${cellId}/claim`).set(as(t2dept))
