@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tờ trình iPMS — Phó Tổng Giám đốc R&D và Ứng dụng Công nghệ</title>
+<style>
+  /* Thể thức văn bản hành chính — Nghị định 30/2020/NĐ-CP.
+     Font Times New Roman cỡ 13-14; lề: trên 20mm, dưới 20mm, trái 30mm, phải 18mm. */
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{font-family:'Times New Roman', Times, serif; color:#000; background:#8f9691;
+    font-size:13.5pt; line-height:1.42; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+  .page{width:210mm; min-height:297mm; margin:8mm auto; background:#fff;
+    padding:20mm 18mm 20mm 30mm; box-shadow:0 3px 16px rgba(0,0,0,.25);}
+  @page{
+    size:A4; margin:20mm 18mm 16mm 30mm;
+    @bottom-left{ content:"Ban Nghiên cứu, Phát triển và Ứng dụng Công Nghệ (B3)";
+      font-family:'Times New Roman',serif; font-size:8.5pt; color:#555; }
+    @bottom-right{ content:"Trang " counter(page) "/" counter(pages);
+      font-family:'Times New Roman',serif; font-size:8.5pt; color:#555; }
+  }
+  @media print{
+    html,body{ background:#fff; }
+    .page{ width:auto; min-height:auto; margin:0; padding:0; box-shadow:none; }
+  }
+  /* Footer màn hình (xem trước) — khi in dùng margin-box @page ở trên */
+  .screenfoot{ display:none; }
+  @media screen{
+    .screenfoot{ display:flex; justify-content:space-between; margin:6mm auto 10mm;
+      width:210mm; max-width:100%; padding:0 18mm 0 30mm; font-size:8.5pt; color:#555; }
+    .screenfoot .r{ font-variant-numeric:tabular-nums; }
+  }
+
+  p{margin:0 0 6pt; text-align:justify;}
+  b, strong{font-weight:bold;}
+  .center{text-align:center;}
+  .just{text-align:justify;}
+
+  /* Khối đầu: cơ quan (trái) + quốc hiệu (phải) */
+  .head{display:flex; justify-content:space-between; align-items:flex-start; gap:14px; margin-bottom:4pt;}
+  .head .co{width:48%; text-align:center; font-size:13pt; line-height:1.35;}
+  .head .co .logo{height:16mm; max-width:92%; object-fit:contain; margin-bottom:2pt;}
+  .head .co .unit{font-weight:bold; text-transform:uppercase;}
+  .head .co .rule{width:55%; height:0; border-top:1px solid #000; margin:3pt auto 0;}
+  .head .nat{width:52%; text-align:center; font-size:13pt; line-height:1.35;}
+  .head .nat .q{font-weight:bold; text-transform:uppercase;}
+  .head .nat .m{font-weight:bold; font-size:14pt;}
+  .head .nat .rule{width:62%; height:0; border-top:1px solid #000; margin:2pt auto 0;}
+
+  .refline{display:flex; justify-content:space-between; align-items:flex-start; gap:14px; margin:2pt 0 16pt;}
+  .refline .no{width:48%; text-align:center; font-size:13pt;}
+  .refline .date{width:52%; text-align:center; font-style:italic; font-size:13pt;}
+
+  /* Tên loại + trích yếu */
+  .doctype{text-align:center; margin:6pt 0 4pt;}
+  .doctype .t{font-size:15pt; font-weight:bold; letter-spacing:.5px;}
+  .doctype .about{font-weight:bold; font-size:13.5pt; max-width:150mm; margin:5pt auto 0; line-height:1.35;}
+  .doctype .about::before{content:""; display:block; width:34mm; height:0; border-top:1px solid #000; margin:5pt auto 8pt;}
+
+  .kg{margin:10pt 0 8pt;}
+  .kg b{font-weight:bold;}
+
+  .roman{font-weight:bold; text-transform:uppercase; margin:12pt 0 5pt; font-size:13.5pt;}
+  .lvl2{font-weight:bold; margin:7pt 0 3pt;}
+  .indent{text-indent:12mm;}
+
+  table{width:100%; border-collapse:collapse; font-size:12.5pt; margin:6pt 0 8pt;}
+  th,td{border:1px solid #000; padding:4pt 6pt; text-align:justify; vertical-align:top; line-height:1.3;}
+  th{text-align:center; font-weight:bold;}
+  td.c{text-align:center;} td.r{text-align:right;}
+  caption{font-style:italic; font-size:11.5pt; text-align:left; margin-bottom:3pt; caption-side:top;}
+
+  .note-it{font-style:italic; font-size:12.5pt; margin:4pt 0 8pt;}
+  .enddot{text-align:justify; margin-top:6pt;}
+
+  /* Nơi nhận + chữ ký */
+  .sign{display:flex; justify-content:space-between; align-items:flex-start; gap:14px; margin-top:14pt;}
+  .sign .recv{width:52%; font-size:12pt; line-height:1.4;}
+  .sign .recv .lbl{font-weight:bold; font-style:italic;}
+  .sign .by{width:44%; text-align:center; font-size:13pt;}
+  .sign .by .role{font-weight:bold; text-transform:uppercase;}
+  .sign .by .hint{font-style:italic; margin-top:46pt;}
+
+  .attach{font-style:italic; font-size:11.5pt; color:#222; margin-top:14pt; border-top:1px solid #999; padding-top:6pt;}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Quốc hiệu, tiêu ngữ + cơ quan -->
+  <div class="head">
+    <div class="co">
+      <img class="logo" src="../design-system/public/logo.png" alt="Tập đoàn Giáo dục Nguyễn Hoàng"
+           onerror="this.onerror=null;this.src='../design-system/nhg-design-system-assets/logo.png'">
+      <div class="unit">Ban Dự án Nền tảng iPMS</div>
+      <div class="rule"></div>
+    </div>
+    <div class="nat">
+      <div class="q">Cộng hòa xã hội chủ nghĩa Việt Nam</div>
+      <div class="m">Độc lập - Tự do - Hạnh phúc</div>
+      <div class="rule"></div>
+    </div>
+  </div>
+  <div class="refline">
+    <div class="no">Số: ......./TTr-iPMS</div>
+    <div class="date">TP. Hồ Chí Minh, ngày ...... tháng ...... năm 2026</div>
+  </div>
+
+  <!-- Tên loại + trích yếu -->
+  <div class="doctype">
+    <div class="t">TỜ TRÌNH</div>
+    <div class="about">Về việc báo cáo tiến độ, đề xuất nguồn lực và lộ trình triển khai Nền tảng Quản trị Hiệu suất Thông minh (iPMS)</div>
+  </div>
+
+  <div class="kg"><b>Kính gửi:</b> Phó Tổng Giám đốc phụ trách Ban Nghiên cứu, Phát triển và Ứng dụng Công nghệ.</div>
+
+  <p class="just">Căn cứ định hướng chiến lược chuyển đổi số và ứng dụng trí tuệ nhân tạo (AI-First) của Tập đoàn;</p>
+  <p class="just">Căn cứ các đặc tả kỹ thuật, thiết kế và kế hoạch – ngân sách của Dự án đã được xây dựng;</p>
+  <p class="just">Thực hiện chủ trương xây dựng Nền tảng Quản trị Hiệu suất Thông minh (iPMS) dùng chung cho toàn Tập đoàn,</p>
+  <p class="just">Ban Dự án Nền tảng iPMS kính trình Phó Tổng Giám đốc báo cáo tiến độ triển khai và đề xuất một số nội dung như sau:</p>
+
+  <div class="roman">I. Bối cảnh và mục tiêu</div>
+  <p class="just indent"><b>1. Bối cảnh.</b> Tập đoàn có nhu cầu về một lớp vận hành hiệu suất thống nhất, chuẩn hóa cho hệ sinh thái đa ngành, đa đơn vị. Trên cơ sở kế thừa nghiệp vụ quản trị KPI hiện hữu và các đặc tả kỹ thuật đã hoàn thiện, Dự án được triển khai theo hai chủ trương cốt lõi: (i) xây dựng nền tảng cấu hình linh hoạt để nhiều đơn vị dùng chung một hệ thống mà không phải tách bản riêng; (ii) đưa tác nhân trí tuệ nhân tạo (AI Agent) tham gia trực tiếp vào quá trình xây dựng.</p>
+  <p class="just indent"><b>2. Mục tiêu.</b> (a) Một nền tảng – nhiều đơn vị: chuẩn hóa quản trị mục tiêu (OKR → KGI → KPI), đánh giá đa chiều, hiệu chỉnh và kết nối bảng lương; (b) Con người dẫn dắt – trí tuệ nhân tạo hỗ trợ: mọi quyết định trọng yếu (chấm điểm, tính lương, duyệt cấu hình) đều có người thật quyết định ở khâu cuối; (c) Quản trị được – an toàn – có vết: cô lập dữ liệu theo đơn vị là mặc định, mọi thay đổi được ghi nhật ký không thể sửa xóa.</p>
+
+  <div class="roman">II. Kết quả triển khai đến nay</div>
+  <p class="just indent"><b>1. Phương pháp thực hiện (điểm nhấn về ứng dụng công nghệ).</b> Điểm khác biệt của Dự án không chỉ nằm ở sản phẩm, mà ở chính phương pháp tạo ra sản phẩm:</p>
+  <p class="just indent">a) Tác nhân trí tuệ nhân tạo giữ vai trò kiến trúc sư trưởng xây dựng: toàn bộ hệ thống phía sau và giao diện cấu hình được xây dựng bởi một AI Agent vận hành tự chủ có kiểm soát, tuân thủ bộ nguyên tắc kỹ thuật và các lằn ranh an toàn (RED-LINE) do Tập đoàn đặt ra.</p>
+  <p class="just indent">b) Kiểm định đối kháng độc lập: mỗi phần việc đều được một tác nhân kiểm định độc lập (tách vai với bên xây dựng) rà soát theo tư duy tấn công, phát hiện và chặn các lỗi nghiêm trọng trước khi hợp nhất mã nguồn.</p>
+  <p class="just indent">c) Minh chứng thực tế cho chiến lược AI-First: Dự án sử dụng trí tuệ nhân tạo để tạo ra tài sản công nghệ thật, với chi phí và thời gian giảm đáng kể; là mô hình quản trị ứng dụng AI có thể nhân rộng.</p>
+
+  <p class="just indent"><b>2. Các phân hệ đã hoàn thành.</b></p>
+  <table>
+    <thead><tr><th style="width:20%">Giai đoạn</th><th>Nội dung đã xây dựng</th><th style="width:14%">Trạng thái</th></tr></thead>
+    <tbody>
+      <tr><td>Giai đoạn 0 – Nền tảng</td><td>Đa đơn vị; cô lập dữ liệu ở mức bản ghi theo nguyên tắc chặn mặc định; phân quyền theo vai trò và phạm vi; nhật ký kiểm toán không thể sửa xóa; cờ điều khiển tính năng.</td><td class="c">Hoàn thành</td></tr>
+      <tr><td>Giai đoạn 1 – Lõi KPI và chiến lược</td><td>Từ điển KPI (công thức có phiên bản, bất biến, có duyệt); bộ máy chấm điểm an toàn (bậc thang điểm, tổng trọng số bằng 100); thẻ điểm; phân rã mục tiêu OKR → KGI → KPI kèm tổng hợp sức khỏe mục tiêu; kho minh chứng chống trùng lặp.</td><td class="c">Hoàn thành</td></tr>
+      <tr><td>Giai đoạn 2 – Trọn vòng đánh giá</td><td>Cập nhật tiến độ → tự đánh giá và đánh giá của quản lý → tính điểm (chốt phiên bản) → phòng cân chỉnh → chốt kết quả (có người duyệt) → kết xuất sang bảng lương.</td><td class="c">Hoàn thành</td></tr>
+      <tr><td>Giai đoạn 3 – Nền tự cấu hình và AI</td><td>Xưởng cấu hình (quản lý cấu hình như dữ liệu có phiên bản; bộ nhận diện thương hiệu; bộ máy tự suy diễn kéo theo KPI và tác vụ; thiết kế quy trình; trung tâm tích hợp). Khung ứng dụng AI đã sẵn sàng, hiện chạy giả lập, sẽ kết nối mô hình thật khi được cấp khóa. Cơ chế quản trị bằng mã. Cổng để đơn vị tự soạn thư viện tác vụ.</td><td class="c">Hoàn thành</td></tr>
+      <tr><td>Mô-đun Từ điển Tác vụ</td><td>Nạp 815 tác vụ chuẩn hóa và 20 chỉ số KPI chuẩn; ủy quyền phân cấp; vòng lặp tối ưu liên tục (góp ý → mở lại → chỉnh sửa → duyệt → nâng phiên bản, lưu lịch sử bất biến); màn tra cứu toàn hệ thống đã đưa vào sử dụng.</td><td class="c">Đang hoàn thiện giao diện</td></tr>
+    </tbody>
+  </table>
+
+  <p class="just indent"><b>3. Điểm nhấn kiến trúc và công nghệ.</b> (a) Cấu hình linh hoạt: 8 đơn vị thành viên dùng chung một nền, tự cấu hình mà không tách mã nguồn, giảm mạnh chi phí sở hữu và tăng tốc mở rộng; (b) Sáu nền tảng công nghệ tiên tiến đã kích hoạt (cấu hình quản lý như dữ liệu có phiên bản; quản trị chính sách bằng mã; máy chủ kết nối công cụ AI; tích hợp liên hệ thống kèm hộp thư gửi tin cậy; bộ đánh giá chất lượng AI; cờ điều khiển tính năng); (c) An toàn theo thiết kế (cô lập dữ liệu mặc định; tách vai người soạn khác người duyệt; người thật quyết định khâu cuối; nhật ký bất biến); (d) Tài sản tri thức số: Từ điển Tác vụ và KPI chuẩn tạo thành bản đồ nghiệp vụ số hóa dùng lại được cho tự động hóa và phân tích.</p>
+
+  <p class="just indent"><b>4. Kết quả kiểm thử và chất lượng.</b> (a) 290/290 trường hợp kiểm thử tự động đạt (117 kiểm thử đơn vị và 173 kiểm thử tích hợp trên cơ sở dữ liệu thật), bao gồm các tình huống rò rỉ dữ liệu chéo đơn vị, leo thang quyền, tranh chấp truy cập đồng thời và tính bất biến của lịch sử; (b) Kiểm định đối kháng độc lập ở mỗi phần việc, các lỗi nghiêm trọng đều được chặn và khắc phục trước khi hợp nhất; (c) Kỷ luật lằn ranh an toàn: tác nhân AI không tự ý chi tiền, đẩy dữ liệu thật ra hệ thống ngoài hay xóa dữ liệu vận hành mà luôn dừng lại và xin ý kiến lãnh đạo.</p>
+
+  <div class="roman">III. Giá trị và hiệu quả</div>
+  <p class="just indent"><b>1. Về nghiên cứu, phát triển và ứng dụng công nghệ.</b> Dự án là minh chứng thực chiến cho chiến lược AI-First: sử dụng tác nhân AI để tạo ra phần mềm doanh nghiệp thật, có kiểm soát chất lượng; hình thành mô hình quản trị ứng dụng AI có thể nhân rộng; đồng thời chuẩn hóa và tài sản hóa dữ liệu nghiệp vụ, làm nền cho tự động hóa và các sản phẩm AI kế tiếp.</p>
+  <p class="just indent"><b>2. Về vận hành và kinh doanh.</b> Mục tiêu rút ngắn khoảng 40% thời gian dựng thẻ điểm cho một đơn vị và giảm khoảng 30% công nhập liệu; một nền tảng dùng chung cho 8 đơn vị giúp đồng nhất quản trị và bảo đảm dữ liệu hiệu suất xuyên suốt từ Tập đoàn đến cá nhân.</p>
+
+  <div class="roman">IV. Ngân sách và hiệu quả đầu tư</div>
+  <p class="note-it">(Đơn vị: triệu đồng; tham chiếu USD theo tỷ giá 25.000 đồng/USD. Chi tiết tại tài liệu Ngân sách Xây dựng và Vận hành Nền tảng iPMS.)</p>
+  <table>
+    <thead><tr><th>Hạng mục</th><th style="width:22%">Phương án truyền thống</th><th style="width:26%">Phương án ứng dụng AI Agent (khuyến nghị)</th><th style="width:20%">Ghi chú</th></tr></thead>
+    <tbody>
+      <tr><td>Chi phí xây dựng (một lần)</td><td class="c">≈ 9.900 / 13 tháng</td><td class="c"><b>≈ 5.935 (≈235 nghìn USD) / 8 tháng</b></td><td>giảm ≈ 40% chi phí, 38% thời gian</td></tr>
+      <tr><td>Chi phí vận hành năm ổn định (đủ 8 đơn vị)</td><td class="c">≈ 7.200/năm</td><td class="c"><b>≈ 6.600 (≈260 nghìn USD)/năm</b></td><td>đội vận hành tinh gọn hơn</td></tr>
+      <tr><td>Tổng chi phí sở hữu 3 năm</td><td class="c">≈ 28.800</td><td class="c"><b>≈ 22.000 (≈870 nghìn USD)</b></td><td>xây dựng và 3 năm vận hành</td></tr>
+    </tbody>
+  </table>
+  <p class="just indent">Phương án triển khai nén trong 6 tuần (giảm rủi ro tối đa): đưa bản thí điểm tại đơn vị H.01 vào vận hành với chi phí khoảng <b>2.040 triệu đồng (≈82 nghìn USD)</b>, cho phép nhìn thấy giá trị thực tế trước khi cam kết ngân sách mở rộng. Chi phí hạ tầng lõi (trung tâm dữ liệu, nền tảng định danh, Entra ID) do Holding/Ban B3 đầu tư, không tính vào ngân sách Dự án iPMS.</p>
+
+  <div class="roman">V. Những nội dung kính trình phê duyệt và xin ý kiến</div>
+  <table>
+    <thead><tr><th style="width:6%">TT</th><th style="width:46%">Nội dung</th><th>Đề xuất của Ban Dự án</th></tr></thead>
+    <tbody>
+      <tr><td class="c">1</td><td>Chủ trương tiếp tục triển khai theo phương án ứng dụng AI Agent và phương án nén 6 tuần để đưa bản thí điểm H.01 vào vận hành.</td><td>Kính đề nghị <b>phê duyệt</b>.</td></tr>
+      <tr><td class="c">2</td><td>Cấp khóa truy cập dịch vụ mô hình AI (Claude/Anthropic) và trần ngân sách để kích hoạt lớp AI thật (hiện đang chạy giả lập).</td><td>Cấp khóa; trần khởi điểm khoảng <b>50 USD/tháng</b> cho môi trường phát triển – kiểm thử, dùng mô hình tối ưu chi phí.</td></tr>
+      <tr><td class="c">3</td><td>Cấp tài khoản kết nối thử nghiệm với Notion và Microsoft Graph (Planner/To-Do) để kiểm chứng luồng đồng bộ công việc hai chiều.</td><td>Cấp tài khoản môi trường thử; chưa đẩy dữ liệu thật.</td></tr>
+      <tr><td class="c">4</td><td>Cho ý kiến về một số chính sách vận hành: (a) nhân viên có được xem điểm trước khi chốt kết quả hay không; (b) định nghĩa "KPI hợp lệ" trong cơ chế chặn cứng.</td><td>Chốt theo định hướng của Ban B1; giá trị mặc định đã cấu hình, có thể điều chỉnh nhanh.</td></tr>
+      <tr><td class="c">5</td><td>Xác nhận khả năng mở giao diện lập trình (API) của các hệ thống mua ngoài: AIC, Salesforce, phần mềm CRM tuyển sinh.</td><td>Kính đề nghị giao Ban Công nghệ/B3 xác nhận sớm; trường hợp chưa mở, sử dụng phương án dự phòng qua tập tin CSV/ETL.</td></tr>
+    </tbody>
+  </table>
+  <p class="note-it">Các nội dung số 2 và số 3 thuộc nhóm lằn ranh an toàn: tác nhân AI đã chủ động tạm dừng và chờ quyết định của lãnh đạo, không tự ý thực hiện.</p>
+
+  <div class="roman">VI. Lộ trình triển khai tiếp theo</div>
+  <p class="just indent"><b>1. Trước mắt (đang thực hiện):</b> hoàn thiện giao diện Từ điển Tác vụ (bảng điều khiển cấp phòng: ủy quyền, duyệt, mở lại; lịch sử phiên bản; góp ý).</p>
+  <p class="just indent"><b>2. Đưa bản thí điểm H.01 vào vận hành (khoảng 6 tuần):</b> vận hành trọn vòng quản trị hiệu suất thật; kích hoạt lớp AI và các kết nối tích hợp (phụ thuộc nội dung số 2 và số 3 tại Mục V).</p>
+  <p class="just indent"><b>3. Trung hạn:</b> kết nối dữ liệu tuyển sinh và vận hành; hoàn thiện Hệ Quản trị ba tầng; xây dựng Bảng điều khiển cấp Tập đoàn (phụ thuộc nội dung số 5).</p>
+  <p class="just indent"><b>4. Dài hạn:</b> nhân rộng ra 8 đơn vị thành viên trên cùng một nền, không tách mã nguồn; đưa các tác nhân AI nghiệp vụ vào vận hành.</p>
+
+  <div class="roman">VII. Kiến nghị</div>
+  <p class="just indent">Nền tảng iPMS đã đạt trạng thái vững về kỹ thuật, có bằng chứng chất lượng rõ ràng, đồng thời là minh chứng thực chiến cho năng lực ứng dụng công nghệ và trí tuệ nhân tạo của Tập đoàn. Để chuyển từ giai đoạn xây dựng sang giai đoạn tạo giá trị vận hành thực tế, Ban Dự án kính đề nghị Phó Tổng Giám đốc:</p>
+  <p class="just indent">1. Phê duyệt chủ trương tiếp tục triển khai theo phương án ứng dụng AI Agent và phương án nén 6 tuần đưa bản thí điểm H.01 vào vận hành;</p>
+  <p class="just indent">2. Cấp các nguồn lực chốt chặn: khóa truy cập dịch vụ AI kèm trần ngân sách; tài khoản kết nối thử nghiệm;</p>
+  <p class="just indent">3. Cho ý kiến về các nội dung chính sách nêu tại Mục V và giao Ban Công nghệ/B3 xác nhận khả năng mở giao diện lập trình của các hệ thống bên thứ ba.</p>
+  <p class="enddot">Kính trình Phó Tổng Giám đốc xem xét, quyết định./.</p>
+
+  <div class="sign">
+    <div class="recv">
+      <div class="lbl">Nơi nhận:</div>
+      - Như trên;<br>
+      - Ban B3, Ban B1 (để phối hợp);<br>
+      - Lưu: VT, Ban Dự án iPMS.
+    </div>
+    <div class="by">
+      <div class="role">Trưởng Ban Dự án iPMS</div>
+      <div class="hint">(Ký, ghi rõ họ tên)</div>
+    </div>
+  </div>
+
+  <div class="attach">Tài liệu kèm theo: (1) Đặc tả và Thiết kế kỹ thuật iPMS; (2) Ngân sách Xây dựng và Vận hành; (3) Nhật ký quyết định và tồn đọng (OWNER_DIGEST); (4) Trạng thái dự án (STATUS).</div>
+
+</div>
+<div class="screenfoot"><span>Ban Nghiên cứu, Phát triển và Ứng dụng Công Nghệ (B3)</span><span class="r">Trang 1/… (số trang hiện đầy đủ khi In → Lưu PDF)</span></div>
+</body>
+</html>
