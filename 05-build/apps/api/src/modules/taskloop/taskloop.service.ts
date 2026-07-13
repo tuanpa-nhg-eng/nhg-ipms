@@ -167,6 +167,39 @@ export class TaskLoopService {
           })
         : [];
       const fbMap = new Map(fb.map((x) => [x.taskCellId, x._count._all]));
+
+      // [4l] nhân sự phòng (app_user + person thuộc org_unit trong scope) + cờ đã có quyền soạn
+      // — để FE dựng danh sách cấp quyền / giao việc mà không cần biết app_user.id thô
+      const staffOrgWhere = scope.mode === 'tenant'
+        ? { orgUnitId: { not: null } } : { orgUnitId: { in: scope.orgUnitIds } };
+      const staffUsers = await tx.appUser.findMany({
+        where: {
+          status: 'active', deletedAt: null,
+          person: { deletedAt: null, ...staffOrgWhere },
+        },
+        select: {
+          id: true,
+          person: { select: { fullName: true, employeeCode: true, orgUnitId: true } },
+        },
+        take: 500,
+      });
+      const staffIds = staffUsers.map((u) => u.id);
+      const activeGrants = staffIds.length > 0
+        ? await tx.authoringGrant.findMany({
+            where: { granteeId: { in: staffIds }, status: 'active', capability: 'taskcell:author' },
+            select: { granteeId: true, orgUnitId: true },
+          })
+        : [];
+      const grantSet = new Set(activeGrants.map((g) => `${g.granteeId}:${g.orgUnitId}`));
+      const staff = staffUsers.map((u) => ({
+        userId: u.id,
+        fullName: u.person?.fullName ?? '(không tên)',
+        employeeCode: u.person?.employeeCode ?? null,
+        orgUnitId: u.person?.orgUnitId ?? null,
+        canAuthor: u.person?.orgUnitId
+          ? grantSet.has(`${u.id}:${u.person.orgUnitId}`) : false,
+      }));
+
       // hàng đợi phiếu vòng tối ưu của các cell phòng mình
       const queue = ids.length > 0
         ? await tx.libraryContribution.findMany({
@@ -181,10 +214,20 @@ export class TaskLoopService {
             orderBy: { submittedAt: 'asc' },
           })
         : [];
+      // [4l] phòng trong scope của trưởng phòng (để FE chọn nhận cell về phòng nào)
+      const orgUnits = scope.mode === 'scoped' && scope.orgUnitIds.length > 0
+        ? await tx.orgUnit.findMany({
+            where: { id: { in: scope.orgUnitIds }, deletedAt: null },
+            select: { id: true, code: true, nameVi: true },
+          })
+        : [];
+
       return {
         mine: mine.map((c) => ({ ...c, openFeedback: fbMap.get(c.id) ?? 0 })),
         unclaimed,
         queue,
+        staff,
+        orgUnits,
       };
     });
   }

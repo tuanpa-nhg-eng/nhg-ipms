@@ -280,6 +280,86 @@ export interface DictCellRow {
   riskLevel?: string | null;
   kpiRef?: string | null;
   origin?: string | null;
+  status?: string | null;        // [4l] draft|active|reopened|deprecated
+  activeVersion?: number | null; // [4l] số vòng tối ưu đã qua
+}
+
+// ===== Từ điển Tác vụ — vòng lặp tối ưu (lát 4k/4l) =====
+
+export interface TaskFeedback {
+  id: string;
+  taskCellId: string;
+  authorId: string;
+  version?: number | null;
+  body: string;
+  category: string;   // optimize|defect|question
+  status: string;     // open|triaged|reopened|resolved|wontfix
+  createdAt: string;
+}
+
+export interface TaskRevision {
+  id?: string;
+  version: number;
+  changeSummary?: string | null;
+  contributionId?: string | null;
+  activatedAt: string;
+  snapshot?: Record<string, unknown>; // chỉ có ở get chi tiết
+}
+
+export interface DeptBoardCell {
+  id: string;
+  code: string;
+  nameVi: string;
+  status: string;
+  activeVersion: number;
+  ownerOrgUnitId?: string | null;
+  kpiRef?: string | null;
+  aiLevel?: string | null;
+  openFeedback?: number;
+}
+
+export interface DeptBoardQueueItem {
+  id: string;
+  taskCellId: string;
+  status: string;
+  authorId: string;
+  kpiRef?: string | null;
+  qualityScore?: string | number | null;
+  submittedAt?: string | null;
+  payload: CellPayload & { code?: string; nameVi?: string };
+}
+
+export interface DeptStaff {
+  userId: string;
+  fullName: string;
+  employeeCode?: string | null;
+  orgUnitId?: string | null;
+  canAuthor: boolean;
+}
+
+export interface DeptBoard {
+  mine: DeptBoardCell[];
+  unclaimed: DeptBoardCell[];
+  queue: DeptBoardQueueItem[];
+  staff: DeptStaff[];
+  orgUnits: Array<{ id: string; code: string; nameVi: string }>;
+}
+
+export interface AuthoringGrant {
+  id: string;
+  granteeId: string;
+  orgUnitId: string;
+  capability: string;
+  status: string;
+  grantedAt: string;
+}
+
+export interface PersonRow {
+  id: string;
+  fullName: string;
+  employeeCode?: string | null;
+  orgUnitId?: string | null;
+  email?: string | null;
 }
 
 export interface DictListResponse {

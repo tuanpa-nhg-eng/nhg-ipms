@@ -34,10 +34,6 @@ export function Sidebar() {
     });
 
   const groups = [
-    // Tra cứu — tài nguyên tham chiếu toàn hàng, mọi persona (nối API thật)
-    { id: "reference", group: t("nav.reference"), links: [
-      { href: "/dictionary", label: t("nav.taskdict"), icon: <BookOpenText size={ICON} /> },
-    ]},
     { id: "exec", group: t("nav.exec"), links: [
       { href: "/exec/cockpit", label: t("nav.cockpit"), icon: <LayoutDashboard size={ICON} /> },
       { href: "/exec/strategy", label: t("nav.strategy"), icon: <Network size={ICON} /> },
@@ -76,6 +72,10 @@ export function Sidebar() {
     { id: "audit", group: t("nav.audit"), links: [
       { href: "/audit/logs", label: t("nav.auditlog"), icon: <ScrollText size={ICON} /> },
       { href: "/audit/compliance", label: t("nav.compliance"), icon: <ShieldCheck size={ICON} /> },
+    ]},
+    // Tra cứu — tài nguyên tham chiếu toàn hàng, mọi persona (đặt cuối sidebar)
+    { id: "reference", group: t("nav.reference"), links: [
+      { href: "/dictionary", label: t("nav.taskdict"), icon: <BookOpenText size={ICON} /> },
     ]},
   ];
 
