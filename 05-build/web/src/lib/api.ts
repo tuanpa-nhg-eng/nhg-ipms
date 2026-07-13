@@ -362,6 +362,26 @@ export interface PersonRow {
   email?: string | null;
 }
 
+/** Mục Từ điển KPI chuẩn (kpi_template isDictionary=true) — GET /kpi-dictionary. */
+export interface KpiDictItem {
+  id: string;
+  code: string;
+  nameVi: string;
+  nameEn?: string | null;
+  method?: string | null;
+  direction?: string | null;
+  unit?: string | null;
+  frequency?: string | null;
+  formulaExpr?: string | null;
+  domain?: string | null;
+  definition?: string | null;
+  grain?: string | null;
+  dataClassification?: string | null;
+  aiBoundary?: string | null;
+  sourceSystem?: string | null;
+  isDictionary?: boolean;
+}
+
 export interface DictListResponse {
   total: number;
   matched: number;

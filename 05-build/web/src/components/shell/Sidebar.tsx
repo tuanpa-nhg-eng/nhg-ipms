@@ -7,7 +7,7 @@ import {
   Network, Users, Scale, ScrollText, FileCheck, Rocket,
   Bot, UserCog, CalendarCog, Grid3x3, ShieldCheck, MessageSquareText, CalendarCheck,
   ChevronDown, SlidersHorizontal, Workflow, Building2, GitFork, Palette, BookPlus, Inbox,
-  BookOpenText,
+  BookOpenText, ClipboardList, Gauge,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
@@ -68,6 +68,7 @@ export function Sidebar() {
       { href: "/studio/brand", label: t("nav.brandkit"), icon: <Palette size={ICON} /> },
       { href: "/studio/library", label: t("nav.taskcellstudio"), icon: <BookPlus size={ICON} /> },
       { href: "/studio/curation", label: t("nav.curation"), icon: <Inbox size={ICON} /> },
+      { href: "/studio/dept", label: t("nav.deptboard"), icon: <ClipboardList size={ICON} /> },
     ]},
     { id: "audit", group: t("nav.audit"), links: [
       { href: "/audit/logs", label: t("nav.auditlog"), icon: <ScrollText size={ICON} /> },
@@ -76,6 +77,7 @@ export function Sidebar() {
     // Tra cứu — tài nguyên tham chiếu toàn hàng, mọi persona (đặt cuối sidebar)
     { id: "reference", group: t("nav.reference"), links: [
       { href: "/dictionary", label: t("nav.taskdict"), icon: <BookOpenText size={ICON} /> },
+      { href: "/kpi-dictionary", label: t("nav.kpidict"), icon: <Gauge size={ICON} /> },
     ]},
   ];
 

@@ -9,13 +9,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Search, LogOut, ChevronRight, ChevronDown, Layers, Target,
   Users, ArrowRightLeft, Gauge, Bot, ShieldAlert, Recycle, Languages, X,
-  MousePointerClick,
+  MousePointerClick, History, MessageSquarePlus, Send,
 } from "lucide-react";
 import { AppShell } from "@/components/shell/AppShell";
 import { Badge } from "@/components/ui";
 import { useStudio } from "@/lib/studio";
 import { useI18n } from "@/lib/i18n";
-import { DictCellDetail, DictCellRow, DictListResponse } from "@/lib/api";
+import { DictCellDetail, DictCellRow, DictListResponse, TaskFeedback, TaskRevision } from "@/lib/api";
+
+const FB_TONE: Record<string, string> = {
+  open: "amber", triaged: "info", reopened: "green", resolved: "gray", wontfix: "gray",
+};
 
 // Mức AI → tone badge (badge tones có: green/amber/info/gray/ai)
 const AI_TONE: Record<string, string> = {
@@ -269,7 +273,9 @@ export default function DictionaryPage() {
               <div className="dict-detail-empty"><p>{L("Đang tải…", "Loading…")}</p></div>
             )}
             {selected && detail && (
-              <AnatomyPanel detail={detail} lang={lang} L={L} onClose={() => setSelected(null)} />
+              <AnatomyPanel detail={detail} lang={lang} L={L}
+                statusHint={cells.find((c) => c.code === selected)?.status ?? null}
+                onClose={() => setSelected(null)} />
             )}
           </aside>
         </div>
@@ -302,9 +308,9 @@ function BulletList({ items }: { items: string[] }) {
   return <ul className="dict-ul">{items.map((x, i) => <li key={i}>{x}</li>)}</ul>;
 }
 
-function AnatomyPanel({ detail, lang, L, onClose }: {
+function AnatomyPanel({ detail, lang, L, statusHint, onClose }: {
   detail: DictCellDetail; lang: string;
-  L: (vi: string, en: string) => string; onClose: () => void;
+  L: (vi: string, en: string) => string; statusHint: string | null; onClose: () => void;
 }) {
   const c = detail.cell;
   const gov = (c.governance ?? {}) as Record<string, unknown>;
@@ -398,6 +404,185 @@ function AnatomyPanel({ detail, lang, L, onClose }: {
         <Field label={L("Phạm vi", "Scope")} value={c.libScope ?? undefined} />
         <Field label={L("Tần suất dùng", "Usage")} value={c.usageCount ?? undefined} />
       </Section>
+
+      <RevisionHistory code={c.code} L={L} />
+      <FeedbackPanel code={c.code} statusHint={statusHint} L={L} />
     </div>
+  );
+}
+
+/** Lịch sử phiên bản vòng tối ưu — append-only, snapshot mỗi bản. Bấm 1 bản để xem
+ *  thay đổi so với bản liền trước (diff dựng client từ snapshot). Đường theo MÃ (F122). */
+function RevisionHistory({ code, L }: { code: string; L: (vi: string, en: string) => string }) {
+  const { call } = useStudio();
+  const [revs, setRevs] = useState<TaskRevision[] | null>(null);
+  const [open, setOpen] = useState<number | null>(null);
+  const [snap, setSnap] = useState<Record<number, TaskRevision>>({});
+
+  useEffect(() => {
+    setRevs(null); setOpen(null); setSnap({});
+    call<TaskRevision[]>(`/task-dictionary/${encodeURIComponent(code)}/revisions`)
+      .then(setRevs).catch(() => setRevs([]));
+  }, [code, call]);
+
+  const toggle = async (v: number) => {
+    if (open === v) { setOpen(null); return; }
+    setOpen(v);
+    if (!snap[v]) {
+      try {
+        const r = await call<TaskRevision>(`/task-dictionary/${encodeURIComponent(code)}/revisions/${v}`);
+        setSnap((m) => ({ ...m, [v]: r }));
+      } catch {}
+    }
+  };
+
+  if (revs && revs.length === 0) return null;
+  return (
+    <Section icon={<History size={13} />} title={L("Lịch sử phiên bản", "Version history")}>
+      {!revs && <div className="dict-sub">{L("Đang tải…", "Loading…")}</div>}
+      <div className="dict-rev-list">
+        {(revs ?? []).map((r) => {
+          const prev = (revs ?? []).find((x) => x.version === r.version - 1);
+          return (
+            <div key={r.version} className="dict-rev">
+              <button className="dict-rev-head" onClick={() => void toggle(r.version)}>
+                {open === r.version ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                <Badge tone={r.version === Math.max(...(revs ?? []).map((x) => x.version)) ? "green" : "gray"}>v{r.version}</Badge>
+                <span className="dict-rev-sum">{r.changeSummary ?? L("(không mô tả)", "(no summary)")}</span>
+                <span className="dict-rev-date">{new Date(r.activatedAt).toLocaleDateString("vi-VN")}</span>
+              </button>
+              {open === r.version && snap[r.version] && (
+                <RevisionDiff snap={snap[r.version].snapshot} prevSnap={prev ? snap[prev.version]?.snapshot : undefined}
+                  L={L} onLoadPrev={prev ? () => void toggle(prev.version) : undefined} hasPrev={!!prev} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </Section>
+  );
+}
+
+const DIFF_FIELDS: Array<[string, string, string]> = [
+  ["nameVi", "Tên VI", "Name VI"], ["responsibleRole", "Responsible", "Responsible"],
+  ["accountableRole", "Accountable", "Accountable"], ["aiLevel", "Mức AI", "AI level"],
+  ["riskLevel", "Rủi ro", "Risk"], ["kpiRef", "KPI", "KPI"],
+];
+
+/** Diff client-side: so trường then chốt của snapshot với bản liền trước. */
+function RevisionDiff({ snap, prevSnap, L, onLoadPrev, hasPrev }: {
+  snap?: Record<string, unknown>; prevSnap?: Record<string, unknown>;
+  L: (vi: string, en: string) => string; onLoadPrev?: () => void; hasPrev: boolean;
+}) {
+  const val = (o: Record<string, unknown> | undefined, k: string) => {
+    const v = o?.[k];
+    if (v == null) return "—";
+    if (Array.isArray(v)) return v.map((x) => (typeof x === "string" ? x : JSON.stringify(x))).join(", ") || "—";
+    return String(v);
+  };
+  return (
+    <div className="dict-rev-diff">
+      {hasPrev && !prevSnap && (
+        <button className="btn ghost sm" onClick={onLoadPrev} style={{ marginBottom: 6 }}>
+          {L("Tải bản trước để so sánh", "Load previous to compare")}
+        </button>
+      )}
+      <table className="dict-diff-table">
+        <thead><tr><th>{L("Trường", "Field")}</th><th>{L("Trước", "Before")}</th><th>{L("Sau", "After")}</th></tr></thead>
+        <tbody>
+          {DIFF_FIELDS.map(([k, vi, en]) => {
+            const after = val(snap, k);
+            const before = prevSnap ? val(prevSnap, k) : "—";
+            const changed = hasPrev && prevSnap && before !== after;
+            return (
+              <tr key={k} className={changed ? "changed" : ""}>
+                <td>{L(vi, en)}</td>
+                <td>{hasPrev ? before : "—"}</td>
+                <td>{after}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** Góp ý sử dụng thực tế — mọi persona đọc; gửi góp ý cần quyền task:feedback và
+ *  tác vụ đang vận hành (active/reopened). BE là nguồn chân lý, form chỉ hiển thị lỗi trung thực. */
+function FeedbackPanel({ code, statusHint, L }: {
+  code: string; statusHint: string | null; L: (vi: string, en: string) => string;
+}) {
+  const { call } = useStudio();
+  const [list, setList] = useState<TaskFeedback[] | null>(null);
+  const [body, setBody] = useState("");
+  const [category, setCategory] = useState("optimize");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(() => {
+    setList(null);
+    call<TaskFeedback[]>(`/task-dictionary/${encodeURIComponent(code)}/feedback`)
+      .then(setList).catch(() => setList([]));
+  }, [code, call]);
+  useEffect(() => { setMsg(null); setBody(""); load(); }, [load]);
+
+  const canPost = statusHint == null || statusHint === "active" || statusHint === "reopened";
+
+  const submit = async () => {
+    if (!body.trim()) return;
+    setBusy(true); setMsg(null);
+    try {
+      await call(`/task-dictionary/${encodeURIComponent(code)}/feedback`, {
+        method: "POST", json: { body: body.trim(), category },
+      });
+      setBody(""); setMsg(L("Đã gửi góp ý — trưởng phòng sẽ xem xét mở vòng tối ưu.",
+                            "Feedback sent — the head may open an optimization round."));
+      load();
+    } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); }
+  };
+
+  return (
+    <Section icon={<MessageSquarePlus size={13} />} title={L("Góp ý sử dụng", "Usage feedback")}>
+      {canPost ? (
+        <div className="dict-fb-form">
+          <div className="row" style={{ gap: 6 }}>
+            <select className="studio-select" style={{ height: 30, fontSize: 12 }}
+              value={category} onChange={(e) => setCategory(e.target.value)}>
+              <option value="optimize">{L("tối ưu", "optimize")}</option>
+              <option value="defect">{L("lỗi", "defect")}</option>
+              <option value="question">{L("thắc mắc", "question")}</option>
+            </select>
+          </div>
+          <textarea className="studio-input" rows={2} style={{ resize: "vertical", fontSize: 12.5 }}
+            placeholder={L("Góp ý từ thực tế vận hành để tác vụ tốt hơn…", "Feedback from real usage…")}
+            value={body} onChange={(e) => setBody(e.target.value)} />
+          <button className="btn primary sm" disabled={busy || !body.trim()} onClick={() => void submit()}>
+            <Send size={12} /> {L("Gửi góp ý", "Send")}
+          </button>
+        </div>
+      ) : (
+        <div className="dict-sub">{L("Tác vụ không ở trạng thái vận hành — chưa nhận góp ý.",
+                                     "Task not operational — feedback closed.")}</div>
+      )}
+      {msg && <div className="dict-fb-msg">{msg}</div>}
+
+      <div className="dict-fb-list">
+        {(list ?? []).map((f) => (
+          <div key={f.id} className="dict-fb">
+            <div className="dict-fb-top">
+              <Badge tone={FB_TONE[f.status] ?? "gray"}>{f.status}</Badge>
+              <span className="dict-fb-cat">{f.category}</span>
+              {f.version != null && <span className="dict-fb-ver">v{f.version}</span>}
+              <span className="dict-fb-date">{new Date(f.createdAt).toLocaleDateString("vi-VN")}</span>
+            </div>
+            <div className="dict-fb-body">{f.body}</div>
+          </div>
+        ))}
+        {list && list.length === 0 && (
+          <div className="dict-sub">{L("Chưa có góp ý nào.", "No feedback yet.")}</div>
+        )}
+      </div>
+    </Section>
   );
 }

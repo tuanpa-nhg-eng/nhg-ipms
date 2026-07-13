@@ -16,7 +16,7 @@ type QuickRole = readonly [string, string];
 const DEFAULT_QUICK: QuickRole[] = [
   ["designer", "soạn cấu hình"], ["approver", "duyệt cấu hình"],
   ["author", "BU soạn thư viện"], ["curator", "gác thư viện"],
-  ["admin", "tenant admin"],
+  ["dept", "trưởng phòng"], ["admin", "tenant admin"],
 ];
 
 function LoginCard({ quickRoles }: { quickRoles: QuickRole[] }) {

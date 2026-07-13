@@ -253,3 +253,37 @@
 .dict-session { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .dict-session .who { font-size: 12px; color: var(--nhg-text-tertiary); }
 .dict-session .who b { color: var(--nhg-text-secondary); font-weight: 600; }
+
+/* [4l] Lịch sử phiên bản + diff + góp ý trong panel giải phẫu */
+.dict-rev-list { display: flex; flex-direction: column; gap: 5px; }
+.dict-rev { border: 1px solid var(--nhg-border); border-radius: 8px; overflow: hidden; }
+.dict-rev-head {
+  display: flex; align-items: center; gap: 7px; width: 100%;
+  padding: 7px 9px; background: none; border: none; cursor: pointer;
+  text-align: left; color: inherit; font-size: 12px;
+}
+.dict-rev-head:hover { background: var(--nhg-primary-subtle); }
+.dict-rev-sum { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dict-rev-date { color: var(--nhg-text-secondary); font-size: 11px; flex-shrink: 0; }
+.dict-rev-diff { padding: 8px 9px; border-top: 1px solid var(--nhg-border); }
+.dict-diff-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.dict-diff-table th {
+  text-align: left; color: var(--nhg-text-secondary); font-weight: 600;
+  padding: 3px 6px; border-bottom: 1px solid var(--nhg-border);
+}
+.dict-diff-table td { padding: 3px 6px; vertical-align: top; word-break: break-word; }
+.dict-diff-table tr.changed td { background: color-mix(in srgb, var(--nhg-primary) 8%, transparent); }
+.dict-diff-table tr.changed td:last-child { font-weight: 600; }
+
+.dict-fb-form { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.dict-fb-msg { font-size: 11.5px; color: var(--nhg-primary); margin-bottom: 8px; }
+.dict-fb-list { display: flex; flex-direction: column; gap: 7px; }
+.dict-fb { border: 1px solid var(--nhg-border); border-radius: 8px; padding: 7px 9px; }
+.dict-fb-top { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
+.dict-fb-cat { font-size: 11px; color: var(--nhg-text-secondary); }
+.dict-fb-ver {
+  font-size: 10.5px; font-family: ui-monospace, monospace;
+  color: var(--nhg-text-secondary);
+}
+.dict-fb-date { margin-left: auto; font-size: 11px; color: var(--nhg-text-secondary); }
+.dict-fb-body { font-size: 12.5px; line-height: 1.5; word-break: break-word; }
