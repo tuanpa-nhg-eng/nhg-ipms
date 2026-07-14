@@ -9,29 +9,39 @@
 }
 .copilot-fab:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(3, 114, 54, 0.45); }
 
+/* Widget chatbot nổi (thẻ bo góc góc phải-dưới) — kiểu trợ lý AI truyền thống. */
 .copilot {
-  position: fixed; top: 0; right: 0; z-index: 61;
-  width: 400px; max-width: 100vw; height: 100vh;
-  display: flex; flex-direction: column;
-  background: var(--nhg-surface); border-left: 1px solid var(--nhg-border);
-  box-shadow: -8px 0 28px rgba(0, 0, 0, 0.12);
+  position: fixed; right: 20px; bottom: 20px; z-index: 61;
+  width: 384px; max-width: calc(100vw - 32px);
+  height: min(620px, calc(100vh - 40px));
+  display: flex; flex-direction: column; overflow: hidden;
+  background: var(--nhg-surface);
+  border: 1px solid var(--nhg-border); border-radius: 16px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.22);
+  transform-origin: bottom right;
+  animation: copilot-pop .16s ease-out;
 }
-@media (max-width: 480px) { .copilot { width: 100vw; } }
+@keyframes copilot-pop { from { opacity: 0; transform: translateY(12px) scale(.98); } }
+@media (max-width: 480px) {
+  .copilot { right: 0; bottom: 0; width: 100vw; height: 100dvh; border-radius: 0; }
+}
 
+/* Header màu thương hiệu — nhận diện "chatbot" ngay. */
 .copilot-head {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 14px; border-bottom: 1px solid var(--nhg-border); flex-shrink: 0;
+  padding: 12px 14px; flex-shrink: 0;
+  background: var(--nhg-primary); color: #fff;
 }
 .copilot-title { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14.5px; }
-.copilot-title svg { color: var(--nhg-primary); }
+.copilot-title svg { color: #fff; }
 .copilot-head-actions { display: flex; gap: 2px; }
 .copilot-head-actions button {
   width: 30px; height: 30px; border: none; background: none; cursor: pointer;
-  border-radius: 7px; color: var(--nhg-text-secondary);
+  border-radius: 7px; color: rgba(255, 255, 255, 0.85);
   display: flex; align-items: center; justify-content: center;
 }
-.copilot-head-actions button:hover:not(:disabled) { background: var(--nhg-primary-subtle); color: var(--nhg-text); }
-.copilot-head-actions button:disabled { opacity: .4; cursor: default; }
+.copilot-head-actions button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.18); color: #fff; }
+.copilot-head-actions button:disabled { opacity: .45; cursor: default; }
 
 .copilot-login { padding: 40px 24px; text-align: center; color: var(--nhg-text-secondary); }
 .copilot-login svg { color: var(--nhg-primary); margin-bottom: 8px; }
