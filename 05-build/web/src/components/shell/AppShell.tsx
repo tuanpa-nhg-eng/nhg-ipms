@@ -2,8 +2,6 @@
 import { ReactNode } from "react";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
-import { AgentPanel } from "@/components/copilot/AgentPanel";
-import "@/components/copilot/copilot.css";
 import { useSidebar } from "@/components/providers/SidebarProvider";
 
 export function AppShell({
@@ -21,7 +19,6 @@ export function AppShell({
         <Topbar crumb={crumb} />
         <main className="content">{children}</main>
       </div>
-      <AgentPanel page={crumb.page} />
     </div>
   );
 }

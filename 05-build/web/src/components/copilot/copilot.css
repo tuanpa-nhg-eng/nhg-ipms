@@ -1,96 +1,114 @@
-/* [P1] Trợ lý iPMS — Copilot dock phải + FAB. NHG Design System, light/dark. */
+/* [P1] Trợ lý iPMS — widget chatbot nổi. NHG Design System, light/dark.
+   Layout: flex column chiều cao cố định; VÙNG CUỘN có min-height:0 để không đẩy
+   composer ra ngoài thẻ (bug cũ). */
+
 .copilot-fab {
   position: fixed; right: 20px; bottom: 20px; z-index: 60;
-  width: 52px; height: 52px; border-radius: 50%; border: none; cursor: pointer;
+  width: 56px; height: 56px; border-radius: 50%; border: none; cursor: pointer;
   background: var(--nhg-primary); color: #fff;
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 6px 20px rgba(3, 114, 54, 0.35);
+  box-shadow: 0 6px 20px rgba(3, 114, 54, 0.38);
   transition: transform .12s, box-shadow .12s;
 }
-.copilot-fab:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(3, 114, 54, 0.45); }
+.copilot-fab:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(3, 114, 54, 0.48); }
 
-/* Widget chatbot nổi (thẻ bo góc góc phải-dưới) — kiểu trợ lý AI truyền thống. */
 .copilot {
   position: fixed; right: 20px; bottom: 20px; z-index: 61;
   width: 384px; max-width: calc(100vw - 32px);
-  height: min(620px, calc(100vh - 40px));
+  height: 620px; max-height: calc(100vh - 40px);
   display: flex; flex-direction: column; overflow: hidden;
   background: var(--nhg-surface);
   border: 1px solid var(--nhg-border); border-radius: 16px;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.22);
-  transform-origin: bottom right;
   animation: copilot-pop .16s ease-out;
 }
 @keyframes copilot-pop { from { opacity: 0; transform: translateY(12px) scale(.98); } }
 @media (max-width: 480px) {
-  .copilot { right: 0; bottom: 0; width: 100vw; height: 100dvh; border-radius: 0; }
+  .copilot { right: 0; bottom: 0; width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; }
 }
 
-/* Header màu thương hiệu — nhận diện "chatbot" ngay. */
+/* Header màu thương hiệu */
 .copilot-head {
+  flex: 0 0 auto;
   display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 14px; flex-shrink: 0;
-  background: var(--nhg-primary); color: #fff;
+  padding: 12px 14px; background: var(--nhg-primary); color: #fff;
 }
 .copilot-title { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14.5px; }
-.copilot-title svg { color: #fff; }
 .copilot-head-actions { display: flex; gap: 2px; }
 .copilot-head-actions button {
   width: 30px; height: 30px; border: none; background: none; cursor: pointer;
-  border-radius: 7px; color: rgba(255, 255, 255, 0.85);
+  border-radius: 8px; color: rgba(255, 255, 255, 0.88);
   display: flex; align-items: center; justify-content: center;
 }
 .copilot-head-actions button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.18); color: #fff; }
 .copilot-head-actions button:disabled { opacity: .45; cursor: default; }
 
-.copilot-login { padding: 40px 24px; text-align: center; color: var(--nhg-text-secondary); }
-.copilot-login svg { color: var(--nhg-primary); margin-bottom: 8px; }
-.copilot-login p { font-size: 13px; margin: 6px 0 14px; }
+/* Đăng nhập */
+.copilot-login { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; text-align: center; padding: 32px 24px;
+  color: var(--nhg-text-secondary); gap: 4px; }
+.copilot-login svg { color: var(--nhg-primary); }
+.copilot-login p { font-size: 13px; margin: 6px 0 12px; line-height: 1.5; }
 
-.copilot-thread { flex: 1; overflow-y: auto; padding: 16px 14px; display: flex; flex-direction: column; gap: 14px; }
+/* Vùng cuộn tin nhắn — min-height:0 là điểm mấu chốt */
+.copilot-thread {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  padding: 16px 14px; display: flex; flex-direction: column; gap: 14px;
+}
 
-.copilot-welcome { text-align: center; color: var(--nhg-text-secondary); margin-top: 24px; }
-.copilot-welcome svg { color: var(--nhg-primary); }
-.copilot-welcome h4 { margin: 8px 0 4px; color: var(--nhg-text); }
-.copilot-welcome p { font-size: 12.5px; line-height: 1.55; }
-.copilot-examples { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; }
+/* Màn chào — căn giữa dọc khi trống */
+.copilot-welcome { margin: auto 0; text-align: center; color: var(--nhg-text-secondary); }
+.copilot-avatar {
+  width: 48px; height: 48px; border-radius: 50%; margin: 0 auto 10px;
+  background: var(--nhg-primary-subtle); color: var(--nhg-primary);
+  display: flex; align-items: center; justify-content: center;
+}
+.copilot-welcome h4 { margin: 0 0 4px; color: var(--nhg-text); font-size: 16px; }
+.copilot-welcome p { font-size: 12.5px; line-height: 1.55; margin: 0 auto; max-width: 280px; }
+.copilot-examples { display: flex; flex-direction: column; gap: 6px; margin-top: 16px; }
 .copilot-examples button {
-  border: 1px solid var(--nhg-border); background: none; border-radius: 8px;
-  padding: 7px 10px; font-size: 12px; cursor: pointer; color: var(--nhg-text);
+  border: 1px solid var(--nhg-border); background: var(--nhg-bg); border-radius: 9px;
+  padding: 8px 11px; font-size: 12px; cursor: pointer; color: var(--nhg-text);
   text-align: left; font-family: ui-monospace, monospace;
 }
 .copilot-examples button:hover { background: var(--nhg-primary-subtle); border-color: var(--nhg-primary); }
 
-.copilot-msg { display: flex; flex-direction: column; gap: 5px; }
+/* Tin nhắn */
+.copilot-msg { display: flex; flex-direction: column; gap: 5px; max-width: 100%; }
 .copilot-msg.user { align-items: flex-end; }
+.copilot-msg.assistant { align-items: flex-start; }
 .copilot-bubble {
-  max-width: 88%; padding: 9px 12px; border-radius: 12px;
+  max-width: 90%; padding: 9px 12px; border-radius: 14px;
   font-size: 13px; line-height: 1.55; white-space: pre-wrap; word-break: break-word;
 }
 .copilot-msg.user .copilot-bubble { background: var(--nhg-primary); color: #fff; border-bottom-right-radius: 4px; }
 .copilot-msg.assistant .copilot-bubble { background: var(--nhg-primary-subtle); color: var(--nhg-text); border-bottom-left-radius: 4px; }
 .copilot-cursor { animation: copilot-blink 1s step-start infinite; }
 @keyframes copilot-blink { 50% { opacity: 0; } }
+.copilot-typing { display: inline-flex; gap: 3px; padding: 2px 0; }
+.copilot-typing span { width: 6px; height: 6px; border-radius: 50%; background: var(--nhg-text-secondary); opacity: .5; animation: copilot-bounce 1s infinite; }
+.copilot-typing span:nth-child(2) { animation-delay: .15s; }
+.copilot-typing span:nth-child(3) { animation-delay: .3s; }
+@keyframes copilot-bounce { 0%, 60%, 100% { transform: translateY(0); opacity: .4; } 30% { transform: translateY(-4px); opacity: 1; } }
 
 .copilot-tool {
   display: inline-flex; align-items: center; gap: 6px; align-self: flex-start;
   font-size: 11.5px; color: var(--nhg-text-secondary);
   background: var(--nhg-bg); border: 1px solid var(--nhg-border);
-  border-radius: 7px; padding: 4px 8px;
+  border-radius: 8px; padding: 4px 9px;
 }
 .copilot-tool code { font-family: ui-monospace, monospace; }
 
 .copilot-suggestion {
-  align-self: flex-start; max-width: 92%; margin-top: 2px;
-  border: 1px solid var(--nhg-primary); border-radius: 10px; overflow: hidden;
+  align-self: flex-start; max-width: 92%;
+  border: 1px solid var(--nhg-primary); border-radius: 12px; overflow: hidden;
   background: color-mix(in srgb, var(--nhg-primary) 6%, transparent);
 }
 .copilot-sug-head {
   display: flex; align-items: center; gap: 6px; padding: 6px 10px;
-  font-size: 11.5px; font-weight: 600; color: var(--nhg-primary);
-  background: var(--nhg-primary-subtle);
+  font-size: 11.5px; font-weight: 600; color: var(--nhg-primary); background: var(--nhg-primary-subtle);
 }
-.copilot-sug-body { padding: 8px 10px 2px; font-size: 12.5px; }
+.copilot-sug-body { padding: 8px 10px 2px; font-size: 12.5px; color: var(--nhg-text); }
 .copilot-sug-reason { padding: 0 10px 6px; font-size: 11.5px; color: var(--nhg-text-secondary); }
 .copilot-sug-note { padding: 6px 10px; font-size: 11px; color: var(--nhg-text-secondary); border-top: 1px dashed var(--nhg-border); }
 
@@ -99,20 +117,22 @@
   border: 1px solid rgba(237, 32, 36, 0.3); border-radius: 8px; padding: 8px 10px;
 }
 
-.copilot-composer { border-top: 1px solid var(--nhg-border); padding: 10px 12px 6px; position: relative; flex-shrink: 0; }
+/* Composer — luôn ghim đáy */
+.copilot-composer { flex: 0 0 auto; border-top: 1px solid var(--nhg-border); padding: 10px 12px 6px; position: relative; }
 .copilot-ctx { font-size: 11px; color: var(--nhg-text-secondary); margin-bottom: 6px; }
 .copilot-ctx span { opacity: .7; }
 .copilot-input {
   width: 100%; border: 1px solid var(--nhg-border); border-radius: 10px;
   padding: 9px 11px; font-size: 13px; resize: none; background: var(--nhg-bg);
-  color: var(--nhg-text); font-family: inherit; line-height: 1.5;
+  color: var(--nhg-text); font-family: inherit; line-height: 1.5; box-sizing: border-box;
 }
 .copilot-input:focus { outline: none; border-color: var(--nhg-primary); }
 
 .copilot-slash {
   position: absolute; bottom: 100%; left: 12px; right: 12px; margin-bottom: 4px;
   background: var(--nhg-surface); border: 1px solid var(--nhg-border);
-  border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.14); overflow: hidden; z-index: 5;
+  border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, .16); overflow: hidden; z-index: 5;
+  max-height: 220px; overflow-y: auto;
 }
 .copilot-slash button {
   display: flex; gap: 10px; align-items: baseline; width: 100%; text-align: left;
@@ -124,22 +144,23 @@
 
 .copilot-composer-bar { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
 .copilot-icon {
-  width: 30px; height: 30px; border: 1px solid var(--nhg-border); background: none;
-  border-radius: 8px; cursor: pointer; color: var(--nhg-text-secondary);
+  width: 32px; height: 32px; border: 1px solid var(--nhg-border); background: none;
+  border-radius: 8px; cursor: pointer; color: var(--nhg-text-secondary); flex: 0 0 auto;
   display: flex; align-items: center; justify-content: center;
 }
 .copilot-icon:disabled { opacity: .4; cursor: default; }
-.copilot-picker { position: relative; flex: 1; }
+.copilot-picker { position: relative; flex: 1 1 auto; min-width: 0; }
 .copilot-model {
   display: inline-flex; align-items: center; gap: 5px; max-width: 100%;
   border: 1px solid var(--nhg-border); background: var(--nhg-bg); border-radius: 8px;
-  padding: 6px 10px; font-size: 12px; cursor: pointer; color: var(--nhg-text);
+  padding: 7px 10px; font-size: 12px; cursor: pointer; color: var(--nhg-text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .copilot-model:hover { border-color: var(--nhg-primary); }
 .copilot-picker-pop {
-  position: absolute; bottom: 100%; left: 0; margin-bottom: 6px; width: 250px;
+  position: absolute; bottom: 100%; left: 0; margin-bottom: 6px; width: 258px; max-width: 78vw;
   background: var(--nhg-surface); border: 1px solid var(--nhg-border);
-  border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.16); padding: 8px; z-index: 6;
+  border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, .18); padding: 8px; z-index: 6;
 }
 .copilot-pick-label { font-size: 10.5px; text-transform: uppercase; color: var(--nhg-text-secondary); font-weight: 600; margin: 4px 4px 3px; }
 .copilot-picker-pop > button {
@@ -158,9 +179,9 @@
 .copilot-pick-note { font-size: 10.5px; color: var(--nhg-text-secondary); margin-top: 6px; padding: 6px; border-top: 1px dashed var(--nhg-border); line-height: 1.4; }
 
 .copilot-send {
-  width: 34px; height: 34px; border: none; border-radius: 9px; cursor: pointer;
+  width: 36px; height: 36px; border: none; border-radius: 10px; cursor: pointer; flex: 0 0 auto;
   background: var(--nhg-primary); color: #fff;
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
 }
 .copilot-send:disabled { opacity: .4; cursor: default; }
-.copilot-foot { padding: 6px 14px 10px; font-size: 10.5px; color: var(--nhg-text-secondary); text-align: center; flex-shrink: 0; }
+.copilot-foot { flex: 0 0 auto; padding: 6px 14px 10px; font-size: 10.5px; color: var(--nhg-text-secondary); text-align: center; }

@@ -3,6 +3,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { SidebarProvider } from "@/components/providers/SidebarProvider";
 import { LangProvider } from "@/lib/i18n";
+import { CopilotMount } from "@/components/copilot/CopilotMount";
 
 export const metadata: Metadata = {
   title: "NHG iPMS — Performance & Growth Operating System",
@@ -25,6 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider>
           <LangProvider>
             <SidebarProvider>{children}</SidebarProvider>
+            <CopilotMount />
           </LangProvider>
         </ThemeProvider>
       </body>

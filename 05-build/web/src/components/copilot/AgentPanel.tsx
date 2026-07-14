@@ -162,7 +162,7 @@ export function AgentPanel({ page }: { page?: string }) {
               <div className="copilot-thread" ref={scrollRef}>
                 {msgs.length === 0 && (
                   <div className="copilot-welcome">
-                    <Sparkles size={26} />
+                    <div className="copilot-avatar"><Sparkles size={22} /></div>
                     <h4>Xin chào 👋</h4>
                     <p>Hỏi về KPI, tác vụ, scorecard… Gõ <b>/</b> để chạy tác vụ, <b>@</b> để nhắc đến thực thể.</p>
                     <div className="copilot-examples">
@@ -177,9 +177,16 @@ export function AgentPanel({ page }: { page?: string }) {
                     {m.role === "assistant" && (m.tools ?? []).map((t, j) => (
                       <div key={j} className="copilot-tool"><Wrench size={12} /> Đang gọi <code>{t.toolName}</code>…</div>
                     ))}
-                    <div className="copilot-bubble">
-                      {m.content || (m.streaming ? <span className="copilot-cursor">▍</span> : "")}
-                    </div>
+                    {(m.role === "user" || m.content || !m.streaming) ? (
+                      <div className="copilot-bubble">
+                        {m.content}
+                        {m.role === "assistant" && m.streaming && m.content && <span className="copilot-cursor">▍</span>}
+                      </div>
+                    ) : (
+                      <div className="copilot-bubble">
+                        <span className="copilot-typing"><span /><span /><span /></span>
+                      </div>
+                    )}
                     {m.suggestion && (
                       <div className="copilot-suggestion">
                         <div className="copilot-sug-head"><Lightbulb size={13} /> Đề xuất — cần bạn duyệt</div>
