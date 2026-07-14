@@ -67,6 +67,81 @@ export async function apiFetch<T>(
   return res.json() as Promise<T>;
 }
 
+// ===== Trợ lý AI Copilot (P1) =====
+
+export interface ChatModelInfo {
+  code: string;
+  label: string;
+  provider: string;
+  recommended?: boolean;
+  disabled?: boolean;
+}
+export interface ChatModelsResponse {
+  backendNote: string;
+  models: ChatModelInfo[];
+  efforts: string[];
+}
+export interface ChatConvSummary { id: string; title: string; updatedAt: string }
+export interface ChatMessageRow {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  model?: string | null;
+  toolCalls?: Array<{ toolName?: string; toolInput?: unknown }> | null;
+  suggestionId?: string | null;
+  createdAt: string;
+}
+/** Một mảnh SSE từ POST /ai/chat. */
+export interface ChatStreamChunk {
+  type: "text" | "tool_use" | "suggestion" | "done" | "error" | "end";
+  text?: string;
+  conversationId?: string;
+  toolName?: string;
+  toolInput?: unknown;
+  suggestion?: { type: string; summary: string; reason?: string; payload?: { suggestionId?: string } & Record<string, unknown> };
+  usage?: { model: string; tokensIn: number; tokensOut: number; costUsd: number };
+  error?: string;
+}
+
+/** Stream chat qua fetch + đọc SSE (EventSource chỉ GET nên phải tự parse). */
+export async function streamChat(
+  session: StudioSession,
+  body: { conversationId?: string; message: string; model?: string; effort?: string; context?: unknown },
+  onChunk: (c: ChatStreamChunk) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/ai/chat`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.token}`,
+      "X-Tenant-Id": session.tenantId,
+    },
+    body: JSON.stringify(body),
+    signal,
+  });
+  if (!res.ok || !res.body) {
+    let msg = `HTTP ${res.status}`;
+    try { const j = await res.json(); msg = j?.error?.message ?? j?.message ?? msg; } catch {}
+    throw new ApiError(res.status, String(msg));
+  }
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    const frames = buf.split("\n\n");
+    buf = frames.pop() ?? "";
+    for (const f of frames) {
+      const line = f.split("\n").find((l) => l.startsWith("data:"));
+      if (!line) continue;
+      try { onChunk(JSON.parse(line.slice(5).trim()) as ChatStreamChunk); } catch {}
+    }
+  }
+}
+
 export async function devLogin(tenantCode: string, email: string): Promise<StudioSession> {
   const r = await apiFetch<{ access_token: string; tenant_id: string }>(null, "/auth/dev-token", {
     method: "POST",

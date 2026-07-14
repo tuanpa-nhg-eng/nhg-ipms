@@ -1420,6 +1420,41 @@ model AiSuggestion {
   @@map("ai_suggestion")
 }
 
+// [P1 Copilot] Phiên hội thoại Copilot + tin nhắn (tenant-bound, RLS).
+model AiConversation {
+  id         String      @id @db.Uuid
+  tenantId   String      @map("tenant_id") @db.Uuid
+  userId     String      @map("user_id") @db.Uuid // app_user.id (claim sub)
+  title      String
+  contextRef Json?       @map("context_ref") // chip ngữ cảnh {tenant, page}
+  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt  DateTime?   @map("deleted_at") @db.Timestamptz(6)
+  messages   AiMessage[]
+
+  @@index([tenantId, userId, updatedAt])
+  @@map("ai_conversation")
+}
+
+model AiMessage {
+  id             String   @id @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  conversationId String   @map("conversation_id") @db.Uuid
+  role           String // user | assistant
+  content        String   @db.Text
+  model          String? // 'mock' | 'claude-*'
+  toolCalls      Json?    @map("tool_calls") // thẻ tool-call đã hiển thị
+  suggestionId   String?  @map("suggestion_id") @db.Uuid // trỏ ai_suggestion (HITL)
+  tokensIn       Int?     @map("tokens_in")
+  tokensOut      Int?     @map("tokens_out")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  conversation AiConversation @relation(fields: [conversationId], references: [id])
+
+  @@index([tenantId, conversationId, createdAt])
+  @@map("ai_message")
+}
+
 model AiEvalSuite {
   id       String @id @db.Uuid
   tenantId String @map("tenant_id") @db.Uuid

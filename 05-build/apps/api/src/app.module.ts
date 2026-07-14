@@ -45,6 +45,8 @@ import { ConnectorRegistry } from './modules/integration/connectors/connector.re
 import { OutboxDispatcher } from './modules/integration/outbox.dispatcher';
 import { MorningTodosService } from './modules/integration/morning-todos.service';
 import { AiGatewayService } from './modules/ai/ai-gateway.service';
+import { AiChatService } from './modules/ai/ai-chat.service';
+import { AiChatController } from './modules/ai/ai-chat.controller';
 import { McpController } from './modules/ai/mcp/mcp.controller';
 import { McpService } from './modules/ai/mcp/mcp.service';
 import { EvalController } from './modules/ai/eval/eval.controller';
@@ -70,7 +72,7 @@ import { PolicyGuard } from './modules/policy/policy.guard';
     ConfigController, BrandController, OrgFunctionController, CanvasController,
     TaskCellController, DerivationController,
     ProcessController, IntegrationController,
-    McpController, EvalController, PolicyController, LibraryController,
+    McpController, AiChatController, EvalController, PolicyController, LibraryController,
     AuthoringController, DictionaryController, TaskLoopController,
   ],
   providers: [
@@ -93,6 +95,7 @@ import { PolicyGuard } from './modules/policy/policy.guard';
     OutboxDispatcher,
     MorningTodosService,
     AiGatewayService,
+    AiChatService,
     McpService,
     EvalService,
     PolicyService,

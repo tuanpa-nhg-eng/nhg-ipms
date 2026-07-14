@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
 import type { RequestUser } from '../../common/auth/decorators';
-import { LlmClient, LlmRequest, LlmResponse, selectLlmBackend } from './llm/llm-client';
+import { LlmClient, LlmRequest, LlmResponse, LlmStreamChunk, selectLlmBackend } from './llm/llm-client';
 import { MockLlmClient } from './llm/mock-llm-client';
 import { AnthropicLlmClient } from './llm/anthropic-llm-client';
 
@@ -42,6 +42,35 @@ export class AiGatewayService {
         latencyMs: Date.now() - t0, status: 'ok',
       });
       return res;
+    } catch (e) {
+      await this.log(user, req, toolName, {
+        model: backend, output: { error: (e as Error).message },
+        latencyMs: Date.now() - t0, status: 'error',
+      });
+      throw e;
+    }
+  }
+
+  /** [P1 Copilot] Stream LLM + log ai_interaction khi kết thúc. Fail-closed về mock
+   *  nếu backend chọn không hỗ trợ stream (AnthropicLlmClient stream có ở P0). */
+  async *stream(user: RequestUser, req: LlmRequest, toolName?: string): AsyncIterable<LlmStreamChunk> {
+    const backend = await this.resolveBackend(user.tenantId);
+    const chosen = backend === 'anthropic' ? this.anthropic : this.mock;
+    const client = chosen.stream ? chosen : this.mock; // fallback nếu chưa có stream
+    const t0 = Date.now();
+    let acc = '';
+    let usage: LlmStreamChunk['usage'];
+    try {
+      for await (const chunk of client.stream!(req)) {
+        if (chunk.type === 'text' && chunk.text) acc += chunk.text;
+        if (chunk.type === 'done') usage = chunk.usage;
+        yield chunk;
+      }
+      await this.log(user, req, toolName, {
+        model: usage?.model ?? backend, output: acc.slice(0, 4000),
+        tokensIn: usage?.tokensIn, tokensOut: usage?.tokensOut, costUsd: usage?.costUsd,
+        latencyMs: Date.now() - t0, status: 'ok',
+      });
     } catch (e) {
       await this.log(user, req, toolName, {
         model: backend, output: { error: (e as Error).message },

@@ -23,8 +23,23 @@ export interface LlmResponse {
   costUsd: number;
 }
 
+/** [P1 Copilot] Mảnh stream — Copilot render dần. */
+export interface LlmStreamChunk {
+  type: 'text' | 'tool_use' | 'suggestion' | 'done';
+  text?: string;
+  /** type=tool_use: thẻ "đang gọi tool" hiển thị ở FE. */
+  toolName?: string;
+  toolInput?: unknown;
+  /** type=suggestion: đề xuất HITL (accept/decline) — {type,summary,reason,payload}. */
+  suggestion?: { type: string; summary: string; reason?: string; payload?: unknown };
+  /** type=done: tổng kết usage. */
+  usage?: { model: string; tokensIn: number; tokensOut: number; costUsd: number };
+}
+
 export interface LlmClient {
   complete(req: LlmRequest): Promise<LlmResponse>;
+  /** [P1] Tuỳ chọn — chỉ Copilot dùng; agent một-phát vẫn dùng complete(). */
+  stream?(req: LlmRequest): AsyncIterable<LlmStreamChunk>;
 }
 
 /**
