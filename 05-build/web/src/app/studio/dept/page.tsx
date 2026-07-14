@@ -16,7 +16,7 @@ import {
 import { AppShell } from "@/components/shell/AppShell";
 import { Badge, Card } from "@/components/ui";
 import { useStudio } from "@/lib/studio";
-import { AuthoringGrant, DeptBoard, DeptBoardCell, DeptBoardQueueItem, DeptStaff } from "@/lib/api";
+import { AuthoringGrant, DeptBoard, DeptBoardCell, DeptBoardQueueItem, DeptStaff, TaskFeedback } from "@/lib/api";
 
 const STATUS_TONE: Record<string, string> = {
   active: "green", reopened: "amber", draft: "gray", deprecated: "gray",
@@ -27,7 +27,7 @@ const AI_TONE: Record<string, string> = {
 };
 
 export default function DeptBoardPage() {
-  const { call } = useStudio();
+  const { call, session } = useStudio();
   const [board, setBoard] = useState<DeptBoard | null>(null);
   const [grants, setGrants] = useState<AuthoringGrant[]>([]);
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
@@ -38,6 +38,8 @@ export default function DeptBoardPage() {
   const [reopenCell, setReopenCell] = useState<DeptBoardCell | null>(null);
   const [reopenAssignee, setReopenAssignee] = useState("");
   const [reopenNote, setReopenNote] = useState("");
+  const [reopenFb, setReopenFb] = useState<TaskFeedback[]>([]);        // [F140] góp ý mở của cell
+  const [reopenPicked, setReopenPicked] = useState<Set<string>>(new Set()); // feedback được gắn vào vòng
   const [approveNote, setApproveNote] = useState<Record<string, string>>({});
 
   const fail = (e: unknown) => setMsg({ kind: "err", text: (e as Error).message });
@@ -54,10 +56,12 @@ export default function DeptBoardPage() {
   }, [call]);
   useEffect(() => { void reload(); }, [reload]);
 
-  const act = async (fn: () => Promise<unknown>, ok: string) => {
+  // [F145] trả boolean thành/bại để caller (vd form reopen) chỉ đóng khi thành công
+  const act = async (fn: () => Promise<unknown>, ok: string): Promise<boolean> => {
     setMsg(null); setBusy(true);
-    try { await fn(); setMsg({ kind: "ok", text: ok }); await reload(); }
-    catch (e) { fail(e); } finally { setBusy(false); }
+    try { await fn(); setMsg({ kind: "ok", text: ok }); await reload(); return true; }
+    catch (e) { fail(e); return false; }
+    finally { setBusy(false); }
   };
 
   // map grantee → grant active (để revoke lấy đúng id)
@@ -87,17 +91,36 @@ export default function DeptBoardPage() {
       `Đã nhận ${cell.code} về phòng`);
   };
 
-  const openReopen = (cell: DeptBoardCell) => {
+  const openReopen = async (cell: DeptBoardCell) => {
     setReopenCell(cell); setReopenAssignee(""); setReopenNote("");
+    setReopenFb([]); setReopenPicked(new Set());
+    // [F140] nạp góp ý ĐANG MỞ của cell để gắn vào vòng tối ưu (mặc định chọn tất cả)
+    // — không truyền feedbackIds thì BE không resolve được góp ý, badge đỏ treo vĩnh viễn.
+    try {
+      const [open, triaged] = await Promise.all([
+        call<TaskFeedback[]>(`/task-cells/${cell.id}/feedback?status=open`),
+        call<TaskFeedback[]>(`/task-cells/${cell.id}/feedback?status=triaged`),
+      ]);
+      const fb = [...open, ...triaged];
+      setReopenFb(fb);
+      setReopenPicked(new Set(fb.map((f) => f.id)));
+    } catch (e) { fail(e); }
   };
-  const doReopen = () => {
+  const doReopen = async () => {
     if (!reopenCell || !reopenAssignee) return;
-    void act(
+    const feedbackIds = [...reopenPicked];
+    const ok = await act(
       () => call(`/task-cells/${reopenCell.id}/reopen`, {
-        method: "POST", json: { assigneeId: reopenAssignee, ...(reopenNote ? { note: reopenNote } : {}) },
+        method: "POST",
+        json: {
+          assigneeId: reopenAssignee,
+          ...(feedbackIds.length ? { feedbackIds } : {}),
+          ...(reopenNote ? { note: reopenNote } : {}),
+        },
       }),
       `Đã mở vòng tối ưu ${reopenCell.code} — giao nhân viên sửa`,
-    ).then(() => setReopenCell(null));
+    );
+    if (ok) setReopenCell(null);
   };
   const cancelReopen = (cell: DeptBoardCell) =>
     void act(() => call(`/task-cells/${cell.id}/reopen-cancel`, { method: "POST", json: {} }),
@@ -146,26 +169,31 @@ export default function DeptBoardPage() {
             <table className="table">
               <thead><tr><th>Nhân viên</th><th>Mã NV</th><th className="rt">Quyền soạn</th></tr></thead>
               <tbody>
-                {(board?.staff ?? []).map((s) => (
-                  <tr key={s.userId}>
-                    <td>{s.fullName}</td>
-                    <td style={{ fontFamily: "ui-monospace, monospace", fontSize: 11 }}>{s.employeeCode ?? "—"}</td>
-                    <td className="rt">
-                      {s.canAuthor ? (
-                        <div className="row" style={{ gap: 6, justifyContent: "flex-end" }}>
-                          <Badge tone="green">được soạn</Badge>
-                          <button className="btn ghost sm" disabled={busy || !s.orgUnitId} onClick={() => revoke(s)}>
-                            <UserMinus size={12} /> Thu
+                {(board?.staff ?? []).map((s) => {
+                  const isSelf = !!session?.userId && s.userId === session.userId; // [F144] không tự-cấp
+                  return (
+                    <tr key={s.userId}>
+                      <td>{s.fullName}{isSelf && <span style={{ color: "var(--nhg-text-secondary)", fontSize: 11 }}> (bạn)</span>}</td>
+                      <td style={{ fontFamily: "ui-monospace, monospace", fontSize: 11 }}>{s.employeeCode ?? "—"}</td>
+                      <td className="rt">
+                        {isSelf ? (
+                          <span style={{ fontSize: 11, color: "var(--nhg-text-secondary)" }}>—</span>
+                        ) : s.canAuthor ? (
+                          <div className="row" style={{ gap: 6, justifyContent: "flex-end" }}>
+                            <Badge tone="green">được soạn</Badge>
+                            <button className="btn ghost sm" disabled={busy || !s.orgUnitId} onClick={() => revoke(s)}>
+                              <UserMinus size={12} /> Thu
+                            </button>
+                          </div>
+                        ) : (
+                          <button className="btn ghost sm" disabled={busy || !s.orgUnitId} onClick={() => grant(s)}>
+                            <UserPlus size={12} /> Cấp quyền
                           </button>
-                        </div>
-                      ) : (
-                        <button className="btn ghost sm" disabled={busy || !s.orgUnitId} onClick={() => grant(s)}>
-                          <UserPlus size={12} /> Cấp quyền
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
                 {(board?.staff.length ?? 0) === 0 && (
                   <tr><td colSpan={3} style={{ color: "var(--nhg-text-secondary)" }}>
                     Chưa có nhân sự trong phạm vi phòng.
@@ -233,7 +261,7 @@ export default function DeptBoardPage() {
                     <td className="rt">{(c.openFeedback ?? 0) > 0 ? <Badge tone="red">{c.openFeedback}</Badge> : "0"}</td>
                     <td>
                       {c.status === "active" && (
-                        <button className="btn ghost sm" disabled={busy} onClick={() => openReopen(c)}>
+                        <button className="btn ghost sm" disabled={busy} onClick={() => void openReopen(c)}>
                           <GitPullRequestArrow size={12} /> Mở vòng
                         </button>
                       )}
@@ -275,12 +303,30 @@ export default function DeptBoardPage() {
                     Chưa có nhân viên đủ điều kiện — cấp quyền soạn ở bảng nhân sự trước.
                   </div>
                 )}
+                {reopenFb.length > 0 && (
+                  <div className="studio-field">
+                    <label>Góp ý gắn vào vòng này (sẽ được đánh dấu đã xử lý khi duyệt kích hoạt)</label>
+                    <div className="dept-fb-pick">
+                      {reopenFb.map((f) => (
+                        <label key={f.id} className="dept-fb-item">
+                          <input type="checkbox" checked={reopenPicked.has(f.id)}
+                            onChange={(e) => setReopenPicked((prev) => {
+                              const n = new Set(prev);
+                              if (e.target.checked) n.add(f.id); else n.delete(f.id);
+                              return n;
+                            })} />
+                          <span><Badge tone="gray">{f.category}</Badge> {f.body}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="studio-field">
                   <label>Ghi chú (tuỳ chọn) — bối cảnh vòng tối ưu</label>
                   <input className="studio-input" value={reopenNote} placeholder="vd: gộp góp ý SLA từ 3 nhân viên"
                     onChange={(e) => setReopenNote(e.target.value)} />
                 </div>
-                <button className="btn primary sm" disabled={busy || !reopenAssignee} onClick={doReopen}>
+                <button className="btn primary sm" disabled={busy || !reopenAssignee} onClick={() => void doReopen()}>
                   <GitPullRequestArrow size={13} /> Mở vòng &amp; giao việc
                 </button>
               </div>

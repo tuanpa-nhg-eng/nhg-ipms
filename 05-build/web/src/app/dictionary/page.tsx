@@ -425,15 +425,22 @@ function RevisionHistory({ code, L }: { code: string; L: (vi: string, en: string
       .then(setRevs).catch(() => setRevs([]));
   }, [code, call]);
 
+  const fetchSnap = async (v: number) => {
+    try {
+      const r = await call<TaskRevision>(`/task-dictionary/${encodeURIComponent(code)}/revisions/${v}`);
+      setSnap((m) => ({ ...m, [v]: r }));
+    } catch {}
+  };
   const toggle = async (v: number) => {
     if (open === v) { setOpen(null); return; }
     setOpen(v);
-    if (!snap[v]) {
-      try {
-        const r = await call<TaskRevision>(`/task-dictionary/${encodeURIComponent(code)}/revisions/${v}`);
-        setSnap((m) => ({ ...m, [v]: r }));
-      } catch {}
-    }
+    // [F141] nạp SONG SONG bản v và bản liền trước (v-1, nếu tồn tại) — để diff hiện
+    // cột "Trước" ngay lần mở đầu, không cần thao tác phụ nào làm thu gọn panel đang xem.
+    const hasPrev = (revs ?? []).some((x) => x.version === v - 1);
+    await Promise.all([
+      snap[v] ? Promise.resolve() : fetchSnap(v),
+      !hasPrev || snap[v - 1] ? Promise.resolve() : fetchSnap(v - 1),
+    ]);
   };
 
   if (revs && revs.length === 0) return null;
@@ -453,7 +460,7 @@ function RevisionHistory({ code, L }: { code: string; L: (vi: string, en: string
               </button>
               {open === r.version && snap[r.version] && (
                 <RevisionDiff snap={snap[r.version].snapshot} prevSnap={prev ? snap[prev.version]?.snapshot : undefined}
-                  L={L} onLoadPrev={prev ? () => void toggle(prev.version) : undefined} hasPrev={!!prev} />
+                  L={L} hasPrev={!!prev} />
               )}
             </div>
           );
@@ -470,9 +477,9 @@ const DIFF_FIELDS: Array<[string, string, string]> = [
 ];
 
 /** Diff client-side: so trường then chốt của snapshot với bản liền trước. */
-function RevisionDiff({ snap, prevSnap, L, onLoadPrev, hasPrev }: {
+function RevisionDiff({ snap, prevSnap, L, hasPrev }: {
   snap?: Record<string, unknown>; prevSnap?: Record<string, unknown>;
-  L: (vi: string, en: string) => string; onLoadPrev?: () => void; hasPrev: boolean;
+  L: (vi: string, en: string) => string; hasPrev: boolean;
 }) {
   const val = (o: Record<string, unknown> | undefined, k: string) => {
     const v = o?.[k];
@@ -482,10 +489,8 @@ function RevisionDiff({ snap, prevSnap, L, onLoadPrev, hasPrev }: {
   };
   return (
     <div className="dict-rev-diff">
-      {hasPrev && !prevSnap && (
-        <button className="btn ghost sm" onClick={onLoadPrev} style={{ marginBottom: 6 }}>
-          {L("Tải bản trước để so sánh", "Load previous to compare")}
-        </button>
+      {!hasPrev && (
+        <div className="dict-sub" style={{ marginBottom: 4 }}>{L("Phiên bản đầu tiên — không có bản trước để so.", "First version — nothing to compare.")}</div>
       )}
       <table className="dict-diff-table">
         <thead><tr><th>{L("Trường", "Field")}</th><th>{L("Trước", "Before")}</th><th>{L("Sau", "After")}</th></tr></thead>
@@ -530,7 +535,11 @@ function FeedbackPanel({ code, statusHint, L }: {
   const canPost = statusHint == null || statusHint === "active" || statusHint === "reopened";
 
   const submit = async () => {
-    if (!body.trim()) return;
+    // [F143] khớp ràng buộc BE @Length(3,4000) — chặn client để không nhận 422 vì quá ngắn
+    if (body.trim().length < 3) {
+      setMsg(L("Góp ý cần tối thiểu 3 ký tự.", "Feedback needs at least 3 characters."));
+      return;
+    }
     setBusy(true); setMsg(null);
     try {
       await call(`/task-dictionary/${encodeURIComponent(code)}/feedback`, {
@@ -557,7 +566,7 @@ function FeedbackPanel({ code, statusHint, L }: {
           <textarea className="studio-input" rows={2} style={{ resize: "vertical", fontSize: 12.5 }}
             placeholder={L("Góp ý từ thực tế vận hành để tác vụ tốt hơn…", "Feedback from real usage…")}
             value={body} onChange={(e) => setBody(e.target.value)} />
-          <button className="btn primary sm" disabled={busy || !body.trim()} onClick={() => void submit()}>
+          <button className="btn primary sm" disabled={busy || body.trim().length < 3} onClick={() => void submit()}>
             <Send size={12} /> {L("Gửi góp ý", "Send")}
           </button>
         </div>

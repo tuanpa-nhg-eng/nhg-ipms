@@ -47,3 +47,15 @@
   font-family: ui-monospace, monospace; font-size: 12px;
   padding: 1px 6px; border-radius: 5px; background: var(--nhg-surface);
 }
+
+/* [4l/F140] Chọn góp ý gắn vào vòng tối ưu */
+.dept-fb-pick {
+  display: flex; flex-direction: column; gap: 5px;
+  max-height: 160px; overflow-y: auto;
+  border: 1px solid var(--nhg-border); border-radius: 8px; padding: 8px;
+}
+.dept-fb-item {
+  display: flex; gap: 7px; align-items: flex-start;
+  font-size: 12px; line-height: 1.45; cursor: pointer;
+}
+.dept-fb-item input { margin-top: 2px; flex-shrink: 0; }

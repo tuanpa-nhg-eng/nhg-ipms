@@ -12,6 +12,19 @@ export interface StudioSession {
   tenantId: string;
   tenantCode: string;
   email: string;
+  userId?: string; // app_user.id (claim `sub`) — để FE lọc chính actor (không tự-cấp quyền)
+}
+
+/** Đọc `sub` từ payload JWT (không xác thực chữ ký — chỉ để hiển thị/lọc UI).
+ *  BE luôn là nguồn chân lý; giá trị này KHÔNG dùng cho quyết định bảo mật. */
+function decodeSub(token: string): string | undefined {
+  try {
+    const payload = token.split(".")[1];
+    const json = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
+    return typeof json?.sub === "string" ? json.sub : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export class ApiError extends Error {
@@ -59,7 +72,7 @@ export async function devLogin(tenantCode: string, email: string): Promise<Studi
     method: "POST",
     json: { tenantCode, email },
   });
-  return { token: r.access_token, tenantId: r.tenant_id, tenantCode, email };
+  return { token: r.access_token, tenantId: r.tenant_id, tenantCode, email, userId: decodeSub(r.access_token) };
 }
 
 // ===== Kiểu dữ liệu tối thiểu FE cần (subset của API) =====

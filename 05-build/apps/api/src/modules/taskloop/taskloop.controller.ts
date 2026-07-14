@@ -40,9 +40,11 @@ export class TaskLoopController {
     return this.svc.board(user);
   }
 
-  // [4l] Đường TRA CỨU theo MÃ (dictionary không lộ id — F122): feedback + revisions
+  // [4l] Đường TRA CỨU theo MÃ (dictionary không lộ id — F122): feedback + revisions.
+  // [F142] ĐỌC danh sách góp ý là một phần tra cứu Từ điển → taskdict:read (mọi persona);
+  // GỬI góp ý (POST bên dưới) mới cần task:feedback. Tách read/write để reader không nhận 403.
   @Get('task-dictionary/:code/feedback')
-  @RequirePermission('task:feedback')
+  @RequirePermission('taskdict:read')
   listFeedbackByCode(
     @CurrentUser() user: RequestUser,
     @Param('code') code: string,
