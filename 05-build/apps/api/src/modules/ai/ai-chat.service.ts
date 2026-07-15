@@ -64,6 +64,7 @@ export class AiChatService {
     user: RequestUser,
     input: { conversationId?: string; message: string; model?: string; effort?: string; context?: unknown },
     onChunk: (c: LlmStreamChunk & { conversationId?: string }) => void,
+    shouldStop?: () => boolean, // [F146] client ngắt kết nối → dừng vòng, không ghi tiếp
   ): Promise<void> {
     const message = input.message.trim();
 
@@ -105,9 +106,13 @@ export class AiChatService {
 
     for await (const chunk of this.gateway.stream(
       user,
-      { agent: 'config_copilot', prompt: message, context: input.context, promptVersion: 'copilot-v1' },
+      {
+        agent: 'config_copilot', prompt: message, context: input.context, promptVersion: 'copilot-v1',
+        model: input.model, effort: input.effort, // [F147] forward lựa chọn picker cho client thật
+      },
       'copilot.chat',
     )) {
+      if (shouldStop?.()) break; // [F146] client đã đóng — dừng, vẫn persist phần đã nhận
       if (chunk.type === 'text' && chunk.text) acc += chunk.text;
       if (chunk.type === 'tool_use') toolCalls.push({ toolName: chunk.toolName, toolInput: chunk.toolInput });
       if (chunk.type === 'suggestion') suggestion = chunk.suggestion;

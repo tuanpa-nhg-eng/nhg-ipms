@@ -54,6 +54,7 @@ export function AgentPanel({ page }: { page?: string }) {
   const [err, setErr] = useState<string | null>(null);
   const [slashOpen, setSlashOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => { setSession(loadSession()); }, [open]);
   useEffect(() => {
@@ -75,7 +76,9 @@ export function AgentPanel({ page }: { page?: string }) {
     } catch (e) { setErr((e as Error).message); }
   };
 
-  const newChat = () => { setMsgs([]); setConvId(undefined); setErr(null); };
+  const stop = () => { abortRef.current?.abort(); abortRef.current = null; };
+  const newChat = () => { stop(); setMsgs([]); setConvId(undefined); setErr(null); setBusy(false); };
+  const close = () => { stop(); setOpen(false); };
 
   const send = useCallback(async () => {
     const text = input.trim();
@@ -83,8 +86,11 @@ export function AgentPanel({ page }: { page?: string }) {
     setBusy(true); setErr(null); setSlashOpen(false);
     setInput("");
     setMsgs((m) => [...m, { role: "user", content: text }, { role: "assistant", content: "", tools: [], streaming: true }]);
+    // [F148] guard: nếu thread bị xoá (newChat) giữa stream, không patch vào mảng rỗng
     const patchLast = (fn: (a: UiMsg) => UiMsg) =>
-      setMsgs((m) => { const c = [...m]; c[c.length - 1] = fn(c[c.length - 1]); return c; });
+      setMsgs((m) => { if (!m.length) return m; const c = [...m]; c[c.length - 1] = fn(c[c.length - 1]); return c; });
+    const ac = new AbortController();
+    abortRef.current = ac;
     try {
       await streamChat(
         session,
@@ -114,13 +120,19 @@ export function AgentPanel({ page }: { page?: string }) {
               break;
           }
         },
+        ac.signal,
       );
     } catch (e) {
-      const msg = e instanceof ApiError && e.status === 403
-        ? "Tài khoản không có quyền ai:invoke — đăng nhập bằng designer@ hoặc admin@."
-        : (e as Error).message;
-      setErr(msg);
+      if ((e as Error)?.name === "AbortError" || ac.signal.aborted) {
+        // chủ động hủy (Đóng / Hội thoại mới) — không hiện lỗi
+      } else {
+        const msg = e instanceof ApiError && e.status === 403
+          ? "Tài khoản không có quyền ai:invoke — đăng nhập bằng designer@ hoặc admin@."
+          : (e as Error).message;
+        setErr(msg);
+      }
     } finally {
+      if (abortRef.current === ac) abortRef.current = null;
       patchLast((a) => ({ ...a, streaming: false }));
       setBusy(false);
     }
@@ -143,7 +155,7 @@ export function AgentPanel({ page }: { page?: string }) {
             <div className="copilot-head-actions">
               <button title="Hội thoại mới" onClick={newChat}><Plus size={16} /></button>
               <button title="Lịch sử (P2)" disabled><History size={16} /></button>
-              <button title="Đóng" onClick={() => setOpen(false)}><X size={16} /></button>
+              <button title="Đóng" onClick={close}><X size={16} /></button>
             </div>
           </header>
 

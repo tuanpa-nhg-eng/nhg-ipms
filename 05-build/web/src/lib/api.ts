@@ -128,17 +128,22 @@ export async function streamChat(
   const reader = res.body.getReader();
   const dec = new TextDecoder();
   let buf = "";
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += dec.decode(value, { stream: true });
-    const frames = buf.split("\n\n");
-    buf = frames.pop() ?? "";
-    for (const f of frames) {
-      const line = f.split("\n").find((l) => l.startsWith("data:"));
-      if (!line) continue;
-      try { onChunk(JSON.parse(line.slice(5).trim()) as ChatStreamChunk); } catch {}
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const frames = buf.split("\n\n");
+      buf = frames.pop() ?? "";
+      for (const f of frames) {
+        const line = f.split("\n").find((l) => l.startsWith("data:"));
+        if (!line) continue;
+        try { onChunk(JSON.parse(line.slice(5).trim()) as ChatStreamChunk); } catch {}
+      }
     }
+  } finally {
+    // [F150] luôn giải phóng reader (kể cả khi onChunk ném / abort) — tránh rò kết nối
+    try { await reader.cancel(); } catch {}
   }
 }
 

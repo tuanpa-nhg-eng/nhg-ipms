@@ -11,6 +11,9 @@ export interface LlmRequest {
   /** Ngữ cảnh cấu trúc (org tree, KPI list...) — mock echo lại để test tất định. */
   context?: unknown;
   promptVersion?: string;
+  /** [F147] Model + effort người dùng chọn ở picker — client thật dùng; mock bỏ qua. */
+  model?: string;
+  effort?: string;
 }
 
 export interface LlmResponse {

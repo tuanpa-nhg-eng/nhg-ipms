@@ -56,7 +56,13 @@ export class AiGatewayService {
   async *stream(user: RequestUser, req: LlmRequest, toolName?: string): AsyncIterable<LlmStreamChunk> {
     const backend = await this.resolveBackend(user.tenantId);
     const chosen = backend === 'anthropic' ? this.anthropic : this.mock;
-    const client = chosen.stream ? chosen : this.mock; // fallback nếu chưa có stream
+    // [F151] backend chọn 'anthropic' nhưng client chưa có stream (stub P0) → fallback mock
+    // NHƯNG cảnh báo rõ để vận hành biết cờ live CHƯA có tác dụng cho chat streaming.
+    if (backend === 'anthropic' && !chosen.stream) {
+      // eslint-disable-next-line no-console
+      console.warn('[ai-gateway] backend=anthropic nhưng AnthropicLlmClient chưa hỗ trợ stream() — tạm fallback MockLlmClient (implement ở P0).');
+    }
+    const client = chosen.stream ? chosen : this.mock;
     const t0 = Date.now();
     let acc = '';
     let usage: LlmStreamChunk['usage'];
