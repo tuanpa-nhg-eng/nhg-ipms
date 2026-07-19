@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from "react";
 import { CheckCheck, CircleCheck, CircleX, Inbox, MessageSquareText, Rocket, Undo2, X } from "lucide-react";
 import { AppShell } from "@/components/shell/AppShell";
 import { Badge, Card } from "@/components/ui";
+import { InlineAssist } from "@/components/ai/InlineAssist";
 import { useStudio } from "@/lib/studio";
 import { DedupCandidate, LibraryContribution } from "@/lib/api";
 
@@ -159,6 +160,20 @@ export default function CurationQueuePage() {
                     <div style={{ margin: "12px 0 6px", fontSize: 11, textTransform: "uppercase", color: "var(--nhg-text-secondary)", fontWeight: 600 }}>
                       Dedup candidates (người quyết — hệ chỉ gợi ý)
                     </div>
+                    {/* [AI inline] curation.dedup — tóm tắt khác biệt 2 cell + khuyến nghị merge/keep_both */}
+                    {(selected.dedupCandidates ?? []).some((d) => d.resolution === "pending" && d.similarTaskCellId) && (
+                      <div style={{ marginBottom: 8 }}>
+                        <InlineAssist task="curation.dedup" label="AI phân tích trùng"
+                          buildInput={() => ({ contributionId: selected.id })}
+                          onAccept={(p) => {
+                            const cand = (selected.dedupCandidates ?? [])
+                              .find((d) => d.resolution === "pending" && d.similarTaskCellId);
+                            const rec = typeof p.recommendation === "string" ? p.recommendation : null;
+                            if (cand && (rec === "merge" || rec === "keep_both")) resolve(cand, rec);
+                          }}
+                          disabled={busy} />
+                      </div>
+                    )}
                     {selected.dedupCandidates!.map((d) => (
                       <div key={d.id} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12, marginBottom: 6, flexWrap: "wrap" }}>
                         <Badge tone={d.resolution === "pending" ? "red" : "gray"}>

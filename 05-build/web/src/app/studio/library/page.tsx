@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from "react";
 import { BookPlus, CircleCheck, CircleX, Send, SquarePen } from "lucide-react";
 import { AppShell } from "@/components/shell/AppShell";
 import { Badge, Card } from "@/components/ui";
+import { InlineAssist } from "@/components/ai/InlineAssist";
 import { useStudio } from "@/lib/studio";
 import { CellPayload, LibraryContribution, OrgUnit } from "@/lib/api";
 
@@ -22,6 +23,7 @@ const csv = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
 const EMPTY_FORM = {
   code: "", nameVi: "", responsibleRole: "", accountableRole: "",
   inputs: "", outputs: "", measures: "", aiLevel: "assist", orgUnitId: "",
+  kpiRef: "", // link KPI có sẵn trong Từ điển (phân biệt với kpi = đề xuất KPI mới)
   withKpi: false, kpiCode: "", kpiNameVi: "", kpiMethod: "manual", kpiDirection: "forward", kpiDataSource: "",
 };
 
@@ -56,6 +58,7 @@ export default function TaskCellStudioPage() {
     accountableRole: form.accountableRole.trim() || undefined,
     inputs: csv(form.inputs), outputs: csv(form.outputs), measures: csv(form.measures),
     aiLevel: form.aiLevel,
+    ...(form.kpiRef.trim() ? { kpiRef: form.kpiRef.trim().toUpperCase() } : {}),
     ...(form.withKpi ? {
       kpi: {
         code: form.kpiCode.trim() || undefined,
@@ -101,7 +104,7 @@ export default function TaskCellStudioPage() {
       responsibleRole: p.responsibleRole ?? "", accountableRole: p.accountableRole ?? "",
       inputs: (p.inputs ?? []).join(", "), outputs: (p.outputs ?? []).join(", "),
       measures: m.join(", "), aiLevel: p.aiLevel ?? "assist",
-      orgUnitId: c.orgUnitId ?? "",
+      orgUnitId: c.orgUnitId ?? "", kpiRef: p.kpiRef ?? "",
       withKpi: !!p.kpi,
       kpiCode: p.kpi?.code ?? "", kpiNameVi: p.kpi?.nameVi ?? "",
       kpiMethod: p.kpi?.method ?? "manual", kpiDirection: p.kpi?.direction ?? "forward",
@@ -110,6 +113,26 @@ export default function TaskCellStudioPage() {
     setEditingId(c.id);
     setSelected(c);
     setMsg({ kind: "ok", text: `Đang sửa ${p.code ?? c.id} — Lưu sẽ quay về draft để gửi duyệt lại` });
+  };
+
+  /** [AI inline] Áp fill của taskcell.draft vào form (arrays → csv thân thiện). */
+  const applyDraftFill = (proposal: Record<string, unknown>) => {
+    const fill = (proposal.fill ?? {}) as Record<string, unknown>;
+    const toCsv = (v: unknown) => Array.isArray(v)
+      ? v.map((x) => (typeof x === "string" ? x : (x as { name?: string })?.name ?? "")).filter(Boolean).join(", ")
+      : String(v ?? "");
+    setForm((f) => ({
+      ...f,
+      ...(fill.code ? { code: String(fill.code) } : {}),
+      ...(fill.nameVi ? { nameVi: String(fill.nameVi) } : {}),
+      ...(fill.responsibleRole ? { responsibleRole: String(fill.responsibleRole) } : {}),
+      ...(fill.accountableRole ? { accountableRole: String(fill.accountableRole) } : {}),
+      ...(fill.inputs ? { inputs: toCsv(fill.inputs) } : {}),
+      ...(fill.outputs ? { outputs: toCsv(fill.outputs) } : {}),
+      ...(fill.measures ? { measures: toCsv(fill.measures) } : {}),
+      ...(fill.aiLevel ? { aiLevel: String(fill.aiLevel) } : {}),
+    }));
+    setMsg({ kind: "ok", text: "Đã áp gợi ý AI vào form — kiểm tra lại rồi Lưu draft (AI có thể sai)" });
   };
 
   const submit = async (c: LibraryContribution) => {
@@ -186,6 +209,31 @@ export default function TaskCellStudioPage() {
                 <label>D — Measures (csv)</label>
                 <input className="studio-input" placeholder="SLA 24h, tỷ lệ chốt"
                   value={form.measures} onChange={set("measures")} />
+              </div>
+            </div>
+
+            {/* [AI inline] taskcell.draft — điền nhóm A–G còn thiếu theo quality gate */}
+            <div style={{ margin: "6px 0" }}>
+              <InlineAssist task="taskcell.draft" label="AI điền nhóm A–G thiếu"
+                buildInput={() => ({ payload: buildPayload() })}
+                onAccept={(p) => applyDraftFill(p)} disabled={busy} />
+            </div>
+
+            <div className="studio-toolbar">
+              <div className="studio-field">
+                <label>KPI Ref — link Từ điển KPI (41 mã)</label>
+                <input className="studio-input" style={{ width: 160 }} placeholder="FIN-01"
+                  value={form.kpiRef} onChange={set("kpiRef")} />
+              </div>
+              {/* [AI inline] taskcell.kpi_link — gợi ý kpiRef từ Từ điển KPI + lý do */}
+              <div style={{ alignSelf: "flex-end" }}>
+                <InlineAssist task="taskcell.kpi_link" label="AI gợi ý KPI"
+                  buildInput={() => ({ payload: buildPayload() })}
+                  onAccept={(p) => {
+                    if (p.kpiRef) setForm((f) => ({ ...f, kpiRef: String(p.kpiRef) }));
+                    setMsg({ kind: "ok", text: `Đã gắn kpiRef ${p.kpiRef} — kiểm tra lại trước khi lưu` });
+                  }}
+                  disabled={busy || !form.nameVi} />
               </div>
             </div>
 

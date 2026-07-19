@@ -312,6 +312,7 @@ export interface CellPayload {
   measures?: Array<string | { name: string }>;
   aiLevel?: string;
   riskLevel?: string;
+  kpiRef?: string; // link KPI có sẵn trong Từ điển (phân biệt với kpi = đề xuất mới)
   kpi?: KpiBlock;
 }
 

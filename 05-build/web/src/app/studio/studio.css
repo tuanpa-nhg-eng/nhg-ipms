@@ -59,3 +59,37 @@
   font-size: 12px; line-height: 1.45; cursor: pointer;
 }
 .dept-fb-item input { margin-top: 2px; flex-shrink: 0; }
+
+/* [Lát AI inline] Nút "✦ AI gợi ý" + thẻ diff gợi ý (NHG Design System) */
+.inline-assist { display: flex; flex-direction: column; gap: 8px; }
+.inline-assist-btn { color: var(--nhg-primary); }
+.inline-assist-err {
+  font-size: 12px; color: #ED2024; padding: 6px 10px;
+  border: 1px solid #ED202433; border-radius: 8px; background: #ED20240D;
+}
+.inline-assist-card {
+  border: 1px solid var(--nhg-primary); border-radius: 10px;
+  background: var(--nhg-primary-subtle); padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.inline-assist-head {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12.5px; font-weight: 600; color: var(--nhg-primary);
+}
+.inline-assist-model {
+  margin-left: auto; font-size: 10.5px; font-weight: 500;
+  padding: 1px 7px; border-radius: 999px;
+  border: 1px solid var(--nhg-border); background: var(--nhg-surface);
+  color: var(--nhg-text-secondary); text-transform: uppercase;
+}
+.inline-assist-diff { width: 100%; border-collapse: collapse; font-size: 12px; }
+.inline-assist-diff th {
+  text-align: left; font-size: 10.5px; text-transform: uppercase;
+  color: var(--nhg-text-secondary); padding: 2px 8px 4px 0;
+}
+.inline-assist-diff td { padding: 3px 8px 3px 0; vertical-align: top; border-top: 1px solid var(--nhg-border); }
+.inline-assist-diff td.f { font-family: ui-monospace, monospace; font-size: 11px; white-space: nowrap; }
+.inline-assist-diff td.old { color: var(--nhg-text-secondary); text-decoration: line-through; }
+.inline-assist-diff td.new { color: var(--nhg-primary); font-weight: 600; }
+.inline-assist-reason { font-size: 12px; line-height: 1.5; }
+.inline-assist-footer { font-size: 11px; color: var(--nhg-text-secondary); }

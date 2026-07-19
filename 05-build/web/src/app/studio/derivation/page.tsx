@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { BookOpenText, ListTree, Play, Plus, Rocket } from "lucide-react";
 import { AppShell } from "@/components/shell/AppShell";
 import { Badge, Card } from "@/components/ui";
+import { InlineAssist } from "@/components/ai/InlineAssist";
 import { useStudio } from "@/lib/studio";
 import { ConfigVersion, DerivationRule, DerivationRunOut, KpiTemplate } from "@/lib/api";
 
@@ -25,6 +26,7 @@ export default function DerivationPage() {
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const [aiDesc, setAiDesc] = useState(""); // [AI inline] mô tả rule cần AI gợi ý
   const [tplForm, setTplForm] = useState({ code: "", nameVi: "", functionTags: "", roleFamilyCodes: "", taskCellRefs: "" });
   const [ruleForm, setRuleForm] = useState({
     priority: "100", functionCodes: "", roleFamilyCodes: "", orgLevel: "", grade: "",
@@ -205,6 +207,36 @@ export default function DerivationPage() {
                 )}
               </tbody>
             </table>
+
+            {/* [AI inline] derivation.rule — AI gợi ý match/emit từ mô tả, kèm "vì sao" */}
+            <div className="studio-toolbar" style={{ marginTop: 12 }}>
+              <div className="studio-field" style={{ flex: 1 }}>
+                <label>Mô tả rule cần tạo (AI gợi ý)</label>
+                <input className="studio-input" placeholder="vd: KPI doanh thu cho các phòng tuyển sinh"
+                  value={aiDesc} onChange={(e) => setAiDesc(e.target.value)} />
+              </div>
+              <div style={{ alignSelf: "flex-end" }}>
+                <InlineAssist task="derivation.rule" label="AI gợi ý rule"
+                  configVersionId={versionId}
+                  buildInput={() => (aiDesc.trim() ? { description: aiDesc.trim() } : null)}
+                  onAccept={(p) => {
+                    const rule = (p.rule ?? {}) as { match?: Record<string, unknown>; emit?: Record<string, unknown> };
+                    const j = (v: unknown) => (Array.isArray(v) ? v.join(", ") : "");
+                    setRuleForm((f) => ({
+                      ...f,
+                      functionCodes: j(rule.match?.function_codes),
+                      roleFamilyCodes: j(rule.match?.role_family_codes),
+                      orgLevel: j(rule.match?.org_level),
+                      grade: j(rule.match?.grade),
+                      templateCodes: j(rule.emit?.kpi_template_codes),
+                      weight: rule.emit?.weight != null ? String(rule.emit.weight) : f.weight,
+                      groupLabel: typeof rule.emit?.group_label === "string" ? rule.emit.group_label : f.groupLabel,
+                    }));
+                    setMsg({ kind: "ok", text: "Đã áp gợi ý rule vào form — kiểm tra rồi bấm Thêm rule (AI có thể sai)" });
+                  }}
+                  disabled={busy || !versionId || !aiDesc.trim()} />
+              </div>
+            </div>
 
             <div className="studio-toolbar" style={{ marginTop: 12 }}>
               <div className="studio-field">
