@@ -166,8 +166,10 @@ export default function CurationQueuePage() {
                         <InlineAssist task="curation.dedup" label="AI phân tích trùng"
                           buildInput={() => ({ contributionId: selected.id })}
                           onAccept={(p) => {
+                            // [F156] resolve ĐÚNG candidate BE đã phân tích (proposal.candidateId)
+                            const cid = typeof p.candidateId === "string" ? p.candidateId : null;
                             const cand = (selected.dedupCandidates ?? [])
-                              .find((d) => d.resolution === "pending" && d.similarTaskCellId);
+                              .find((d) => (cid ? d.id === cid : d.resolution === "pending" && d.similarTaskCellId));
                             const rec = typeof p.recommendation === "string" ? p.recommendation : null;
                             if (cand && (rec === "merge" || rec === "keep_both")) resolve(cand, rec);
                           }}

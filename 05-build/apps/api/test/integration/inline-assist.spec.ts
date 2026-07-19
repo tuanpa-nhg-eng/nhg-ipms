@@ -245,10 +245,44 @@ describe('Lát AI inline — inline assist (ai:assist)', () => {
     expect(['merge', 'keep_both']).toContain(res.body.proposal.recommendation);
     expect(res.body.diff.length).toBeGreaterThan(0);
     expect(res.body.suggestion.type).toBe('curation_dedup');
+    // [F156] BE trả candidateId đã phân tích — FE resolve đúng candidate đó
+    const candRow = await owner.libraryDedupCandidate.findFirst({ where: { contributionId: contrib.id } });
+    expect(res.body.proposal.candidateId).toBe(candRow!.id);
+
+    // [F154] designer có ai:assist nhưng KHÔNG library:curate và KHÔNG là tác giả → 403
+    expect((await api().post('/api/v1/ai/inline/curation.dedup').set(as(designer))
+      .send({ input: { contributionId: contrib.id } })).status).toBe(403);
 
     // Cô lập tenant: curator T2 không thấy contribution H.01 → 404
     expect((await api().post('/api/v1/ai/inline/curation.dedup').set(as(t2curator))
       .send({ input: { contributionId: contrib.id } })).status).toBe(404);
+  });
+
+  // ===== Fix Reviewer F153/F155 =====
+  it('[F153] suggestion MCP type derivation_rule KHÔNG self-apply được qua endpoint inline', async () => {
+    const mcp = await api().post('/api/v1/mcp/tools/ipms.propose_derivation_rule/invoke').set(as(designer))
+      .send({ args: { proposal: { match: { x: 1 }, emit: { y: 2 } }, reason: 'mcp propose' } });
+    expect(mcp.status).toBe(201);
+    const sid = mcp.body.result.id;
+    // người tạo tự chốt qua inline apply → 403 (createdByTool không phải inline.*)
+    expect((await api().post(`/api/v1/ai/inline/suggestions/${sid}/apply`).set(as(designer))
+      .send({})).status).toBe(403);
+    const still = await owner.aiSuggestion.findFirst({ where: { id: sid } });
+    expect(still!.status).toBe('pending');
+  });
+
+  it('[F155] accept KHÔNG materialize được suggestion inline dạng form-fill (taskcell_draft) → 422', async () => {
+    const s = await owner.aiSuggestion.create({
+      data: {
+        id: uuidv7(), tenantId: designer.id, type: 'taskcell_draft',
+        payload: { proposal: { fill: { nameVi: 'x' } } }, status: 'pending',
+        createdBy: designer.userId, createdByTool: 'inline.taskcell.draft',
+      },
+    });
+    expect((await api().post(`/api/v1/ai/suggestions/${s.id}/accept`).set(as(designer))
+      .send({ configVersionId: draftVersionId })).status).toBe(422);
+    const still = await owner.aiSuggestion.findFirst({ where: { id: s.id } });
+    expect(still!.status).toBe('pending');
   });
 
   // ===== RED-LINE =====

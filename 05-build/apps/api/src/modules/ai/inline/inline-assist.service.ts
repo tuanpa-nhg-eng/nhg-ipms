@@ -21,7 +21,11 @@ interface BuiltContext {
   prompt: string;
   context: unknown;
   /** Dữ liệu server-side dùng khi parse/diff (không gửi lại cho FE nguyên khối). */
-  meta?: { validCodes?: Set<string>; payload?: CellPayload; diffPairs?: Array<{ field: string; a: unknown; b: unknown }> };
+  meta?: {
+    validCodes?: Set<string>; payload?: CellPayload;
+    diffPairs?: Array<{ field: string; a: unknown; b: unknown }>;
+    candidateId?: string; // [F156] dedup candidate BE đã phân tích — FE resolve đúng id này
+  };
 }
 
 export interface DiffEntry { field: string; old: unknown; new: unknown }
@@ -93,8 +97,11 @@ export class InlineAssistService {
     return this.prisma.withTenant(user.tenantId, async (tx) => {
       const s = await tx.aiSuggestion.findFirst({ where: { id, deletedAt: null } });
       if (!s) throw new NotFoundException('Suggestion không tồn tại');
-      if (!INLINE_SUGGESTION_TYPES.has(s.type)) {
-        throw new ForbiddenException('Chỉ chốt được suggestion inline qua endpoint này');
+      // [F153] type KHÔNG đủ (derivation_rule trùng với MCP propose) — phải đúng
+      // suggestion do inline assist tạo (createdByTool 'inline.*'), nếu không designer
+      // tự chốt suggestion MCP của mình, đóng lệch vòng HITL accept (config:write).
+      if (!INLINE_SUGGESTION_TYPES.has(s.type) || !s.createdByTool?.startsWith('inline.')) {
+        throw new ForbiddenException('Chỉ chốt được suggestion inline (createdByTool inline.*) qua endpoint này');
       }
       if (s.createdBy !== user.claims.sub) {
         throw new ForbiddenException('Chỉ người tạo suggestion inline được tự chốt');
@@ -162,9 +169,15 @@ export class InlineAssistService {
         return this.prisma.withTenant(user.tenantId, async (tx) => {
           const contrib = await tx.libraryContribution.findFirst({
             where: { id: contributionId, deletedAt: null },
-            include: { dedupCandidates: true },
+            // [F156] orderBy tất định — "candidate pending đầu tiên" không phụ thuộc thứ tự DB
+            include: { dedupCandidates: { orderBy: { createdAt: 'asc' } } },
           });
           if (!contrib) throw new NotFoundException('Contribution không tồn tại');
+          // [F154] dedup data vốn gate library:curate (author chỉ thấy CỦA MÌNH qua listMine).
+          // ai:assist không được thành cửa đọc contribution người khác trong tenant.
+          if (contrib.authorId !== user.claims.sub && !user.permissions.has('library:curate')) {
+            throw new ForbiddenException('curation.dedup cần library:curate (hoặc là tác giả contribution)');
+          }
           const candidateId = typeof input.candidateId === 'string' ? input.candidateId : undefined;
           const cand = contrib.dedupCandidates.find((d) =>
             d.resolution === 'pending' && d.similarTaskCellId && (!candidateId || d.id === candidateId));
@@ -194,7 +207,7 @@ export class InlineAssistService {
           return {
             prompt: promptCurationDedup(),
             context: { a, b, diffFields: diffPairs.map((d) => d.field) },
-            meta: { diffPairs },
+            meta: { diffPairs, candidateId: cand.id },
           };
         });
       }
@@ -235,7 +248,11 @@ export class InlineAssistService {
         const p = parseCurationDedup(json);
         const diff = (built.meta?.diffPairs ?? []).map((d) => ({ field: d.field, old: d.b, new: d.a }));
         return {
-          proposal: { recommendation: p.recommendation, differences: p.differences }, reason: p.reason, diff,
+          proposal: {
+            recommendation: p.recommendation, differences: p.differences,
+            candidateId: built.meta?.candidateId ?? null, // [F156] FE resolve đúng candidate đã phân tích
+          },
+          reason: p.reason, diff,
         };
       }
     }

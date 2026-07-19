@@ -183,12 +183,22 @@ export class McpService {
     );
   }
 
+  /** [F155] Chỉ các type này materialize được vào config_change của draft — suggestion
+   *  inline dạng form-fill (taskcell_draft/kpi_link/curation_dedup) chốt qua vòng
+   *  self-apply của inline assist, KHÔNG đổ rác vào journal config. */
+  private static MATERIALIZABLE_TYPES = new Set(['org_change', 'derivation_rule']);
+
   /** Accept: materialize vào config_change của DRAFT — vẫn đi tiếp vòng publish (SoD). */
   accept(user: RequestUser, id: string, input: { configVersionId?: string; note?: string }) {
     return this.prisma.withTenant(user.tenantId, async (tx) => {
       const s = await tx.aiSuggestion.findFirst({ where: { id, deletedAt: null } });
       if (!s) throw new NotFoundException('Suggestion không tồn tại');
       if (s.status !== 'pending') throw new ConflictException(`Suggestion đã ${s.status}`);
+      if (!McpService.MATERIALIZABLE_TYPES.has(s.type)) {
+        throw new UnprocessableEntityException(
+          `Suggestion type '${s.type}' không materialize được vào config draft (chỉ org_change/derivation_rule)`,
+        );
+      }
 
       const targetVersionId = input.configVersionId ?? s.configVersionId;
       if (!targetVersionId) {
