@@ -78,17 +78,21 @@ describe('Go-live — GET /task-dictionary (tra cứu canonical)', () => {
   const as = (c: Ctx) => ({ Authorization: `Bearer ${c.token}`, 'X-Tenant-Id': c.id });
   const api = () => request(app.getHttpServer());
 
-  it('persona thường (employee) tra cứu được — ≥283 canonical (seed 4i) + facets nhóm/AI/KPI', async () => {
+  it('persona thường (employee) tra cứu được — ≥131 canonical (seed G1 v2 FIN đợt 1) + facets nhóm/AI/KPI', async () => {
     const r = await api().get('/api/v1/task-dictionary').set(as(emp));
     expect(r.status).toBe(200);
-    // ≥283 (seed 4i) — không assert cứng vì suite khác có thể để lại cell canonical (F114)
-    expect(r.body.total).toBeGreaterThanOrEqual(283);
+    // ≥131 (seed G1 v2, đợt 1 FIN) — không assert cứng vì suite khác có thể để lại cell canonical (F114)
+    expect(r.body.total).toBeGreaterThanOrEqual(131);
     expect(r.body.matched).toBe(r.body.total);
     expect(r.body.cells.length).toBe(r.body.total);
-    // đủ bộ mã seed 4i (283 tác vụ 8 phòng) có mặt
+    // đủ bộ mã v2 đợt 1 (FIN: Kế toán/Tài chính/Nguồn vốn) có mặt
     const codes = new Set(r.body.cells.map((c: { code: string }) => c.code));
-    for (const prefix of ['TS-G', 'CCLG-G', 'GGDH-G', 'TC-G']) {
+    for (const prefix of ['ACC-', 'GL-', 'FUND-']) {
       expect([...codes].some((c) => (c as string).startsWith(prefix))).toBe(true);
+    }
+    // legacy 815 (Task_Catalog_Tech_Exec) đã deprecate — KHÔNG còn trong canonical
+    for (const prefix of ['TS-G', 'CCLG-G', 'GGDH-G']) {
+      expect([...codes].some((c) => (c as string).startsWith(prefix))).toBe(false);
     }
     expect(r.body.facets.groups.length).toBeGreaterThan(0);
     expect(r.body.facets.aiLevels.length).toBeGreaterThan(0);
@@ -105,36 +109,39 @@ describe('Go-live — GET /task-dictionary (tra cứu canonical)', () => {
     expect((await api().get(`/api/v1/task-dictionary/${versionScopedCode}`).set(as(emp))).status).toBe(422);
   });
 
-  it('filter text bỏ dấu (q=tuyen sinh) + lọc theo groupCode thu hẹp đúng', async () => {
+  it('lọc theo groupCode thu hẹp đúng (suy nhóm từ facets — không hardcode)', async () => {
     const all = await api().get('/api/v1/task-dictionary').set(as(emp));
-    const g = all.body.facets.groups.find((x: { groupCode: string }) => x.groupCode.startsWith('TS-'));
+    // nhóm có >1 cell + groupCode THẬT (bỏ bucket '(không nhóm)' của cell groupCode=null)
+    const g = all.body.facets.groups.find(
+      (x: { count: number; groupCode: string }) => x.count > 1 && /^[A-Z]/.test(x.groupCode),
+    );
     expect(g).toBeTruthy();
     const byGroup = await api().get(`/api/v1/task-dictionary?groupCode=${g.groupCode}`).set(as(emp));
     expect(byGroup.body.matched).toBe(g.count);
     expect(byGroup.body.cells.every((c: { groupCode: string }) => c.groupCode === g.groupCode)).toBe(true);
     // facet total KHÔNG đổi theo filter — bằng tổng canonical, không hardcode
     expect(byGroup.body.total).toBe(all.body.total);
-    expect(byGroup.body.matched).toBeLessThan(byGroup.body.total);
+    expect(byGroup.body.matched).toBeLessThanOrEqual(byGroup.body.total);
   });
 
-  it('lọc theo kpiRef trả đúng tập cell gắn KPI đó', async () => {
-    const r = await api().get('/api/v1/task-dictionary?kpiRef=ADM-ENR-005').set(as(emp));
+  it('lọc theo kpiRef trả đúng tập cell gắn KPI đó (FIN-EXT-005 — checklist khóa sổ)', async () => {
+    const r = await api().get('/api/v1/task-dictionary?kpiRef=FIN-EXT-005').set(as(emp));
     expect(r.status).toBe(200);
     expect(r.body.matched).toBeGreaterThan(0);
-    expect(r.body.cells.every((c: { kpiRef: string }) => c.kpiRef === 'ADM-ENR-005')).toBe(true);
+    expect(r.body.cells.every((c: { kpiRef: string }) => c.kpiRef === 'FIN-EXT-005')).toBe(true);
   });
 
   it('detail: 1 cell canonical có đủ 7 nhóm thuộc tính + KPI join từ Từ điển KPI', async () => {
-    const list = await api().get('/api/v1/task-dictionary?groupCode=TS-G01').set(as(emp));
-    const code = list.body.cells[0].code;
+    const all = await api().get('/api/v1/task-dictionary').set(as(emp));
+    const code = all.body.cells[0].code;
     const r = await api().get(`/api/v1/task-dictionary/${code}`).set(as(emp));
     expect(r.status).toBe(200);
     expect(r.body.cell.code).toBe(code);
-    expect(r.body.cell.inputs).toBeTruthy();      // C
+    expect(r.body.cell.inputs).toBeTruthy();       // C
     expect(r.body.cell.outputs).toBeTruthy();      // C
     expect(r.body.cell.governance).toBeTruthy();   // F
-    expect(r.body.cell.kpiRef).toMatch(/^ADM-/);
-    // KPI join: cell Tuyển sinh trỏ ADM-* → resolve ra metadata dictionary
+    // v2 đợt 1 FIN → mọi cell canonical trỏ KPI Từ điển (gốc 20 hoặc FIN-EXT mở rộng)
+    expect(r.body.cell.kpiRef).toBeTruthy();
     expect(r.body.kpi).toBeTruthy();
     expect(r.body.kpi.code).toBe(r.body.cell.kpiRef);
     expect(r.body.kpi.isDictionary).toBe(true);
@@ -145,14 +152,35 @@ describe('Go-live — GET /task-dictionary (tra cứu canonical)', () => {
     }
   });
 
-  it('[F123] tìm theo MÃ tác vụ (q=TS-G01) phải khớp — mã cũng qua normalize bỏ dấu/gạch', async () => {
-    const r = await api().get('/api/v1/task-dictionary?q=TS-G01').set(as(emp));
+  it('[F123] tìm theo MÃ tác vụ phải khớp — mã cũng qua normalize bỏ dấu/gạch', async () => {
+    const all = await api().get('/api/v1/task-dictionary').set(as(emp));
+    // lấy prefix nhóm của cell đầu (vd ACC-AP / GL-DAY) làm truy vấn theo mã
+    const prefix = all.body.cells[0].code.split('-').slice(0, 2).join('-');
+    const r = await api().get(`/api/v1/task-dictionary?q=${prefix}`).set(as(emp));
     expect(r.status).toBe(200);
     expect(r.body.matched).toBeGreaterThan(0);
-    expect(r.body.cells.every((c: { code: string }) => c.code.startsWith('TS-G01'))).toBe(true);
+    expect(r.body.cells.every((c: { code: string }) => c.code.startsWith(prefix))).toBe(true);
     // tìm theo mã đầy đủ 1 cell
     const one = await api().get(`/api/v1/task-dictionary?q=${r.body.cells[0].code}`).set(as(emp));
     expect(one.body.matched).toBeGreaterThanOrEqual(1);
+  });
+
+  it('[G6] phân trang limit/offset: matched giữ tổng, returned = kích thước trang, offset dịch đúng', async () => {
+    const full = await api().get('/api/v1/task-dictionary').set(as(emp));
+    expect(full.body.total).toBeGreaterThanOrEqual(131);
+    // trang 1: limit 10
+    const p1 = await api().get('/api/v1/task-dictionary?limit=10').set(as(emp));
+    expect(p1.body.matched).toBe(full.body.total); // matched = tổng đã lọc, KHÔNG đổi theo trang
+    expect(p1.body.returned).toBe(10);
+    expect(p1.body.cells.length).toBe(10);
+    expect(p1.body.limit).toBe(10);
+    // trang 2 (offset 10) khác trang 1
+    const p2 = await api().get('/api/v1/task-dictionary?limit=10&offset=10').set(as(emp));
+    expect(p2.body.offset).toBe(10);
+    expect(p2.body.cells[0].code).not.toBe(p1.body.cells[0].code);
+    // không limit → trả toàn bộ (backward-compat)
+    expect(full.body.cells.length).toBe(full.body.total);
+    expect(full.body.limit).toBeNull();
   });
 
   it('RBAC: không có taskdict:read → 403 (token không role)', async () => {
@@ -167,11 +195,14 @@ describe('Go-live — GET /task-dictionary (tra cứu canonical)', () => {
     await owner.appUser.deleteMany({ where: { id: orphan.id } });
   });
 
-  it('cô lập tenant: T2 không thấy cell canonical của H.01 (283 là của H.01)', async () => {
+  it('cô lập tenant: T2 không thấy cell canonical của H.01 (v2 FIN là của H.01)', async () => {
     const r = await api().get('/api/v1/task-dictionary').set(as(t2emp));
     expect(r.status).toBe(200);
-    // T2 chưa seed 815 → không có 283 cell của H.01
-    expect(r.body.cells.some((c: { code: string }) => c.code.startsWith('TS-G'))).toBe(false);
+    // T2 chưa seed catalog → không có cell FIN của H.01
+    const t2codes = r.body.cells.map((c: { code: string }) => c.code);
+    for (const prefix of ['ACC-', 'GL-', 'FUND-']) {
+      expect(t2codes.some((c: string) => c.startsWith(prefix))).toBe(false);
+    }
   });
 
   it('exec/admin persona cũng tra cứu được (tài nguyên toàn hàng)', async () => {

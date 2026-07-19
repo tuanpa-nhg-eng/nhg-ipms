@@ -11,7 +11,10 @@ import { normalizeName } from '../library/quality-gate';
  * cell version-scoped của Configuration Studio (đó là bản nháp đang cấu hình,
  * đọc qua taskcell:read). Tách bạch để tra cứu công khai không lộ config draft.
  */
-const LIST_CAP = 2000;
+// [G6] Trần tính facet trên toàn bộ canonical. Nâng từ 2000 (v2 tối đa ~1194/tenant có
+// headroom); phân trang limit/offset áp cho DANH SÁCH trả về (facet vẫn tính trên toàn tập).
+const LIST_CAP = 5000;
+const MAX_PAGE = 500;
 
 interface ListFilter {
   q?: string;
@@ -19,6 +22,8 @@ interface ListFilter {
   aiLevel?: string;
   kpiRef?: string;
   role?: string;
+  limit?: number;
+  offset?: number;
 }
 
 @Injectable()
@@ -90,11 +95,21 @@ export class DictionaryService {
         return true;
       });
 
+      // [G6] Phân trang danh sách (backward-compat: không truyền limit → trả toàn bộ
+      // đã lọc như cũ). matched = tổng đã lọc (không đổi theo trang); returned = số trên trang.
+      const matched = cells.length;
+      const limit = filter.limit && filter.limit > 0 ? Math.min(filter.limit, MAX_PAGE) : undefined;
+      const offset = filter.offset && filter.offset > 0 ? filter.offset : 0;
+      const page = limit != null ? cells.slice(offset, offset + limit) : cells;
+
       return {
         total: all.length,
-        matched: cells.length,
+        matched,
+        returned: page.length,
+        offset,
+        limit: limit ?? null,
         capped,
-        cells: cells.map((c) => ({
+        cells: page.map((c) => ({
           code: c.code, groupCode: c.groupCode, clusterCode: c.clusterCode,
           nameVi: c.nameVi, nameEn: c.nameEn,
           responsibleRole: c.responsibleRole, aiLevel: c.aiLevel,

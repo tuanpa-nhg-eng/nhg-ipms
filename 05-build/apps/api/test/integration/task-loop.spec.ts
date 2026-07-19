@@ -56,9 +56,9 @@ describe('Phase 3 lát 4k — vòng lặp tối ưu liên tục', () => {
     t2dept = await ctxFor('T2.TEST', 'dept@');
     adm = (await owner.orgUnit.findFirst({ where: { tenantId: dept.id, code: 'ADMISSIONS' } }))!.id;
 
-    // Cell vòng lặp: 1 cell TS-* từ seed 4i — reset về trạng thái nền (active v1, chưa owner)
+    // Cell vòng lặp: 1 cell canonical v2 (seed G1, GL-DAY-* FIN) — reset về trạng thái nền (active v1, chưa owner)
     const cell = await owner.taskCell.findFirst({
-      where: { tenantId: dept.id, configVersionId: null, deletedAt: null, code: { startsWith: 'TS-G01-' } },
+      where: { tenantId: dept.id, configVersionId: null, deletedAt: null, code: { startsWith: 'GL-DAY-' } },
       orderBy: { code: 'asc' },
     });
     cellId = cell!.id;
@@ -160,14 +160,15 @@ describe('Phase 3 lát 4k — vòng lặp tối ưu liên tục', () => {
   let contributionId: string;
   let feedbackId: string;
 
-  it('backfill 4k: cell canonical seed 4i đã active v1 + revision v1 (snapshot đủ 7 nhóm + kpiRef)', async () => {
+  it('backfill: cell canonical seed G1 (GL-DAY FIN) đã active v1 + revision v1 (snapshot đủ 7 nhóm + kpiRef)', async () => {
     const cell = await owner.taskCell.findFirst({ where: { id: cellId } });
     expect(cell!.status).toBe('active');
     expect(cell!.activeVersion).toBe(1);
     const rev = await owner.taskRevision.findFirst({ where: { taskCellId: cellId, version: 1 } });
     expect(rev).toBeTruthy();
     const snap = rev!.snapshot as { kpiRef?: string; nameVi?: string; inputs?: unknown[] };
-    expect(snap.kpiRef).toMatch(/^ADM-/);
+    // GL-DAY (Kế toán tổng hợp) → KPI FIN-EXT mở rộng (đợt 1 FIN)
+    expect(snap.kpiRef).toMatch(/^FIN-EXT-/);
     expect(snap.nameVi).toBeTruthy();
   });
 

@@ -1,23 +1,25 @@
 /**
- * Integration lát 4i — Seed 815 tác vụ Task Catalog qua pipeline import §6.5:
- * chạy seed THẬT trên H.01 (dev DB) → 283 canonical (Q1: 100% kpiRef ∈ Từ điển KPI)
- * + 532 phiếu submission chờ B1 · idempotent (chạy lại không nhân bản) ·
+ * Integration lát G1/G2 (go-live Từ điển Tác vụ) — Seed Task Catalog V2 qua pipeline
+ * import §6.5: chạy seed THẬT trên H.01 (dev DB) → 131 canonical đợt 1 FIN
+ * (D5 Kế toán/Tài chính/Nguồn vốn; Q1: 100% kpiRef ∈ Từ điển 20 gốc + 21 FIN-EXT)
+ * + 1063 phiếu submission chờ B1 · idempotent (chạy lại không nhân bản) ·
  * audit_log per run · cô lập tenant (T2 không dính).
  *
- * LƯU Ý: spec này CỐ Ý không dọn dữ liệu seed — 815 tác vụ là trạng thái nền
- * mong muốn của dev DB (như 20 KPI dictionary), các spec khác không phụ thuộc
+ * V2 THAY bộ 815 (D1 15/07/2026) — nguồn Archive/Task_Dashboard_v2.html, 1194 tác vụ.
+ * LƯU Ý: spec này CỐ Ý không dọn dữ liệu seed — thư viện tác vụ là trạng thái nền
+ * mong muốn của dev DB (như Từ điển KPI), các spec khác không phụ thuộc
  * đếm tuyệt đối trên task_cell/library_contribution.
  */
-import { createPrismaClient, PrismaClient, buildSeedPlan } from '@ipms/db';
-import { KPI_DICTIONARY } from '@ipms/db';
+import { createPrismaClient, PrismaClient, buildSeedPlanV2 } from '@ipms/db';
+import { KPI_DICTIONARY, KPI_DICTIONARY_EXT } from '@ipms/db';
 import { seedTaskCatalog } from '../../src/scripts/seed-task-catalog';
 import { PrismaService } from '../../src/prisma.service';
 
-jest.setTimeout(300_000);
+jest.setTimeout(600_000);
 
-const DICT = new Set(KPI_DICTIONARY.map((k) => k.code));
+const DICT = new Set([...KPI_DICTIONARY, ...KPI_DICTIONARY_EXT].map((k) => k.code));
 
-describe('Phase 3 lát 4i — seed Task Catalog 815 tác vụ', () => {
+describe('G1/G2 — seed Task Catalog V2 (1194 tác vụ Archive)', () => {
   let owner: PrismaClient;
   let prisma: PrismaService;
   let h01: string;
@@ -31,7 +33,7 @@ describe('Phase 3 lát 4i — seed Task Catalog 815 tác vụ', () => {
     prisma = new PrismaService();
     h01 = (await owner.tenant.findUnique({ where: { code: 'H.01' } }))!.id;
     t2 = (await owner.tenant.findUnique({ where: { code: 'T2.TEST' } }))!.id;
-    const plan = buildSeedPlan();
+    const plan = buildSeedPlanV2();
     allCodes = plan.flatMap((b) => b.rows.map((r) => r.code));
     canonicalCodes = plan.filter((b) => b.mode === 'as_canonical').flatMap((b) => b.rows.map((r) => r.code));
     submissionCodes = plan.filter((b) => b.mode === 'as_submission').flatMap((b) => b.rows.map((r) => r.code));
@@ -42,22 +44,22 @@ describe('Phase 3 lát 4i — seed Task Catalog 815 tác vụ', () => {
     await owner?.$disconnect();
   });
 
-  it('seed lần 1 (hoặc trạng thái đã seed): 283 canonical + 532 submission, không row nào rớt gate', async () => {
+  it('seed lần 1 (hoặc trạng thái đã seed): 131 canonical + 1063 submission, không row nào rớt gate', async () => {
     const r1 = await seedTaskCatalog({ tenantCode: 'H.01', prisma, log: () => undefined });
-    expect(r1.totals.rows).toBe(815);
-    // lần đầu: imported 283 + contributions 532; DB đã seed trước: updated/protected/skipped thay thế
+    expect(r1.totals.rows).toBe(1194);
+    // lần đầu: imported 131 + contributions 1063; DB đã seed trước: updated/protected/skipped thay thế
     const canon = r1.batches.filter((b) => b.mode === 'as_canonical');
     const subs = r1.batches.filter((b) => b.mode === 'as_submission');
-    expect(canon.reduce((s, b) => s + b.imported + b.updated + b.unchanged + b.protected + b.skipped, 0)).toBe(283);
-    expect(subs.reduce((s, b) => s + b.contributions + b.skipped, 0)).toBe(532);
+    expect(canon.reduce((s, b) => s + b.imported + b.updated + b.unchanged + b.protected + b.skipped, 0)).toBe(131);
+    expect(subs.reduce((s, b) => s + b.contributions + b.skipped, 0)).toBe(1063);
   });
 
-  it('[Q1 CHẶN CỨNG] mọi cell canonical từ catalog có kpiRef trỏ Từ điển KPI thật', async () => {
+  it('[Q1/D2 CHẶN CỨNG] mọi cell canonical từ catalog có kpiRef trỏ Từ điển KPI thật (gốc + FIN-EXT)', async () => {
     const cells = await owner.taskCell.findMany({
       where: { tenantId: h01, configVersionId: null, deletedAt: null, code: { in: canonicalCodes } },
       select: { code: true, kpiRef: true, origin: true, libScope: true },
     });
-    expect(cells).toHaveLength(283);
+    expect(cells).toHaveLength(131);
     for (const c of cells) {
       expect(c.kpiRef).toBeTruthy();
       expect(DICT.has(c.kpiRef!)).toBe(true);
@@ -66,7 +68,19 @@ describe('Phase 3 lát 4i — seed Task Catalog 815 tác vụ', () => {
     }
   });
 
-  it('[Q1] 532 tác vụ ngoài 3 domain KHÔNG vào canonical — nằm ở tầng submission chờ B1', async () => {
+  it('[G2] 21 KPI FIN-EXT đề xuất đã seed vào kpi_template (isDictionary) — hard-block dùng được', async () => {
+    const ext = await owner.kpiTemplate.findMany({
+      where: { tenantId: h01, code: { startsWith: 'FIN-EXT-' }, deletedAt: null },
+      select: { code: true, isDictionary: true, domain: true },
+    });
+    expect(ext).toHaveLength(KPI_DICTIONARY_EXT.length);
+    for (const k of ext) {
+      expect(k.isDictionary).toBe(true);
+      expect(k.domain).toBe('Tài chính - Kế toán');
+    }
+  });
+
+  it('[Q1] 1063 tác vụ ngoài đợt 1 KHÔNG vào canonical — nằm ở tầng submission chờ B1', async () => {
     const wrong = await owner.taskCell.count({
       where: { tenantId: h01, configVersionId: null, deletedAt: null, code: { in: submissionCodes } },
     });
@@ -75,7 +89,7 @@ describe('Phase 3 lát 4i — seed Task Catalog 815 tác vụ', () => {
     // [F114] không lọc status — phiếu có thể đã vào vòng review; bất biến là TỒN TẠI phiếu
     const contribs = await owner.libraryContribution.findMany({
       where: { tenantId: h01, deletedAt: null },
-      select: { payload: true, kpiRef: true },
+      select: { payload: true },
     });
     const codes = new Set(
       contribs.map((c) => (c.payload as { code?: string } | null)?.code).filter(Boolean),
@@ -96,8 +110,8 @@ describe('Phase 3 lát 4i — seed Task Catalog 815 tác vụ', () => {
     expect(r2.totals.contributions).toBe(0);     // submission: bỏ qua toàn bộ
     const canon2 = r2.batches.filter((b) => b.mode === 'as_canonical');
     const subs2 = r2.batches.filter((b) => b.mode === 'as_submission');
-    expect(canon2.reduce((s, b) => s + b.updated + b.unchanged + b.protected + b.skipped, 0)).toBe(283);
-    expect(subs2.reduce((s, b) => s + b.skipped, 0)).toBe(532);
+    expect(canon2.reduce((s, b) => s + b.updated + b.unchanged + b.protected + b.skipped, 0)).toBe(131);
+    expect(subs2.reduce((s, b) => s + b.skipped, 0)).toBe(1063);
     // [F132a] re-seed nội dung y hệt KHÔNG sinh revision nhiễu (unchanged, không update)
     expect(r2.totals.updated).toBe(0);
 
@@ -113,13 +127,13 @@ describe('Phase 3 lát 4i — seed Task Catalog 815 tác vụ', () => {
     // [F114] lọc theo mode trong payload — không phụ thuộc log mới nhất của suite khác
     const logs = await owner.auditLog.findMany({
       where: { tenantId: h01, action: 'library.import' },
-      orderBy: { at: 'desc' }, take: 200,
+      orderBy: { at: 'desc' }, take: 300,
     });
     const seedLogs = logs.filter((l) => {
       const a = l.after as { mode?: string } | null;
       return a?.mode === 'as_canonical' || a?.mode === 'as_submission';
     });
-    expect(seedLogs.length).toBeGreaterThanOrEqual(8); // ≥ 8 batch canonical lần đầu
+    expect(seedLogs.length).toBeGreaterThanOrEqual(5); // ≥ 5 batch canonical lần đầu
   });
 
   it('cô lập tenant: T2.TEST không nhận cell/phiếu nào từ seed H.01', async () => {
@@ -127,19 +141,26 @@ describe('Phase 3 lát 4i — seed Task Catalog 815 tác vụ', () => {
       where: { tenantId: t2, code: { in: allCodes } },
     })).toBe(0);
     expect(await owner.libraryContribution.count({
-      where: { tenantId: t2, kpiRef: null, payload: { path: ['governance', 'provenance'], string_contains: 'Task_Catalog_Tech_Exec' } },
+      where: { tenantId: t2, payload: { path: ['governance', 'provenance'], string_contains: 'Task_Dashboard_v2' } },
     })).toBe(0);
   });
 
-  it('mã sinh tự động tra được qua thư viện canonical (ví dụ TS-*, CCLG-*)', async () => {
-    const ts = await owner.taskCell.findFirst({
-      where: { tenantId: h01, configVersionId: null, code: { startsWith: 'TS-G' }, deletedAt: null },
+  it('dữ liệu giàu tra được qua canonical: mã thật (GL-DAY) + mã sinh tự động (FIN-CHIEF-ACCOUNTANT)', async () => {
+    // GL-DAY-002 (KHÔNG dùng GL-DAY-001 vì task-loop.spec mutate cell đó qua vòng tối ưu)
+    const gl = await owner.taskCell.findFirst({
+      where: { tenantId: h01, configVersionId: null, code: 'GL-DAY-002', deletedAt: null },
     });
-    expect(ts).toBeTruthy();
-    expect(ts!.kpiRef).toMatch(/^ADM-/);
-    const cclg = await owner.taskCell.findFirst({
-      where: { tenantId: h01, configVersionId: null, code: { startsWith: 'CCLG-G' }, deletedAt: null },
+    expect(gl).toBeTruthy();
+    expect(gl!.kpiRef).toMatch(/^FIN-EXT-/);
+    expect(gl!.responsibleRole).toBe('Kế toán tổng hợp'); // RACI thật từ nguồn
+
+    // codeless nguồn → mã sinh tất định, vẫn canonical (dept Kế toán trưởng ∈ đợt 1)
+    const chief = await owner.taskCell.findFirst({
+      where: { tenantId: h01, configVersionId: null, code: { startsWith: 'FIN-CHIEF-ACCOUNTANT-T' }, deletedAt: null },
     });
-    expect(cclg!.kpiRef).toMatch(/^TCH-/);
+    expect(chief).toBeTruthy();
+    expect(chief!.kpiRef).toMatch(/^FIN-EXT-/);
+    const gov = chief!.governance as { synthesized?: string[] } | null;
+    expect(gov?.synthesized?.some((s) => s.includes('mã tác vụ sinh tự động'))).toBe(true);
   });
 });

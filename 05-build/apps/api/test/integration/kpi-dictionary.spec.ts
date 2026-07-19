@@ -76,14 +76,19 @@ describe('Phase 3 lát 4h — KPI dictionary + hard-block', () => {
   const as = (c: Ctx) => ({ Authorization: `Bearer ${c.token}`, 'X-Tenant-Id': c.id });
   const api = () => request(app.getHttpServer());
 
-  it('GET /kpi-dictionary: 20 metric chuẩn; lọc domain; nhân viên (kpi:read) cũng đọc được', async () => {
+  it('GET /kpi-dictionary: 20 gốc + 21 FIN-EXT (G2) = 41 metric; lọc domain; nhân viên (kpi:read) cũng đọc được', async () => {
     const r = await api().get('/api/v1/kpi-dictionary').set(as(author));
     expect(r.status).toBe(200);
-    expect(r.body.length).toBe(20);
+    // [G2 16/07] Từ điển KPI mở rộng: 20 metric chuẩn gốc + 21 FIN-EXT (đề xuất, B1 hiệu chỉnh)
+    expect(r.body.length).toBe(41);
     expect(r.body.every((k: any) => k.isDictionary)).toBe(true);
     const adm = r.body.find((k: any) => k.code === 'ADM-LEAD-001');
     expect(adm.definition).toBeTruthy();
     expect(adm.grain).toBe('1 lead');
+    // KPI mở rộng FIN-EXT có mặt (domain Tài chính - Kế toán)
+    const ext = r.body.find((k: any) => k.code === 'FIN-EXT-005');
+    expect(ext).toBeTruthy();
+    expect(ext.domain).toBe('Tài chính - Kế toán');
 
     const ts = await api().get('/api/v1/kpi-dictionary?domain=Giờ giảng').set(as(author));
     expect(ts.body.length).toBeGreaterThan(0);
