@@ -1441,6 +1441,36 @@ model AiLearningSignal {
   @@map("ai_learning_signal")
 }
 
+// [Learning Loop L1] Ứng viên golden case — thu hoạch từ tín hiệu accepted(_with_edits),
+// curator DUYỆT mới thành ai_eval_case (suite 'golden-learned'). SoD trên THƯỚC ĐO:
+// người duyệt ≠ người tạo tín hiệu (source_actor_user_id) — chặn cả admin, có incident audit.
+// input = {task, agent, prompt, context} — replay TẤT ĐỊNH qua ai-gateway, không phụ DB.
+model AiGoldenCandidate {
+  id                String    @id @db.Uuid
+  tenantId          String    @map("tenant_id") @db.Uuid
+  signalId          String    @map("signal_id") @db.Uuid
+  suggestionId      String    @map("suggestion_id") @db.Uuid
+  agent             String
+  sourceActorUserId String?   @map("source_actor_user_id") @db.Uuid
+  input             Json
+  expected          Json // proposal-shaped: finalPayload (người dùng đã sửa) ?? proposedPayload
+  status            String    @default("proposed") // proposed|approved|rejected
+  caseId            String?   @map("case_id") @db.Uuid // ai_eval_case sinh ra khi approve
+  decidedBy         String?   @map("decided_by") @db.Uuid
+  decidedAt         DateTime? @map("decided_at") @db.Timestamptz(6)
+  decisionNote      String?   @map("decision_note")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  version   Int       @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, signalId])
+  @@index([tenantId, status])
+  @@map("ai_golden_candidate")
+}
+
 // [P1 Copilot] Phiên hội thoại Copilot + tin nhắn (tenant-bound, RLS).
 model AiConversation {
   id         String      @id @db.Uuid

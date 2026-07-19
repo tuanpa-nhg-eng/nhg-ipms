@@ -43,6 +43,10 @@ export const PERMISSIONS = [
   // Phase 3 lát AI inline — gợi ý inline (chỉ đọc + đẻ ai_suggestion PENDING).
   // TÁCH khỏi ai:invoke (chat/MCP propose): inline nằm đúng chỗ author/curator/dept_head.
   'ai:assist',
+  // [Learning Loop L1] Duyệt golden case từ tín hiệu học — TÁCH khỏi ai:eval (chạy eval)
+  // và ai:assist (tạo tín hiệu): SoD trên THƯỚC ĐO — người chấp nhận gợi ý không tự
+  // nạp case của mình vào golden set (bài học E2 red-team KPI Designer).
+  'ai:eval:curate',
 ] as const;
 export type PermissionCode = (typeof PERMISSIONS)[number];
 

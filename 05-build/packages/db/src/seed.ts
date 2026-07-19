@@ -53,6 +53,8 @@ const PERMISSIONS = [
   'taskdict:read',
   // AI inline assist — gợi ý inline (chỉ đọc + đẻ ai_suggestion PENDING); tách khỏi ai:invoke
   'ai:assist',
+  // [Learning Loop L1] duyệt golden case từ tín hiệu học — SoD trên thước đo
+  'ai:eval:curate',
 ];
 
 // Role toàn cục (tenant_id = null) + permission mặc định
@@ -104,6 +106,9 @@ const GLOBAL_ROLES: Record<string, string[]> = {
     'library:curate', 'library:publish', 'library:deprecate',
     'library:import', 'library:import:canonical',
     'ai:assist', // AI inline — tóm tắt khác biệt dedup + khuyến nghị merge/keep_both
+    // [Learning Loop L1] curator giữ cổng chất lượng golden set (SoD per-candidate
+    // vẫn chặn duyệt tín hiệu do CHÍNH MÌNH tạo — kể cả admin)
+    'ai:eval:curate',
   ],
   // [4j] Từ điển Tác vụ §5 — SoD: nhân viên soạn (staff_author) ⟂ trưởng phòng duyệt (dept_head)
   // staff_author KHÔNG gán tay: materialize qua authoring_grant (trưởng phòng cấp, scope org_unit)

@@ -55,6 +55,8 @@ import { InlineAssistController } from './modules/ai/inline/inline-assist.contro
 import { InlineAssistService } from './modules/ai/inline/inline-assist.service';
 import { LearningController } from './modules/ai/learning/learning.controller';
 import { LearningService } from './modules/ai/learning/learning.service';
+import { GoldenController } from './modules/ai/learning/golden.controller';
+import { GoldenService } from './modules/ai/learning/golden.service';
 import { LibraryController } from './modules/library/library.controller';
 import { LibraryService } from './modules/library/library.service';
 import { AuthoringController } from './modules/authoring/authoring.controller';
@@ -76,7 +78,7 @@ import { PolicyGuard } from './modules/policy/policy.guard';
     ConfigController, BrandController, OrgFunctionController, CanvasController,
     TaskCellController, DerivationController,
     ProcessController, IntegrationController,
-    McpController, AiChatController, EvalController, InlineAssistController, LearningController, PolicyController, LibraryController,
+    McpController, AiChatController, EvalController, InlineAssistController, LearningController, GoldenController, PolicyController, LibraryController,
     AuthoringController, DictionaryController, TaskLoopController,
   ],
   providers: [
@@ -104,6 +106,7 @@ import { PolicyGuard } from './modules/policy/policy.guard';
     EvalService,
     InlineAssistService,
     LearningService,
+    GoldenService,
     PolicyService,
     LibraryService,
     AuthoringService,

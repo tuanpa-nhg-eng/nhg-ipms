@@ -80,7 +80,9 @@ export class InlineAssistService {
           id: uuidv7(), tenantId: user.tenantId,
           configVersionId: configVersionId ?? null,
           type: INLINE_SUGGESTION_TYPE[task],
-          payload: { proposal, diff } as any,
+          // [Learning L1] replay {prompt, context} = ĐÚNG request đã gửi LLM —
+          // golden case thu hoạch từ suggestion này chạy lại tất định, không phụ DB.
+          payload: { proposal, diff, replay: { prompt: built.prompt, context: built.context } } as any,
           reason, status: 'pending',
           createdByTool: `inline.${task}`, createdBy: user.claims.sub,
         },
