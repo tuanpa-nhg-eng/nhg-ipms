@@ -1,13 +1,15 @@
 /**
- * Seed 815 tác vụ Task Catalog (lát 4i) — đi qua CHÍNH pipeline import §6.5
- * (LibraryService.importPreview → applyImport): quality gate per-row, Q1 chặn cứng
- * KPI (assertKpiRefExists), SoD F91, idempotent upsert theo mã, audit_log per run.
+ * Seed Task Catalog V2 — 694 tác vụ Archive/Task_Dashboard_v2 (lát G1 go-live;
+ * THAY bộ 815 keyword theo quyết định D1 15/07/2026) — đi qua CHÍNH pipeline
+ * import §6.5 (LibraryService.importPreview → applyImport): quality gate per-row,
+ * Q1 chặn cứng KPI (assertKpiRefExists), SoD F91, idempotent upsert theo mã,
+ * audit_log per run.
  *
- * Quyết định Q1/Q4 (spec Task Dictionary §12):
- * - 8 phòng thuộc 3 domain có KPI trong Từ điển (Giờ giảng/Tuyển sinh/Tài chính)
- *   → as_canonical (283 cell nền thư viện, kpiRef sơ bộ explainable).
- * - 13 phòng ngoài domain → as_submission (532 phiếu chờ B1 bổ sung KPI thật,
- *   KHÔNG vào canonical/active — đúng chặn cứng Q1).
+ * Mode per row (Q1/D2 — spec Task Dictionary §12 + kế hoạch go-live §5):
+ * - Tác vụ REAL + KPI ∈ Từ điển (gốc 20 + FIN-EXT đề xuất) → as_canonical
+ *   (đợt 1 = domain FIN: Kế toán/Tài chính/Nguồn vốn, map explainable).
+ * - Còn lại (chưa có KPI thật hoặc phòng "(giả định)") → as_submission chờ B1,
+ *   KHÔNG vào canonical/active — đúng chặn cứng Q1.
  *
  * Chạy: pnpm --filter @ipms/api seed:taskcatalog [TENANT_CODE]   (mặc định H.01)
  * Idempotent: as_canonical upsert theo mã; as_submission bỏ qua mã đã có phiếu/cell.
@@ -19,7 +21,7 @@
  *   được về sau (không tự duyệt bài mình).
  */
 import 'dotenv/config';
-import { createPrismaClient, buildSeedPlan, PrismaClient } from '@ipms/db';
+import { createPrismaClient, buildSeedPlanV2, PrismaClient } from '@ipms/db';
 import { PrismaService } from '../prisma.service';
 import { LibraryService } from '../modules/library/library.service';
 import type { RequestUser } from '../common/auth/decorators';
@@ -129,7 +131,7 @@ export async function seedTaskCatalog(opts: {
       deprecatedCanonical.map((c) => c.code).filter((code) => !activeCanonical.has(code)),
     );
 
-    const plan = buildSeedPlan();
+    const plan = buildSeedPlanV2();
 
     // [F110] GUARD DRIFT — mã tác vụ sinh theo VỊ TRÍ trong HTML nguồn: nếu nguồn
     // chèn/xoá/đổi thứ tự, cùng mã sẽ mang NỘI DUNG KHÁC. So tên chuẩn hoá theo mã;
@@ -188,7 +190,7 @@ export async function seedTaskCatalog(opts: {
 
       const preview = await library.importPreview(actor, {
         mode: batch.mode, rows,
-        sourceRef: `task-catalog-4i:${batch.slug}`,
+        sourceRef: `task-catalog-g1:${batch.slug}:${batch.mode}`,
       });
       const diff = preview.diff as unknown as { add: string[]; update: string[]; invalid: unknown[] };
       if (diff.invalid.length > 0) {

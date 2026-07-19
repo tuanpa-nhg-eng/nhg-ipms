@@ -7,6 +7,7 @@
 import { PrismaClient } from '@prisma/client';
 import { uuidv7 } from 'uuidv7';
 import { KPI_DICTIONARY } from './kpi-dictionary.data';
+import { KPI_DICTIONARY_EXT } from './kpi-dictionary-ext.data';
 
 const prisma = new PrismaClient(); // DATABASE_URL = owner
 
@@ -341,7 +342,9 @@ async function main() {
 
     // [4h] Từ điển KPI chuẩn (20 metric Semantic Dictionary) — nguồn tham chiếu BẮT BUỘC.
     // Mọi task_cell active/canonical phải gắn kpiRef ∈ danh sách này (Q1 CHẶN CỨNG).
-    for (const k of KPI_DICTIONARY) {
+    // [G2] + Từ điển mở rộng FIN-EXT (ĐỀ XUẤT harvest từ Dashboard v2 — B1 hiệu chỉnh
+    // trực tiếp kpi-dictionary-ext.data.ts; D3 15/07/2026).
+    for (const k of [...KPI_DICTIONARY, ...KPI_DICTIONARY_EXT]) {
       const found = await prisma.kpiTemplate.findFirst({
         where: { tenantId: tenant.id, code: k.code },
       });

@@ -11,10 +11,15 @@ import { uuidv7 } from 'uuidv7';
 
 export * from '@prisma/client';
 export { uuidv7 };
-// Lát 4h/4i — Từ điển KPI chuẩn + Task Catalog 815 tác vụ (data + seed plan)
+// Lát 4h/4i — Từ điển KPI chuẩn + Task Catalog 815 tác vụ (legacy — THAY bởi V2, D1 15/07/2026)
 export * from './kpi-dictionary.data';
 export * from './task-catalog.data';
 export * from './task-catalog';
+// Lát G1/G2 (go-live) — Task Catalog V2 (694 tác vụ Archive/Task_Dashboard_v2)
+// + Từ điển KPI mở rộng FIN (ĐỀ XUẤT — B1 hiệu chỉnh) + map tác vụ→KPI explainable
+export * from './task-catalog-v2.data';
+export * from './task-catalog-v2';
+export * from './kpi-dictionary-ext.data';
 
 export function createPrismaClient(url?: string): PrismaClient {
   return new PrismaClient(
