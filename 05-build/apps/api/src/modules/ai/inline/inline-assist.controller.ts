@@ -1,7 +1,7 @@
 import {
   Body, Controller, Param, ParseUUIDPipe, Post, UnprocessableEntityException,
 } from '@nestjs/common';
-import { IsObject, IsOptional, IsString, IsUUID, Length } from 'class-validator';
+import { IsBoolean, IsObject, IsOptional, IsString, IsUUID, Length } from 'class-validator';
 import { Audited, CurrentUser, RequirePermission, RequestUser } from '../../../common/auth/decorators';
 import { InlineAssistService } from './inline-assist.service';
 import { INLINE_TASKS, InlineTask } from './inline-assist.tasks';
@@ -13,6 +13,10 @@ class InlineAssistDto {
 
 class DecideDto {
   @IsOptional() @IsString() @Length(1, 500) note?: string;
+  /** [Learning Loop L0] cờ "Sửa rồi chấp nhận" — outcome accepted_with_edits. */
+  @IsOptional() @IsBoolean() edited?: boolean;
+  /** Giá trị người dùng THẬT SỰ dùng sau khi sửa — diff proposed↔final. */
+  @IsOptional() @IsObject() finalPayload?: Record<string, unknown>;
 }
 
 /**
@@ -43,7 +47,13 @@ export class InlineAssistController {
   @RequirePermission('ai:assist')
   @Audited('ai_inline.apply')
   apply(@CurrentUser() user: RequestUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: DecideDto) {
-    return this.svc.decide(user, id, 'accepted', dto.note);
+    // [F149] finalPayload cap BYTES như input — corpus học không thành kênh bơm rác
+    if (dto.finalPayload && Buffer.byteLength(JSON.stringify(dto.finalPayload), 'utf8') > 16_384) {
+      throw new UnprocessableEntityException('finalPayload tối đa 16KB');
+    }
+    return this.svc.decide(user, id, 'accepted', {
+      note: dto.note, edited: dto.edited, finalPayload: dto.finalPayload,
+    });
   }
 
   /** Người tạo bỏ gợi ý → rejected. */
@@ -51,6 +61,6 @@ export class InlineAssistController {
   @RequirePermission('ai:assist')
   @Audited('ai_inline.dismiss')
   dismiss(@CurrentUser() user: RequestUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: DecideDto) {
-    return this.svc.decide(user, id, 'rejected', dto.note);
+    return this.svc.decide(user, id, 'rejected', { note: dto.note });
   }
 }

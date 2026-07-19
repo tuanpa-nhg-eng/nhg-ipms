@@ -32,6 +32,9 @@ const STR = {
     loading: "AI đang phân tích…",
     accept: "Chấp nhận",
     acceptEdit: "Sửa rồi chấp nhận",
+    confirmEdit: "Chấp nhận bản đã sửa",
+    cancelEdit: "Quay lại",
+    editHint: "Sửa trực tiếp cột \"AI đề xuất\" rồi xác nhận — hệ thống học từ chỗ bạn sửa.",
     dismiss: "Bỏ",
     reasonLabel: "Vì sao",
     diffField: "Trường",
@@ -45,6 +48,9 @@ const STR = {
     loading: "AI is analyzing…",
     accept: "Accept",
     acceptEdit: "Edit then accept",
+    confirmEdit: "Accept edited version",
+    cancelEdit: "Back",
+    editHint: "Edit the \"AI proposed\" column directly, then confirm — the system learns from your edits.",
     dismiss: "Dismiss",
     reasonLabel: "Why",
     diffField: "Field",
@@ -64,6 +70,18 @@ const fmt = (v: unknown): string => {
   return JSON.stringify(v);
 };
 
+/** [Learning L0] Giá trị đề xuất → text sửa được (string giữ nguyên, còn lại JSON chính xác). */
+const toEditable = (v: unknown): string => (typeof v === "string" ? v : JSON.stringify(v));
+
+/** Parse ngược theo KIỂU giá trị gốc — parse hỏng thì giữ nguyên đề xuất (fail-safe, không chặn form). */
+const fromEditable = (s: string, original: unknown): unknown => {
+  if (typeof original === "string") return s;
+  try { return JSON.parse(s); } catch { return original; }
+};
+
+const isPlainObj = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
 export function InlineAssist({
   task, buildInput, configVersionId, onAccept, disabled, label,
 }: {
@@ -82,6 +100,9 @@ export function InlineAssist({
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<InlineAssistResult | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // [Learning L0] chế độ "Sửa rồi chấp nhận" — sửa trực tiếp cột "AI đề xuất"
+  const [editing, setEditing] = useState(false);
+  const [draftVals, setDraftVals] = useState<Record<string, string>>({});
 
   const run = async () => {
     const input = buildInput();
@@ -89,6 +110,7 @@ export function InlineAssist({
     setBusy(true);
     setErr(null);
     setResult(null);
+    setEditing(false);
     try {
       const out = await call<InlineAssistResult>(`/ai/inline/${task}`, {
         method: "POST",
@@ -103,23 +125,68 @@ export function InlineAssist({
     }
   };
 
-  /** Chốt suggestion phía BE (accepted/rejected) — best-effort, không chặn UX form. */
-  const decide = async (decision: "apply" | "dismiss", note?: string) => {
+  /** Field sửa được = nằm trong proposal (top-level hoặc trong proposal.fill). */
+  const editableLoc = (field: string): "top" | "fill" | null => {
+    if (!result) return null;
+    if (Object.prototype.hasOwnProperty.call(result.proposal, field)) return "top";
+    const fill = result.proposal.fill;
+    if (isPlainObj(fill) && Object.prototype.hasOwnProperty.call(fill, field)) return "fill";
+    return null;
+  };
+
+  /** Chốt suggestion phía BE — best-effort, không chặn UX form.
+   *  [Learning L0] apply gửi kèm edited + finalPayload → BE diff proposed↔final. */
+  const decide = async (
+    decision: "apply" | "dismiss",
+    extra?: { note?: string; edited?: boolean; finalPayload?: Record<string, unknown> },
+  ) => {
     if (!result) return;
     try {
       await call(`/ai/inline/suggestions/${result.suggestion.id}/${decision}`, {
-        method: "POST", json: note ? { note } : {},
+        method: "POST", json: { ...(extra ?? {}) },
       });
     } catch { /* suggestion đã được quyết nơi khác — không chặn form */ }
   };
 
-  const accept = async (edited: boolean) => {
+  const accept = async () => {
     if (!result) return;
     setBusy(true);
     try {
-      await decide("apply", edited ? "sửa rồi chấp nhận" : undefined);
+      await decide("apply", { edited: false });
       onAccept(result.proposal, result.diff ?? []);
       setResult(null);
+    } finally { setBusy(false); }
+  };
+
+  const enterEdit = () => {
+    if (!result) return;
+    const seed: Record<string, string> = {};
+    for (const d of result.diff ?? []) {
+      if (editableLoc(d.field)) seed[d.field] = toEditable(d.new);
+    }
+    setDraftVals(seed);
+    setEditing(true);
+  };
+
+  /** Xác nhận bản đã sửa: dựng finalPayload từ input người dùng → gửi BE học + áp vào form. */
+  const confirmEdit = async () => {
+    if (!result) return;
+    setBusy(true);
+    try {
+      const final: Record<string, unknown> = { ...result.proposal };
+      if (isPlainObj(final.fill)) final.fill = { ...final.fill };
+      const newDiff: InlineDiffEntry[] = (result.diff ?? []).map((d) => {
+        const loc = editableLoc(d.field);
+        if (!loc || !(d.field in draftVals)) return d;
+        const parsed = fromEditable(draftVals[d.field], d.new);
+        if (loc === "top") final[d.field] = parsed;
+        else (final.fill as Record<string, unknown>)[d.field] = parsed;
+        return { ...d, new: parsed };
+      });
+      await decide("apply", { note: "sửa rồi chấp nhận", edited: true, finalPayload: final });
+      onAccept(final, newDiff);
+      setResult(null);
+      setEditing(false);
     } finally { setBusy(false); }
   };
 
@@ -129,6 +196,7 @@ export function InlineAssist({
     try {
       await decide("dismiss");
       setResult(null);
+      setEditing(false);
     } finally { setBusy(false); }
   };
 
@@ -155,24 +223,46 @@ export function InlineAssist({
                   <tr key={d.field}>
                     <td className="f">{d.field}</td>
                     <td className="old">{fmt(d.old)}</td>
-                    <td className="new">{fmt(d.new)}</td>
+                    <td className="new">
+                      {editing && editableLoc(d.field) ? (
+                        <input
+                          className="inline-assist-edit"
+                          value={draftVals[d.field] ?? ""}
+                          onChange={(e) => setDraftVals((v) => ({ ...v, [d.field]: e.target.value }))}
+                        />
+                      ) : fmt(d.new)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
           <div className="inline-assist-reason"><b>{t.reasonLabel}:</b> {result.reason}</div>
-          <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
-            <button type="button" className="btn primary sm" disabled={busy} onClick={() => void accept(false)}>
-              <Check size={13} /> {t.accept}
-            </button>
-            <button type="button" className="btn ghost sm" disabled={busy} onClick={() => void accept(true)}>
-              <PencilLine size={13} /> {t.acceptEdit}
-            </button>
-            <button type="button" className="btn ghost sm" disabled={busy} onClick={() => void dismiss()}>
-              <X size={13} /> {t.dismiss}
-            </button>
-          </div>
+          {editing ? (
+            <>
+              <div className="inline-assist-reason">{t.editHint}</div>
+              <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+                <button type="button" className="btn primary sm" disabled={busy} onClick={() => void confirmEdit()}>
+                  <Check size={13} /> {t.confirmEdit}
+                </button>
+                <button type="button" className="btn ghost sm" disabled={busy} onClick={() => setEditing(false)}>
+                  {t.cancelEdit}
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+              <button type="button" className="btn primary sm" disabled={busy} onClick={() => void accept()}>
+                <Check size={13} /> {t.accept}
+              </button>
+              <button type="button" className="btn ghost sm" disabled={busy} onClick={enterEdit}>
+                <PencilLine size={13} /> {t.acceptEdit}
+              </button>
+              <button type="button" className="btn ghost sm" disabled={busy} onClick={() => void dismiss()}>
+                <X size={13} /> {t.dismiss}
+              </button>
+            </div>
+          )}
           <div className="inline-assist-footer">{t.footer}</div>
         </div>
       )}

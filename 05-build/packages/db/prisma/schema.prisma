@@ -1420,6 +1420,27 @@ model AiSuggestion {
   @@map("ai_suggestion")
 }
 
+// [Learning Loop L0] Tín hiệu học từ quyết định NGƯỜI THẬT trên ai_suggestion —
+// APPEND-ONLY như ai_interaction (trigger chặn UPDATE/DELETE kể cả owner).
+// outcome: accepted | accepted_with_edits | rejected | expired (CHECK ở migration).
+// edited_fields = diff proposed↔final (dotted 1 tầng, vd 'fill.aiLevel') — "AI sai chỗ nào".
+model AiLearningSignal {
+  id              String   @id @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  suggestionId    String   @map("suggestion_id") @db.Uuid
+  agent           String // createdByTool của suggestion, vd 'inline.taskcell.draft'
+  outcome         String
+  proposedPayload Json?    @map("proposed_payload")
+  finalPayload    Json?    @map("final_payload")
+  editedFields    Json?    @map("edited_fields") // string[] — null khi không xác định được
+  actorUserId     String?  @map("actor_user_id") @db.Uuid // null = hệ thống (expire job)
+  at              DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([tenantId, agent, outcome])
+  @@index([tenantId, suggestionId])
+  @@map("ai_learning_signal")
+}
+
 // [P1 Copilot] Phiên hội thoại Copilot + tin nhắn (tenant-bound, RLS).
 model AiConversation {
   id         String      @id @db.Uuid

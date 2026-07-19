@@ -6,6 +6,7 @@ import { uuidv7, TenantTx } from '@ipms/db';
 import { PrismaService } from '../../../prisma.service';
 import type { RequestUser } from '../../../common/auth/decorators';
 import { AiGatewayService } from '../ai-gateway.service';
+import { LearningService } from '../learning/learning.service';
 import { ConfigService } from '../../config/config.service';
 import { evaluateQualityGate, CellPayload } from '../../library/quality-gate';
 import {
@@ -43,6 +44,7 @@ export class InlineAssistService {
     private prisma: PrismaService,
     private gateway: AiGatewayService,
     private config: ConfigService,
+    private learning: LearningService,
   ) {}
 
   async assist(user: RequestUser, task: InlineTask, input: Record<string, unknown>, configVersionId?: string) {
@@ -92,8 +94,14 @@ export class InlineAssistService {
    * Người TẠO tự chốt suggestion inline sau khi áp/bỏ giá trị vào form của mình:
    * - KHÔNG materialize gì (mọi thay đổi thật đi qua endpoint nghiệp vụ có gate riêng).
    * - Chỉ type inline + chỉ người tạo (không đụng vòng accept config:write của MCP).
+   * - [Learning Loop L0] mỗi quyết định phát 1 tín hiệu học CÙNG tx (append-only):
+   *   opts.finalPayload = giá trị người dùng THẬT SỰ dùng (từ "Sửa rồi chấp nhận")
+   *   → diff proposed↔final cho biết AI sai field nào.
    */
-  decide(user: RequestUser, id: string, decision: 'accepted' | 'rejected', note?: string) {
+  decide(
+    user: RequestUser, id: string, decision: 'accepted' | 'rejected',
+    opts?: { note?: string; edited?: boolean; finalPayload?: Record<string, unknown> },
+  ) {
     return this.prisma.withTenant(user.tenantId, async (tx) => {
       const s = await tx.aiSuggestion.findFirst({ where: { id, deletedAt: null } });
       if (!s) throw new NotFoundException('Suggestion không tồn tại');
@@ -111,11 +119,21 @@ export class InlineAssistService {
         where: { id, status: 'pending', version: s.version },
         data: {
           status: decision, decidedBy: user.claims.sub, decidedAt: new Date(),
-          decisionNote: `[inline-${decision === 'accepted' ? 'apply' : 'dismiss'}] ${note ?? ''}`.trim(),
+          decisionNote: `[inline-${decision === 'accepted' ? 'apply' : 'dismiss'}] ${opts?.note ?? ''}`.trim(),
           updatedBy: user.claims.sub, version: { increment: 1 },
         },
       });
       if (updated.count !== 1) throw new ConflictException('Suggestion vừa bị quyết định (reload)');
+      await this.learning.record(tx as TenantTx, user.tenantId, {
+        suggestionId: s.id,
+        agent: s.createdByTool ?? s.type,
+        decision,
+        edited: opts?.edited,
+        proposedPayload: ((s.payload as any)?.proposal ?? s.payload) as Record<string, unknown>,
+        // finalPayload chỉ có nghĩa khi CHẤP NHẬN (bỏ = không dùng gì)
+        finalPayload: decision === 'accepted' ? opts?.finalPayload ?? null : null,
+        actorUserId: user.claims.sub,
+      });
       return tx.aiSuggestion.findFirst({ where: { id } });
     });
   }

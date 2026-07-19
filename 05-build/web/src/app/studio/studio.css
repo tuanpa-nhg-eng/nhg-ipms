@@ -93,3 +93,10 @@
 .inline-assist-diff td.new { color: var(--nhg-primary); font-weight: 600; }
 .inline-assist-reason { font-size: 12px; line-height: 1.5; }
 .inline-assist-footer { font-size: 11px; color: var(--nhg-text-secondary); }
+/* [Learning L0] ô sửa trực tiếp cột "AI đề xuất" (Sửa rồi chấp nhận) */
+.inline-assist-edit {
+  width: 100%; font-size: 12px; padding: 3px 6px;
+  border: 1px solid var(--nhg-primary); border-radius: 6px;
+  background: var(--nhg-surface); color: var(--nhg-text);
+  font-family: inherit;
+}
