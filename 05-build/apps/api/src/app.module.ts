@@ -51,6 +51,8 @@ import { McpController } from './modules/ai/mcp/mcp.controller';
 import { McpService } from './modules/ai/mcp/mcp.service';
 import { EvalController } from './modules/ai/eval/eval.controller';
 import { EvalService } from './modules/ai/eval/eval.service';
+import { InlineAssistController } from './modules/ai/inline/inline-assist.controller';
+import { InlineAssistService } from './modules/ai/inline/inline-assist.service';
 import { LibraryController } from './modules/library/library.controller';
 import { LibraryService } from './modules/library/library.service';
 import { AuthoringController } from './modules/authoring/authoring.controller';
@@ -72,7 +74,7 @@ import { PolicyGuard } from './modules/policy/policy.guard';
     ConfigController, BrandController, OrgFunctionController, CanvasController,
     TaskCellController, DerivationController,
     ProcessController, IntegrationController,
-    McpController, AiChatController, EvalController, PolicyController, LibraryController,
+    McpController, AiChatController, EvalController, InlineAssistController, PolicyController, LibraryController,
     AuthoringController, DictionaryController, TaskLoopController,
   ],
   providers: [
@@ -98,6 +100,7 @@ import { PolicyGuard } from './modules/policy/policy.guard';
     AiChatService,
     McpService,
     EvalService,
+    InlineAssistService,
     PolicyService,
     LibraryService,
     AuthoringService,

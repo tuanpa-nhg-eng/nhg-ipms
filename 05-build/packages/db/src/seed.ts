@@ -51,6 +51,8 @@ const PERMISSIONS = [
   'taskcell:delegate', 'taskcell:approve', 'task:reopen', 'task:feedback',
   // Go-live Từ điển Tác vụ — tra cứu canonical toàn hàng (read-only, mọi persona)
   'taskdict:read',
+  // AI inline assist — gợi ý inline (chỉ đọc + đẻ ai_suggestion PENDING); tách khỏi ai:invoke
+  'ai:assist',
 ];
 
 // Role toàn cục (tenant_id = null) + permission mặc định
@@ -87,6 +89,7 @@ const GLOBAL_ROLES: Record<string, string[]> = {
     'process:design',
     // lát 4a: designer dùng MCP tools + chạy eval (mock) — approver KHÔNG có (SoD giữ nguyên)
     'ai:invoke', 'ai:eval',
+    'ai:assist', // AI inline (gợi ý PENDING) trong Studio
   ],
   config_approver: ['tenant:read', 'org:read', 'config:read', 'config:publish', 'scorecard:read', 'kpi:read'],
   // BU Authoring Gate §4 — SoD: soạn (bu_author) ⟂ duyệt/publish (library_curator)
@@ -94,11 +97,13 @@ const GLOBAL_ROLES: Record<string, string[]> = {
     'tenant:read', 'org:read', 'person:read', 'kpi:read', 'taskcell:read',
     'taskcell:author', 'kpi:propose', 'library:submit', 'library:import',
     'ai:invoke', // AI soạn nháp (human-in-the-loop)
+    'ai:assist', // AI inline — điền nhóm A–G thiếu + gợi ý kpiRef (suggestion PENDING)
   ],
   library_curator: [
     'tenant:read', 'org:read', 'person:read', 'kpi:read', 'taskcell:read', 'config:read',
     'library:curate', 'library:publish', 'library:deprecate',
     'library:import', 'library:import:canonical',
+    'ai:assist', // AI inline — tóm tắt khác biệt dedup + khuyến nghị merge/keep_both
   ],
   // [4j] Từ điển Tác vụ §5 — SoD: nhân viên soạn (staff_author) ⟂ trưởng phòng duyệt (dept_head)
   // staff_author KHÔNG gán tay: materialize qua authoring_grant (trưởng phòng cấp, scope org_unit)
@@ -110,6 +115,7 @@ const GLOBAL_ROLES: Record<string, string[]> = {
     'tenant:read', 'org:read', 'person:read', 'kpi:read', 'taskcell:read',
     'taskcell:delegate', 'taskcell:approve', 'task:reopen', 'task:feedback',
     'library:curate',
+    'ai:assist', // AI inline — hỗ trợ duyệt/tối ưu tác vụ của phòng (suggestion PENDING)
   ],
   auditor: ['tenant:read', 'audit:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read'],
   exec_viewer: ['tenant:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read'],

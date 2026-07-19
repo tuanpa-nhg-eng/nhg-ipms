@@ -113,6 +113,72 @@ export class MockLlmClient implements LlmClient {
           kpis: [{ code: `KPI-MOCK-${seed % 1000}`, name_vi: `[MOCK] KPI cho: ${req.prompt.slice(0, 80)}`, weight: 100 }],
           confidence,
         };
+      // ===== [Lát AI inline] 4 tác vụ inline — shape KHỚP parser fail-closed của
+      // inline-assist.tasks.ts. Tất định theo seed; đọc context server dựng sẵn.
+      case 'inline.taskcell.draft': {
+        const ctx = (req.context ?? {}) as { missing?: string[] };
+        const missing = Array.isArray(ctx.missing) ? ctx.missing : [];
+        const FILLS: Record<string, [string, unknown]> = {
+          'A.code': ['code', `AI-G${(seed % 9) + 1}-T${(seed % 900) + 100}`],
+          'A.name': ['nameVi', `[MOCK] Tác vụ đề xuất ${seed % 1000}`],
+          'B.responsible': ['responsibleRole', 'Chuyên viên phụ trách'],
+          'B.accountable': ['accountableRole', 'Trưởng phòng'],
+          'C.inputs': ['inputs', [{ name: '[MOCK] Hồ sơ/dữ liệu đầu vào' }]],
+          'C.outputs': ['outputs', [{ name: '[MOCK] Kết quả xử lý đã xác nhận' }]],
+          'D.measures': ['measures', [{ name: '[MOCK] Tỷ lệ hoàn thành đúng hạn', unit: '%' }]],
+          'E.aiLevel': ['aiLevel', ['assist', 'augment', 'auto_hitl'][seed % 3]],
+        };
+        const fill: Record<string, unknown> = {};
+        for (const id of missing) {
+          const f = FILLS[id];
+          if (f) fill[f[0]] = f[1];
+        }
+        return {
+          suggestion_type: 'taskcell_draft', fill,
+          reason: `[MOCK] Điền ${Object.keys(fill).length} thuộc tính còn thiếu theo quality gate A–G (giá trị mẫu tất định — hiệu chỉnh trước khi lưu).`,
+          confidence,
+        };
+      }
+      case 'inline.taskcell.kpi_link': {
+        const ctx = (req.context ?? {}) as {
+          cell?: { nameVi?: string }; candidates?: Array<{ code: string; nameVi?: string }>;
+        };
+        const cands = Array.isArray(ctx.candidates) ? ctx.candidates : [];
+        if (cands.length === 0) {
+          return { suggestion_type: 'kpi_link', kpiRef: null, reason: '[MOCK] Từ điển KPI trống — không có ứng viên.', confidence };
+        }
+        const pick = cands[seed % cands.length];
+        return {
+          suggestion_type: 'kpi_link', kpiRef: pick.code,
+          reason: `[MOCK] Gợi ý gắn KPI '${pick.code}' (${pick.nameVi ?? ''}) cho tác vụ "${ctx.cell?.nameVi ?? ''}" — chọn tất định từ ${cands.length} mục Từ điển KPI.`,
+          confidence,
+        };
+      }
+      case 'inline.derivation.rule': {
+        const ctx = (req.context ?? {}) as { description?: string; kpiCodes?: string[] };
+        const codes = Array.isArray(ctx.kpiCodes) ? ctx.kpiCodes : [];
+        const emitCodes = codes.length > 0 ? [codes[seed % codes.length]] : [];
+        return {
+          suggestion_type: 'derivation_rule',
+          rule: {
+            match: { org_level: ['department'], role_family_codes: [`RF-MOCK-${seed % 100}`] },
+            emit: { kpi_template_codes: emitCodes, weight: 20 + (seed % 30) },
+          },
+          reason: `[MOCK] Vì sao: mô tả "${(ctx.description ?? '').slice(0, 80)}" khớp cấp department; đề xuất emit ${emitCodes.join(', ') || '(chưa có KPI)'} với trọng số ${20 + (seed % 30)}%.`,
+          confidence,
+        };
+      }
+      case 'inline.curation.dedup': {
+        const ctx = (req.context ?? {}) as { diffFields?: string[] };
+        const diffs = Array.isArray(ctx.diffFields) ? ctx.diffFields : [];
+        const rec = diffs.length >= 3 ? 'keep_both' : 'merge';
+        return {
+          suggestion_type: 'curation_dedup', recommendation: rec,
+          differences: diffs,
+          reason: `[MOCK] Hai cell khác nhau ở ${diffs.length} trường (${diffs.slice(0, 5).join(', ') || 'không có'}) — khuyến nghị ${rec === 'merge' ? 'MERGE (trùng bản chất)' : 'KEEP_BOTH (khác biệt đáng kể)'}.`,
+          confidence,
+        };
+      }
       default:
         return { echo: req.prompt, agent: req.agent, confidence };
     }

@@ -40,6 +40,9 @@ export const PERMISSIONS = [
   'taskcell:delegate', 'taskcell:approve', 'task:reopen', 'task:feedback',
   // Go-live Từ điển Tác vụ — tra cứu canonical toàn hàng (read-only, mọi persona)
   'taskdict:read',
+  // Phase 3 lát AI inline — gợi ý inline (chỉ đọc + đẻ ai_suggestion PENDING).
+  // TÁCH khỏi ai:invoke (chat/MCP propose): inline nằm đúng chỗ author/curator/dept_head.
+  'ai:assist',
 ] as const;
 export type PermissionCode = (typeof PERMISSIONS)[number];
 
