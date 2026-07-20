@@ -100,3 +100,53 @@
   background: var(--nhg-surface); color: var(--nhg-text);
   font-family: inherit;
 }
+
+/* ===== [Learning Loop L4] AI Governance dashboard ===== */
+.aigov-section { margin-top: 22px; }
+.aigov-section h2 {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 15px; font-weight: 700; margin-bottom: 10px;
+}
+.aigov-sub { font-size: 12px; font-weight: 500; color: var(--nhg-text-secondary); }
+.aigov-empty {
+  font-size: 12.5px; color: var(--nhg-text-secondary);
+  border: 1px dashed var(--nhg-border); border-radius: 10px; padding: 14px;
+}
+.aigov-tablewrap { overflow-x: auto; border: 1px solid var(--nhg-border); border-radius: 10px; }
+.aigov-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.aigov-table th {
+  text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .02em;
+  color: var(--nhg-text-secondary); padding: 8px 10px; border-bottom: 1px solid var(--nhg-border);
+  background: var(--nhg-surface-2, var(--nhg-surface)); white-space: nowrap;
+}
+.aigov-table td { padding: 7px 10px; border-bottom: 1px solid var(--nhg-border); vertical-align: top; }
+.aigov-table tr:last-child td { border-bottom: none; }
+.aigov-table .mono, .aigov-card .mono { font-family: ui-monospace, monospace; font-size: 11.5px; }
+.aigov-chip {
+  display: inline-block; font-family: ui-monospace, monospace; font-size: 10.5px;
+  border: 1px solid var(--nhg-border); border-radius: 999px; padding: 1px 7px; margin: 1px 3px 1px 0;
+  color: var(--nhg-text-secondary);
+}
+.aigov-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+.aigov-card {
+  border: 1px solid var(--nhg-border); border-radius: 10px; padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 7px; background: var(--nhg-surface);
+}
+.aigov-card.ok { border-left: 3px solid #037236; }
+.aigov-card.bad { border-left: 3px solid #ED2024; }
+.aigov-card-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-weight: 600; font-size: 12.5px; }
+.aigov-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10.5px; font-weight: 600; border-radius: 999px; padding: 1px 8px;
+}
+.aigov-badge.ok { color: #037236; background: #03723614; }
+.aigov-badge.bad { color: #ED2024; background: #ED202414; }
+.aigov-badge.warn { color: #92600a; background: #f5b70022; }
+.aigov-card-metrics { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--nhg-text-secondary); }
+.aigov-reasons { margin: 0; padding-left: 16px; font-size: 11.5px; color: var(--nhg-text-secondary); }
+.aigov-reasons li { margin: 1px 0; }
+.aigov-basis {
+  font-size: 11.5px; color: #92600a; background: #f5b70014;
+  border: 1px solid #f5b70044; border-radius: 8px; padding: 6px 10px; margin-bottom: 8px;
+}
+.aigov-footnote { font-size: 11px; color: var(--nhg-text-secondary); margin-top: 8px; }

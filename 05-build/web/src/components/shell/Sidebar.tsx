@@ -7,7 +7,7 @@ import {
   Network, Users, Scale, ScrollText, FileCheck, Rocket,
   Bot, UserCog, CalendarCog, Grid3x3, ShieldCheck, MessageSquareText, CalendarCheck,
   ChevronDown, SlidersHorizontal, Workflow, Building2, GitFork, Palette, BookPlus, Inbox,
-  BookOpenText, ClipboardList, Gauge,
+  BookOpenText, ClipboardList, Gauge, Activity,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
@@ -69,6 +69,7 @@ export function Sidebar() {
       { href: "/studio/library", label: t("nav.taskcellstudio"), icon: <BookPlus size={ICON} /> },
       { href: "/studio/curation", label: t("nav.curation"), icon: <Inbox size={ICON} /> },
       { href: "/studio/dept", label: t("nav.deptboard"), icon: <ClipboardList size={ICON} /> },
+      { href: "/studio/ai-governance", label: t("nav.aigov"), icon: <Activity size={ICON} /> },
     ]},
     { id: "audit", group: t("nav.audit"), links: [
       { href: "/audit/logs", label: t("nav.auditlog"), icon: <ScrollText size={ICON} /> },
