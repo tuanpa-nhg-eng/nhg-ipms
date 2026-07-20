@@ -15,6 +15,13 @@ export function fnv1a(s: string): number {
  * Cùng (agent, prompt, context) ⇒ cùng output byte-một-byte — nền cho eval harness
  * chạy trong CI và cho dev khi chưa có API key (RED-LINE).
  */
+/** [Economics L3] Ước lượng token TẤT ĐỊNH (heuristic ~4 ký tự/token) — tính CẢ context
+ *  (context tới 16KB thường lấn át prompt; bỏ qua nó là projection nói dối). Nhãn: estimated. */
+export function estimateTokensIn(prompt: string, context: unknown): number {
+  const ctxLen = context === undefined || context === null ? 0 : JSON.stringify(context).length;
+  return Math.ceil((prompt.length + ctxLen) / 4);
+}
+
 export class MockLlmClient implements LlmClient {
   async complete(req: LlmRequest): Promise<LlmResponse> {
     const seed = fnv1a(`${req.agent}::${req.prompt}::${JSON.stringify(req.context ?? null)}`);
@@ -24,7 +31,7 @@ export class MockLlmClient implements LlmClient {
       model: 'mock',
       text,
       json,
-      tokensIn: Math.ceil(req.prompt.length / 4),
+      tokensIn: estimateTokensIn(req.prompt, req.context),
       tokensOut: Math.ceil(text.length / 4),
       costUsd: 0,
     };
@@ -86,7 +93,7 @@ export class MockLlmClient implements LlmClient {
       type: 'done',
       usage: {
         model: 'mock',
-        tokensIn: Math.ceil(req.prompt.length / 4),
+        tokensIn: estimateTokensIn(req.prompt, req.context), // [L3] gồm cả context
         tokensOut: Math.ceil(tokensOut / 4),
         costUsd: 0,
       },

@@ -410,6 +410,33 @@ async function main() {
     }
   }
 
+  // 4c. [Learning Loop L3] Bảng giá model GLOBAL (unit economics PRD §16) —
+  // giá niêm yết Anthropic per 1M token (nguồn: skill claude-api, cached 2026-06-24).
+  // App CHỈ ĐỌC; cập nhật giá = sửa đây + chạy lại seed (idempotent upsert theo model).
+  const MODEL_PRICES: Array<{ model: string; inp: number; out: number; note?: string }> = [
+    { model: 'mock', inp: 0, out: 0, note: 'MockLlmClient — RED-LINE dev, không chi phí' },
+    { model: 'claude-haiku-4-5', inp: 1.0, out: 5.0 },
+    { model: 'claude-sonnet-5', inp: 3.0, out: 15.0, note: 'Giá intro $2/$10 tới 31/08/2026' },
+    { model: 'claude-opus-4-8', inp: 5.0, out: 25.0, note: 'Model mặc định registry Copilot' },
+    { model: 'claude-fable-5', inp: 10.0, out: 50.0 },
+  ];
+  for (const p of MODEL_PRICES) {
+    const found = await prisma.aiModelPrice.findFirst({
+      where: { tenantId: null, model: p.model, deletedAt: null },
+    });
+    const data = {
+      inputUsdPerMTok: p.inp, outputUsdPerMTok: p.out,
+      note: p.note ?? null, asOf: '2026-06-24',
+    };
+    if (found) {
+      await prisma.aiModelPrice.update({ where: { id: found.id }, data });
+    } else {
+      await prisma.aiModelPrice.create({
+        data: { id: uuidv7(), tenantId: null, model: p.model, ...data },
+      });
+    }
+  }
+
   // 5. MCP tool catalog global (Spec Config Studio §9) — read-only + propose (HITL)
   const MCP_TOOLS: Array<{
     name: string; descriptionVi: string; scopePermission: string; readOnly: boolean;

@@ -57,6 +57,8 @@ import { LearningController } from './modules/ai/learning/learning.controller';
 import { LearningService } from './modules/ai/learning/learning.service';
 import { GoldenController } from './modules/ai/learning/golden.controller';
 import { GoldenService } from './modules/ai/learning/golden.service';
+import { EconomicsController } from './modules/ai/economics/economics.controller';
+import { EconomicsService } from './modules/ai/economics/economics.service';
 import { LibraryController } from './modules/library/library.controller';
 import { LibraryService } from './modules/library/library.service';
 import { AuthoringController } from './modules/authoring/authoring.controller';
@@ -78,7 +80,7 @@ import { PolicyGuard } from './modules/policy/policy.guard';
     ConfigController, BrandController, OrgFunctionController, CanvasController,
     TaskCellController, DerivationController,
     ProcessController, IntegrationController,
-    McpController, AiChatController, EvalController, InlineAssistController, LearningController, GoldenController, PolicyController, LibraryController,
+    McpController, AiChatController, EvalController, InlineAssistController, LearningController, GoldenController, EconomicsController, PolicyController, LibraryController,
     AuthoringController, DictionaryController, TaskLoopController,
   ],
   providers: [
@@ -107,6 +109,7 @@ import { PolicyGuard } from './modules/policy/policy.guard';
     InlineAssistService,
     LearningService,
     GoldenService,
+    EconomicsService,
     PolicyService,
     LibraryService,
     AuthoringService,

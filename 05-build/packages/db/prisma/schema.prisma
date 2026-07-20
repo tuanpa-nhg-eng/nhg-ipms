@@ -1492,6 +1492,25 @@ model AiLaunchBar {
   @@map("ai_launch_bar")
 }
 
+// [Learning Loop L3] Bảng giá model (AI-Native PRD §16 unit economics) — catalog
+// GLOBAL (tenant_id NULL, chuẩn F44: app CHỈ ĐỌC, seed/B3 cập nhật). Giá niêm yết
+// Anthropic per 1M token; mock = 0. Projection chi phí là ƯỚC LƯỢNG minh bạch.
+model AiModelPrice {
+  id                String  @id @db.Uuid
+  tenantId          String? @map("tenant_id") @db.Uuid // NULL = global catalog
+  model             String
+  inputUsdPerMTok   Decimal @map("input_usd_per_mtok") @db.Decimal(10, 4)
+  outputUsdPerMTok  Decimal @map("output_usd_per_mtok") @db.Decimal(10, 4)
+  note              String?
+  asOf              String? @map("as_of") // ngày niêm yết tham chiếu (vd '2026-06-24')
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version   Int       @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@map("ai_model_price")
+}
+
 // [P1 Copilot] Phiên hội thoại Copilot + tin nhắn (tenant-bound, RLS).
 model AiConversation {
   id         String      @id @db.Uuid
