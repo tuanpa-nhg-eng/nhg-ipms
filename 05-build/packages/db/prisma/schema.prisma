@@ -1436,6 +1436,8 @@ model AiLearningSignal {
   actorUserId     String?  @map("actor_user_id") @db.Uuid // null = hệ thống (expire job)
   at              DateTime @default(now()) @db.Timestamptz(6)
 
+  goldenCandidates AiGoldenCandidate[] // [F162] harvest lọc "chưa có candidate" ngay trong query
+
   @@index([tenantId, agent, outcome])
   @@index([tenantId, suggestionId])
   @@map("ai_learning_signal")
@@ -1465,6 +1467,8 @@ model AiGoldenCandidate {
   updatedBy String?   @map("updated_by") @db.Uuid
   version   Int       @default(1)
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  signal AiLearningSignal @relation(fields: [signalId], references: [id]) // [F162]
 
   @@unique([tenantId, signalId])
   @@index([tenantId, status])

@@ -1,5 +1,6 @@
 import {
   ConflictException, ForbiddenException, Injectable, NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { uuidv7 } from '@ipms/db';
 import { PrismaService } from '../../../prisma.service';
@@ -30,23 +31,22 @@ export class GoldenService {
   /** Quét tín hiệu dương chưa có candidate → tạo ứng viên proposed (idempotent). */
   harvest(user: RequestUser) {
     return this.prisma.withTenant(user.tenantId, async (tx) => {
+      // [F162] Lọc "chưa có candidate" NGAY TRONG QUERY (relation none) — tín hiệu
+      // đã harvest không chiếm cửa sổ 2000 nữa, corpus > 2000 vẫn tiến qua nhiều lượt.
+      // (Tín hiệu thiếu replay — chỉ tồn tại pre-L1, tập hữu hạn — vẫn được scan lại;
+      // chấp nhận vì bounded và không tạo mới được sau L1.)
       const signals = await tx.aiLearningSignal.findMany({
         where: {
           outcome: { in: ['accepted', 'accepted_with_edits'] },
           agent: { startsWith: 'inline.' },
+          goldenCandidates: { none: {} },
         },
         orderBy: { at: 'asc' },
-        take: 2000, // trần scan — corpus phình thì harvest nhiều lượt (idempotent)
+        take: 2000,
       });
-      const existing = await tx.aiGoldenCandidate.findMany({
-        where: { signalId: { in: signals.map((s) => s.id) } },
-        select: { signalId: true },
-      });
-      const seen = new Set(existing.map((e) => e.signalId));
       let created = 0;
       let skippedNoReplay = 0;
       for (const sig of signals) {
-        if (seen.has(sig.id)) continue;
         if (created >= HARVEST_BATCH_CAP) break;
         const suggestion = await tx.aiSuggestion.findFirst({
           where: { id: sig.suggestionId, deletedAt: null },
@@ -72,7 +72,6 @@ export class GoldenService {
       }
       return {
         created, skippedNoReplay,
-        alreadyHarvested: seen.size,
         capped: created === HARVEST_BATCH_CAP,
       };
     });
@@ -98,7 +97,11 @@ export class GoldenService {
     );
     if (!cand) throw new NotFoundException('Candidate không tồn tại');
     if (cand.status !== 'proposed') throw new ConflictException(`Candidate đã ${cand.status}`);
-    if (cand.sourceActorUserId && cand.sourceActorUserId === user.claims.sub) {
+    // [F166] Không có nguồn actor thì KHÔNG kiểm được SoD → fail-closed (không duyệt)
+    if (!cand.sourceActorUserId) {
+      throw new UnprocessableEntityException('Candidate thiếu nguồn actor — không kiểm được SoD, từ chối duyệt (fail-closed)');
+    }
+    if (cand.sourceActorUserId === user.claims.sub) {
       // SoD trên thước đo — chặn cả admin; để lại vết incident (ghi NGOÀI tx)
       await this.prisma.withTenant(user.tenantId, (tx) =>
         tx.auditLog.create({
@@ -110,6 +113,22 @@ export class GoldenService {
         }),
       );
       throw new ConflictException('SoD: không duyệt golden case từ tín hiệu do CHÍNH MÌNH tạo');
+    }
+    // [F159/F160] Approve tạo aiEvalCase TRỰC TIẾP nên phải qua ĐÚNG bộ cap của
+    // createSuite (không có đường lách): ≥1 assertion (fail-closed), ≤20 assertion,
+    // tổng JSON ≤32KB — vi phạm = candidate không đủ chuẩn golden, curator nên reject.
+    const assertions = goldenAssertions(cand.agent, cand.expected as Record<string, unknown>);
+    if (assertions.length === 0) {
+      throw new UnprocessableEntityException('expected không sinh được assertion — case 0-assertion bị cấm (eval fail-closed); reject candidate này');
+    }
+    if (assertions.length > 20) {
+      throw new UnprocessableEntityException(`expected sinh ${assertions.length} assertion (>20) — quá phình; reject candidate này`);
+    }
+    const totalBytes = Buffer.byteLength(
+      JSON.stringify({ input: cand.input, expected: cand.expected, assertions }), 'utf8',
+    );
+    if (totalBytes > 32_768) {
+      throw new UnprocessableEntityException(`case vượt 32KB (${totalBytes} bytes) — reject candidate này`);
     }
     return this.prisma.withTenant(user.tenantId, async (tx) => {
       let suite = await tx.aiEvalSuite.findFirst({
@@ -123,13 +142,18 @@ export class GoldenService {
           },
         });
       }
+      // [F159] Trần suite như createSuite (≤100 case) — suite golden-learned không phình vô hạn
+      const caseCount = await tx.aiEvalCase.count({ where: { suiteId: suite.id, deletedAt: null } });
+      if (caseCount >= 100) {
+        throw new ConflictException(`Suite '${LEARNED_SUITE_NAME}' của ${cand.agent} đã đủ 100 case — dọn/soft-delete case cũ trước khi duyệt thêm`);
+      }
       const evalCase = await tx.aiEvalCase.create({
         data: {
           id: uuidv7(), tenantId: user.tenantId, suiteId: suite.id,
           name: `golden ${cand.agent} ${cand.id.slice(-8)}`,
           input: cand.input as any,
           expected: cand.expected as any,
-          assertions: goldenAssertions(cand.agent, cand.expected as Record<string, unknown>) as any,
+          assertions: assertions as any,
         },
       });
       const updated = await tx.aiGoldenCandidate.updateMany({

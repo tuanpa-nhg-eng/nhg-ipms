@@ -13,6 +13,7 @@ import {
   InlineParseError, InlineTask, INLINE_SUGGESTION_TYPE, INLINE_SUGGESTION_TYPES,
   parseCurationDedup, parseDerivationRule, parseKpiLink, parseTaskcellDraft,
   promptCurationDedup, promptDerivationRule, promptKpiLink, promptTaskcellDraft,
+  validateFinalPayload,
 } from './inline-assist.tasks';
 
 /** [F149] cap context theo BYTES — đồng bộ MCP args + Copilot context. */
@@ -117,6 +118,19 @@ export class InlineAssistService {
         throw new ForbiddenException('Chỉ người tạo suggestion inline được tự chốt');
       }
       if (s.status !== 'pending') throw new ConflictException(`Suggestion đã ${s.status}`);
+      // [F160] finalPayload là input NGƯỜI DÙNG đi vào corpus học/golden set — phải qua
+      // ĐÚNG whitelist/shape của type (như output LLM), không thì author đầu độc
+      // editedFields/expected mà không cần curator. Fail-closed 422.
+      if (decision === 'accepted' && opts?.finalPayload) {
+        const candidates = (s.payload as any)?.replay?.context?.candidates;
+        const validCodes = s.type === 'taskcell_kpi_link'
+          ? new Set<string>(Array.isArray(candidates)
+            ? candidates.map((c: { code?: unknown }) => c?.code).filter((x: unknown): x is string => typeof x === 'string')
+            : [])
+          : undefined;
+        const errMsg = validateFinalPayload(s.type, opts.finalPayload, validCodes);
+        if (errMsg) throw new UnprocessableEntityException(`finalPayload không hợp lệ: ${errMsg}`);
+      }
       const updated = await tx.aiSuggestion.updateMany({
         where: { id, status: 'pending', version: s.version },
         data: {

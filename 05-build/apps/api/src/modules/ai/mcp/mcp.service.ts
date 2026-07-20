@@ -7,6 +7,7 @@ import { PrismaService } from '../../../prisma.service';
 import type { RequestUser } from '../../../common/auth/decorators';
 import { AiGatewayService } from '../ai-gateway.service';
 import { ConfigService } from '../../config/config.service';
+import { LearningService } from '../learning/learning.service';
 
 interface ProposeArgs {
   configVersionId?: string;
@@ -45,6 +46,7 @@ export class McpService {
     private prisma: PrismaService,
     private gateway: AiGatewayService,
     private config: ConfigService,
+    private learning: LearningService, // [F168] mọi quyết định suggestion → tín hiệu học
   ) {}
 
   /** Tool visible cho tenant: global + tenant override (cùng name → tenant thắng). */
@@ -174,13 +176,26 @@ export class McpService {
 
   // ===== ai_suggestion lifecycle (HITL) =====
 
-  listSuggestions(user: RequestUser, status?: string) {
-    return this.prisma.withTenant(user.tenantId, (tx) =>
+  async listSuggestions(user: RequestUser, status?: string) {
+    const rows = await this.prisma.withTenant(user.tenantId, (tx) =>
       tx.aiSuggestion.findMany({
         where: { deletedAt: null, ...(status ? { status } : {}) },
         orderBy: { createdAt: 'desc' },
       }),
     );
+    // [F161] payload.replay chứa NGUYÊN context đã gửi LLM (có thể là dữ liệu
+    // contribution/cell gate library:curate) — endpoint này chỉ đòi config:read
+    // nên KHÔNG được trả replay (giữ proposal/diff/reason cho UI duyệt).
+    return rows.map((s) => ({ ...s, payload: McpService.stripReplay(s.payload) }));
+  }
+
+  /** [F161] Bỏ khối replay khỏi payload trước khi trả ra/ghi journal. */
+  private static stripReplay(payload: unknown): unknown {
+    if (payload && typeof payload === 'object' && !Array.isArray(payload) && 'replay' in (payload as object)) {
+      const { replay: _drop, ...rest } = payload as Record<string, unknown>;
+      return rest;
+    }
+    return payload;
   }
 
   /** [F155] Chỉ các type này materialize được vào config_change của draft — suggestion
@@ -217,11 +232,23 @@ export class McpService {
       });
       if (updated.count !== 1) throw new ConflictException('Suggestion vừa bị quyết định bởi người khác (reload)');
 
+      // [F161] Journal config_change chỉ nhận PROPOSAL (không replay/diff — replay
+      // có thể chứa dữ liệu gate quyền khác và phình journal vô ích)
+      const materialized = (s.payload as any)?.proposal ?? McpService.stripReplay(s.payload);
       await this.config.recordChange(
         tx as TenantTx, user, targetVersionId,
         `ai_suggestion:${s.type}`, s.id, 'create', null,
-        { suggestion_id: s.id, payload: s.payload, reason: s.reason, accepted_by: user.claims.sub },
+        { suggestion_id: s.id, payload: materialized, reason: s.reason, accepted_by: user.claims.sub },
       );
+      // [F168] Quyết định qua vòng MCP cũng là tín hiệu học (corpus đủ: mọi quyết
+      // định trên ai_suggestion đều thành 1 signal) — cùng tx, chuẩn L0
+      await this.learning.record(tx as any, user.tenantId, {
+        suggestionId: s.id,
+        agent: s.createdByTool ?? s.type,
+        decision: 'accepted',
+        proposedPayload: ((s.payload as any)?.proposal ?? s.payload) as Record<string, unknown>,
+        actorUserId: user.claims.sub,
+      });
       return tx.aiSuggestion.findFirst({ where: { id } });
     });
   }
@@ -239,6 +266,14 @@ export class McpService {
         },
       });
       if (updated.count !== 1) throw new ConflictException('Suggestion vừa bị quyết định bởi người khác (reload)');
+      // [F168] reject cũng phát tín hiệu học (cùng tx)
+      await this.learning.record(tx as any, user.tenantId, {
+        suggestionId: s.id,
+        agent: s.createdByTool ?? s.type,
+        decision: 'rejected',
+        proposedPayload: ((s.payload as any)?.proposal ?? s.payload) as Record<string, unknown>,
+        actorUserId: user.claims.sub,
+      });
       return tx.aiSuggestion.findFirst({ where: { id } });
     });
   }

@@ -150,6 +150,66 @@ export function parseCurationDedup(json: unknown): CurationDedupProposal {
   return { recommendation: rec, differences: diffs, reason: (json as any).reason };
 }
 
+// ===== [F160] Validate finalPayload "Sửa rồi chấp nhận" — chống đầu độc corpus =====
+
+/**
+ * finalPayload là ĐẦU VÀO NGƯỜI DÙNG đi thẳng vào corpus học (L0) và golden set (L1)
+ * — phải qua ĐÚNG whitelist/shape của type như output LLM, nếu không author bơm rác
+ * vào editedFields/expected mà không cần curator. Trả message lỗi | null nếu hợp lệ.
+ * validKpiCodes (kpi_link): tập mã hợp lệ từ replay context — self-contained, fail-closed
+ * khi thiếu (suggestion trước L1 không sửa-kpiRef được — chấp nhận, hiếm).
+ */
+export function validateFinalPayload(
+  type: string, payload: Record<string, unknown>, validKpiCodes?: Set<string>,
+): string | null {
+  const extraKeys = (allowed: string[]) =>
+    Object.keys(payload).filter((k) => !allowed.includes(k));
+  switch (type) {
+    case 'taskcell_draft': {
+      const fill = (payload as { fill?: unknown }).fill;
+      if (!isPlainObject(fill) || Object.keys(fill).length === 0) {
+        return 'finalPayload.fill phải là object khác rỗng';
+      }
+      for (const k of Object.keys(fill)) {
+        const check = DRAFT_FIELD_CHECK[k];
+        if (!check) return `field '${k}' ngoài whitelist A–G`;
+        if (!check(fill[k])) return `field '${k}' sai kiểu/giá trị`;
+      }
+      const extra = extraKeys(['fill']);
+      return extra.length ? `key lạ: ${extra.join(', ')}` : null;
+    }
+    case 'taskcell_kpi_link': {
+      const kpiRef = (payload as { kpiRef?: unknown }).kpiRef;
+      if (!isNonEmptyString(kpiRef)) return 'finalPayload.kpiRef bắt buộc (string)';
+      if (!validKpiCodes || !validKpiCodes.has(kpiRef)) {
+        return `kpiRef '${kpiRef}' không có trong Từ điển KPI của gợi ý`;
+      }
+      const extra = extraKeys(['kpiRef']);
+      return extra.length ? `key lạ: ${extra.join(', ')}` : null;
+    }
+    case 'derivation_rule': {
+      const rule = (payload as { rule?: unknown }).rule;
+      if (!isPlainObject(rule)) return 'finalPayload.rule phải là object';
+      if (!isPlainObject(rule.match) || Object.keys(rule.match).length === 0) return 'rule.match rỗng';
+      if (!isPlainObject(rule.emit) || Object.keys(rule.emit).length === 0) return 'rule.emit rỗng';
+      const extra = extraKeys(['rule']);
+      return extra.length ? `key lạ: ${extra.join(', ')}` : null;
+    }
+    case 'curation_dedup': {
+      const rec = (payload as { recommendation?: unknown }).recommendation;
+      if (rec !== 'merge' && rec !== 'keep_both') return "recommendation phải 'merge' | 'keep_both'";
+      const diffs = (payload as { differences?: unknown }).differences;
+      if (diffs !== undefined && !(Array.isArray(diffs) && diffs.every((d) => typeof d === 'string'))) {
+        return 'differences phải là string[]';
+      }
+      const extra = extraKeys(['recommendation', 'differences', 'candidateId']);
+      return extra.length ? `key lạ: ${extra.join(', ')}` : null;
+    }
+    default:
+      return `type '${type}' không hỗ trợ finalPayload`;
+  }
+}
+
 export function promptCurationDedup(): string {
   return [
     'Bạn hỗ trợ curator xử lý ứng viên trùng (dedup) trong thư viện Task Cell iPMS.',

@@ -51,7 +51,8 @@ export class McpController {
   @Get('ai/suggestions')
   @RequirePermission('config:read')
   listSuggestions(@CurrentUser() user: RequestUser, @Query('status') status?: string) {
-    if (status && !['pending', 'accepted', 'rejected'].includes(status)) {
+    // [F165] +'expired' — F158 thêm trạng thái auto-expire, vận hành phải lọc được
+    if (status && !['pending', 'accepted', 'rejected', 'expired'].includes(status)) {
       throw new UnprocessableEntityException('status không hợp lệ');
     }
     return this.mcp.listSuggestions(user, status);

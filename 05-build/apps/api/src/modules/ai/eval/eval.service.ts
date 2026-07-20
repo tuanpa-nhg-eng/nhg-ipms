@@ -267,15 +267,18 @@ export class EvalService {
             },
           });
         }
-        const passRate = total > 0 ? Number((pass / total).toFixed(3)) : null;
+        // [F164] So NGƯỠNG trên giá trị CHƯA làm tròn (0.89975 không được "0.900" hóa
+        // để lách bar); passRate làm tròn CHỈ để hiển thị.
+        const rawRate = total > 0 ? pass / total : null;
+        const passRate = rawRate !== null ? Number(rawRate.toFixed(3)) : null;
         if (!bar) reasons.push('chưa cấu hình launch bar');
         if (agentSuites.length === 0) reasons.push('chưa có eval suite');
         if (bar && total < bar.minCases) reasons.push(`cần ≥${bar.minCases} case có kết quả (hiện ${total})`);
-        if (bar && passRate !== null && passRate < Number(bar.minPassRate)) {
+        if (bar && rawRate !== null && rawRate < Number(bar.minPassRate)) {
           reasons.push(`pass-rate ${passRate} < ngưỡng ${Number(bar.minPassRate)}`);
         }
         const ready = !!bar && agentSuites.length > 0 && uncovered === 0
-          && total >= bar.minCases && passRate !== null && passRate >= Number(bar.minPassRate);
+          && total >= bar.minCases && rawRate !== null && rawRate >= Number(bar.minPassRate);
         const mockOnly = models.size === 0 || [...models].every((m) => m === 'mock');
         if (ready && mockOnly) {
           reasons.push('kết quả mới chỉ trên MOCK — pipeline OK nhưng CHƯA chứng minh chất lượng model thật');
