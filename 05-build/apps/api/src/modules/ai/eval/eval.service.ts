@@ -4,6 +4,7 @@ import { PrismaService } from '../../../prisma.service';
 import type { RequestUser } from '../../../common/auth/decorators';
 import { AiGatewayService } from '../ai-gateway.service';
 import { evaluateAssertions, EvalAssertion } from './assertions';
+import { INLINE_EVAL_AGENTS, parseInlineOutput } from './inline-replay';
 
 interface CreateSuiteInput {
   agent: string;
@@ -140,6 +141,11 @@ export class EvalService {
           `eval:${suite.name}`,
         );
         output = res.json ?? res.text;
+        // [Learning L2] golden case inline.* chấm trên PROPOSAL đã qua parser
+        // fail-closed của tác vụ (không chấm raw output) — parse lỗi = case fail có note
+        if (INLINE_EVAL_AGENTS.has(suite.agent)) {
+          output = parseInlineOutput(suite.agent, res.json, input.context);
+        }
         verdict = evaluateAssertions(output, (c.assertions ?? []) as unknown as EvalAssertion[]);
       } catch (e) {
         verdict = { passed: false, score: 0, details: [{ assertion: { type: 'exists' as const }, passed: false, note: (e as Error).message }] };
@@ -179,6 +185,113 @@ export class EvalService {
       const run = await tx.aiEvalRun.findFirst({ where: { id }, include: { results: true, suite: true } });
       if (!run) throw new NotFoundException('Run không tồn tại');
       return run;
+    });
+  }
+
+  // ===== [Learning Loop L2] Launch bar + readiness (AI-Native PRD §14) =====
+
+  listBars(user: RequestUser) {
+    return this.prisma.withTenant(user.tenantId, (tx) =>
+      tx.aiLaunchBar.findMany({ where: { deletedAt: null }, orderBy: { agent: 'asc' } }),
+    );
+  }
+
+  /** Upsert ngưỡng per agent — validate tại cửa, unique (tenant, agent). */
+  upsertBar(user: RequestUser, agent: string, input: { minPassRate: number; minCases: number; note?: string }) {
+    if (!Number.isFinite(input.minPassRate) || input.minPassRate <= 0 || input.minPassRate > 1) {
+      throw new UnprocessableEntityException('minPassRate phải trong (0, 1]');
+    }
+    if (!Number.isInteger(input.minCases) || input.minCases < 1 || input.minCases > 1000) {
+      throw new UnprocessableEntityException('minCases phải là số nguyên 1–1000');
+    }
+    return this.prisma.withTenant(user.tenantId, (tx) =>
+      tx.aiLaunchBar.upsert({
+        where: { tenantId_agent: { tenantId: user.tenantId, agent } },
+        create: {
+          id: uuidv7(), tenantId: user.tenantId, agent,
+          minPassRate: input.minPassRate, minCases: input.minCases, note: input.note ?? null,
+          createdBy: user.claims.sub,
+        },
+        update: {
+          minPassRate: input.minPassRate, minCases: input.minCases, note: input.note ?? null,
+          updatedBy: user.claims.sub, version: { increment: 1 }, deletedAt: null,
+        },
+      }),
+    );
+  }
+
+  /**
+   * Readiness per agent = run DONE mới nhất của TỪNG suite (learned + baseline)
+   * so với launch bar. FAIL-CLOSED mọi nhánh: thiếu bar / thiếu suite / suite chưa
+   * chạy / thiếu case / dưới ngưỡng → ready=false + reasons explainable.
+   * `liveQualified` TÁCH riêng: ready && có kết quả trên model KHÔNG PHẢI mock —
+   * kết quả mock chỉ chứng minh pipeline, KHÔNG chứng minh chất lượng model thật.
+   */
+  readiness(user: RequestUser) {
+    return this.prisma.withTenant(user.tenantId, async (tx) => {
+      const bars = await tx.aiLaunchBar.findMany({ where: { deletedAt: null } });
+      const suites = await tx.aiEvalSuite.findMany({
+        where: { deletedAt: null, agent: { startsWith: 'inline.' } },
+      });
+      const agents = [...new Set([...bars.map((b) => b.agent), ...suites.map((s) => s.agent)])].sort();
+      const out = [];
+      for (const agent of agents) {
+        const bar = bars.find((b) => b.agent === agent) ?? null;
+        const agentSuites = suites.filter((s) => s.agent === agent);
+        const reasons: string[] = [];
+        const suiteViews = [];
+        const models = new Set<string>();
+        let pass = 0;
+        let total = 0;
+        let uncovered = 0;
+        for (const s of agentSuites) {
+          const run = await tx.aiEvalRun.findFirst({
+            where: { suiteId: s.id, status: 'done' },
+            orderBy: { finishedAt: 'desc' },
+          });
+          if (!run) {
+            uncovered += 1;
+            reasons.push(`suite '${s.name}' chưa có run hoàn tất`);
+            suiteViews.push({ suiteId: s.id, name: s.name, latestRun: null });
+            continue;
+          }
+          const sum = (run.summary ?? {}) as { pass?: number; fail?: number; avg_score?: number };
+          pass += sum.pass ?? 0;
+          total += (sum.pass ?? 0) + (sum.fail ?? 0);
+          if (run.model) models.add(run.model);
+          suiteViews.push({
+            suiteId: s.id, name: s.name,
+            latestRun: {
+              id: run.id, finishedAt: run.finishedAt, model: run.model,
+              pass: sum.pass ?? 0, fail: sum.fail ?? 0, avgScore: sum.avg_score ?? null,
+            },
+          });
+        }
+        const passRate = total > 0 ? Number((pass / total).toFixed(3)) : null;
+        if (!bar) reasons.push('chưa cấu hình launch bar');
+        if (agentSuites.length === 0) reasons.push('chưa có eval suite');
+        if (bar && total < bar.minCases) reasons.push(`cần ≥${bar.minCases} case có kết quả (hiện ${total})`);
+        if (bar && passRate !== null && passRate < Number(bar.minPassRate)) {
+          reasons.push(`pass-rate ${passRate} < ngưỡng ${Number(bar.minPassRate)}`);
+        }
+        const ready = !!bar && agentSuites.length > 0 && uncovered === 0
+          && total >= bar.minCases && passRate !== null && passRate >= Number(bar.minPassRate);
+        const mockOnly = models.size === 0 || [...models].every((m) => m === 'mock');
+        if (ready && mockOnly) {
+          reasons.push('kết quả mới chỉ trên MOCK — pipeline OK nhưng CHƯA chứng minh chất lượng model thật');
+        }
+        out.push({
+          agent,
+          bar: bar ? { minPassRate: Number(bar.minPassRate), minCases: bar.minCases, note: bar.note } : null,
+          cases: total, pass, fail: total - pass, passRate,
+          models: [...models].sort(),
+          suites: suiteViews,
+          ready,
+          liveQualified: ready && !mockOnly,
+          reasons,
+        });
+      }
+      return { agents: out };
     });
   }
 }

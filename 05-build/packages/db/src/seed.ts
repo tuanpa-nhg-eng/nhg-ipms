@@ -390,6 +390,26 @@ async function main() {
     }
   }
 
+  // 4b. [Learning Loop L2] Launch bar mặc định per agent inline (AI-Native PRD §14) —
+  // ngưỡng eval là điều kiện CẦN để cân nhắc bật live. B1/chủ dự án hiệu chỉnh sau.
+  const INLINE_AGENTS = [
+    'inline.taskcell.draft', 'inline.taskcell.kpi_link', 'inline.derivation.rule', 'inline.curation.dedup',
+  ];
+  for (const tenant of [h01, t2]) {
+    for (const agent of INLINE_AGENTS) {
+      const found = await prisma.aiLaunchBar.findFirst({ where: { tenantId: tenant.id, agent } });
+      if (!found) {
+        await prisma.aiLaunchBar.create({
+          data: {
+            id: uuidv7(), tenantId: tenant.id, agent,
+            minPassRate: 0.85, minCases: 5,
+            note: 'Mặc định L2 — hiệu chỉnh ngưỡng trước khi cân nhắc bật live (đo trên model thật, không phải mock)',
+          },
+        });
+      }
+    }
+  }
+
   // 5. MCP tool catalog global (Spec Config Studio §9) — read-only + propose (HITL)
   const MCP_TOOLS: Array<{
     name: string; descriptionVi: string; scopePermission: string; readOnly: boolean;

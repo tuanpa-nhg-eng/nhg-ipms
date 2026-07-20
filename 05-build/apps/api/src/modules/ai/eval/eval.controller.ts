@@ -1,7 +1,7 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, UnprocessableEntityException } from '@nestjs/common';
 import {
-  ArrayMaxSize, ArrayMinSize, IsArray, IsObject, IsOptional, IsString, Length,
-  ValidateNested,
+  ArrayMaxSize, ArrayMinSize, IsArray, IsInt, IsNumber, IsObject, IsOptional, IsString, Length,
+  Max, Min, ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { Audited, CurrentUser, RequirePermission, RequestUser } from '../../../common/auth/decorators';
@@ -21,6 +21,12 @@ class CreateSuiteDto {
   @IsArray() @ArrayMinSize(1) @ArrayMaxSize(100)
   @ValidateNested({ each: true }) @Type(() => EvalCaseDto)
   cases!: EvalCaseDto[];
+}
+
+class LaunchBarDto {
+  @IsNumber() @Min(0.001) @Max(1) minPassRate!: number;
+  @IsInt() @Min(1) @Max(1000) minCases!: number;
+  @IsOptional() @IsString() @Length(1, 500) note?: string;
 }
 
 /** AI eval harness (#10) — permission ai:eval; chạy trên mock ⇒ tất định, gắn CI được. */
@@ -52,5 +58,31 @@ export class EvalController {
   @RequirePermission('ai:eval')
   getRun(@CurrentUser() user: RequestUser, @Param('id') id: string) {
     return this.evals.getRun(user, id);
+  }
+
+  // ===== [Learning Loop L2] Launch bar + readiness (AI-Native PRD §14) =====
+
+  /** Bảng 🟢/🔴 per agent: pass-rate mới nhất vs launch bar — nền quyết định bật live. */
+  @Get('readiness')
+  @RequirePermission('ai:eval')
+  readiness(@CurrentUser() user: RequestUser) {
+    return this.evals.readiness(user);
+  }
+
+  @Get('launch-bars')
+  @RequirePermission('ai:eval')
+  listBars(@CurrentUser() user: RequestUser) {
+    return this.evals.listBars(user);
+  }
+
+  @Put('launch-bars/:agent')
+  @RequirePermission('ai:eval')
+  @Audited('ai_launch_bar.upsert')
+  upsertBar(@CurrentUser() user: RequestUser, @Param('agent') agent: string, @Body() dto: LaunchBarDto) {
+    if (agent.length === 0 || agent.length > 100) {
+      // đồng bộ cap agent của suite (Length 1..100)
+      throw new UnprocessableEntityException('agent 1–100 ký tự');
+    }
+    return this.evals.upsertBar(user, agent, dto);
   }
 }

@@ -1471,6 +1471,27 @@ model AiGoldenCandidate {
   @@map("ai_golden_candidate")
 }
 
+// [Learning Loop L2] Launch bar per agent (AI-Native PRD §14) — ngưỡng eval tối thiểu
+// để coi agent "đủ tốt để CÂN NHẮC bật live" (điều kiện CẦN, không tự bật gì).
+// Config-as-data đơn giản: PUT có audit; readiness fail-closed khi thiếu bar/run.
+model AiLaunchBar {
+  id          String  @id @db.Uuid
+  tenantId    String  @map("tenant_id") @db.Uuid
+  agent       String
+  minPassRate Decimal @map("min_pass_rate") @db.Decimal(4, 3) // (0..1]
+  minCases    Int     @map("min_cases")
+  note        String?
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  version   Int       @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, agent])
+  @@map("ai_launch_bar")
+}
+
 // [P1 Copilot] Phiên hội thoại Copilot + tin nhắn (tenant-bound, RLS).
 model AiConversation {
   id         String      @id @db.Uuid
