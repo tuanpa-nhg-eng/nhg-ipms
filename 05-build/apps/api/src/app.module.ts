@@ -45,6 +45,7 @@ import { ConnectorRegistry } from './modules/integration/connectors/connector.re
 import { OutboxDispatcher } from './modules/integration/outbox.dispatcher';
 import { MorningTodosService } from './modules/integration/morning-todos.service';
 import { AiGatewayService } from './modules/ai/ai-gateway.service';
+import { PiiScrubService } from './modules/ai/pii/pii-scrub.service';
 import { AiChatService } from './modules/ai/ai-chat.service';
 import { AiChatController } from './modules/ai/ai-chat.controller';
 import { McpController } from './modules/ai/mcp/mcp.controller';
@@ -103,6 +104,7 @@ import { PolicyGuard } from './modules/policy/policy.guard';
     OutboxDispatcher,
     MorningTodosService,
     AiGatewayService,
+    PiiScrubService,
     AiChatService,
     McpService,
     EvalService,

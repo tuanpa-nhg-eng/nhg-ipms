@@ -4,19 +4,24 @@ import type { RequestUser } from '../../common/auth/decorators';
 import { LlmClient, LlmRequest, LlmResponse, LlmStreamChunk, selectLlmBackend } from './llm/llm-client';
 import { MockLlmClient } from './llm/mock-llm-client';
 import { AnthropicLlmClient } from './llm/anthropic-llm-client';
+import { PiiScrubService } from './pii/pii-scrub.service';
+import type { PiiKind } from './pii/pii-scrubber';
 
 /**
  * ai-gateway (#3 hạ tầng) — cổng DUY NHẤT gọi LLM:
  * - Backend chọn theo feature flag `ai_gateway_live` (tenant override > global) + API key.
  *   Mặc định OFF ⇒ MockLlmClient (tất định, 0 chi phí) — RED-LINE không gọi API thật.
  * - MỌI lượt gọi ghi `ai_interaction` (append-only) — nền cho AI governance dashboard.
+ * - [F59 trả nợ] PII scrub THUẬN trước khi request rời gateway (client mock/thật chỉ thấy
+ *   bản đã scrub — log ai_interaction cũng ghi bản NÀY) và NGHỊCH trên response cho caller
+ *   nội bộ (rehydrate ở RAM, không persist map ra DB).
  */
 @Injectable()
 export class AiGatewayService {
   private mock: LlmClient = new MockLlmClient();
   private anthropic: LlmClient = new AnthropicLlmClient();
 
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private pii: PiiScrubService) {}
 
   /** Flag tenant override thắng global; không có row nào ⇒ OFF (fail-closed). */
   async resolveBackend(tenantId: string): Promise<'anthropic' | 'mock'> {
@@ -34,18 +39,26 @@ export class AiGatewayService {
     const backend = await this.resolveBackend(user.tenantId);
     const client = backend === 'anthropic' ? this.anthropic : this.mock;
     const t0 = Date.now();
+    // [F59] scrub TRƯỚC khi rời gateway — client (mock hay thật) chỉ thấy bản đã scrub.
+    const { prompt, context, map, counts } = await this.pii.scrubRequest(user.tenantId, req.prompt, req.context);
+    const scrubbedReq: LlmRequest = { ...req, prompt, context };
     try {
-      const res = await client.complete(req);
-      await this.log(user, req, toolName, {
+      const res = await client.complete(scrubbedReq);
+      await this.log(user, scrubbedReq, toolName, {
         model: res.model, output: res.json ?? res.text,
         tokensIn: res.tokensIn, tokensOut: res.tokensOut, costUsd: res.costUsd,
-        latencyMs: Date.now() - t0, status: 'ok',
+        latencyMs: Date.now() - t0, status: 'ok', piiCounts: counts,
       });
-      return res;
+      // Nghịch — caller nội bộ nhận bản THẬT (map chỉ tồn tại trong RAM lượt gọi này).
+      return {
+        ...res,
+        text: this.pii.rehydrateText(res.text, map),
+        json: res.json !== undefined ? this.pii.rehydrateValue(res.json, map) : res.json,
+      };
     } catch (e) {
-      await this.log(user, req, toolName, {
+      await this.log(user, scrubbedReq, toolName, {
         model: backend, output: { error: (e as Error).message },
-        latencyMs: Date.now() - t0, status: 'error',
+        latencyMs: Date.now() - t0, status: 'error', piiCounts: counts,
       });
       throw e;
     }
@@ -64,23 +77,55 @@ export class AiGatewayService {
     }
     const client = chosen.stream ? chosen : this.mock;
     const t0 = Date.now();
-    let acc = '';
+    // [F59] scrub TRƯỚC khi rời gateway; rehydrate TĂNG DẦN trên đường ra (StreamRehydrator
+    // giữ lại đuôi token vỡ giữa 2 chunk — không lộ nửa token, không rơi ký tự thật).
+    const { prompt, context, map, counts } = await this.pii.scrubRequest(user.tenantId, req.prompt, req.context);
+    const scrubbedReq: LlmRequest = { ...req, prompt, context };
+    const rehydrator = this.pii.createStreamRehydrator(map);
+    let acc = ''; // tích luỹ bản ĐÃ SCRUB (đúng những gì client LLM thực sự thấy) — dùng để log
     let usage: LlmStreamChunk['usage'];
     try {
-      for await (const chunk of client.stream!(req)) {
-        if (chunk.type === 'text' && chunk.text) acc += chunk.text;
-        if (chunk.type === 'done') usage = chunk.usage;
+      for await (const chunk of client.stream!(scrubbedReq)) {
+        if (chunk.type === 'text' && chunk.text) {
+          acc += chunk.text;
+          const safe = rehydrator.push(chunk.text);
+          if (safe) yield { ...chunk, text: safe };
+          continue;
+        }
+        if (chunk.type === 'done') {
+          usage = chunk.usage;
+          const tail = rehydrator.flush();
+          if (tail) yield { type: 'text', text: tail };
+          yield chunk;
+          continue;
+        }
+        if (chunk.type === 'suggestion' && chunk.suggestion) {
+          yield {
+            ...chunk,
+            suggestion: {
+              ...chunk.suggestion,
+              summary: this.pii.rehydrateText(chunk.suggestion.summary, map),
+              reason: chunk.suggestion.reason ? this.pii.rehydrateText(chunk.suggestion.reason, map) : chunk.suggestion.reason,
+              payload: chunk.suggestion.payload !== undefined ? this.pii.rehydrateValue(chunk.suggestion.payload, map) : chunk.suggestion.payload,
+            },
+          };
+          continue;
+        }
+        if (chunk.type === 'tool_use' && chunk.toolInput !== undefined) {
+          yield { ...chunk, toolInput: this.pii.rehydrateValue(chunk.toolInput, map) };
+          continue;
+        }
         yield chunk;
       }
-      await this.log(user, req, toolName, {
+      await this.log(user, scrubbedReq, toolName, {
         model: usage?.model ?? backend, output: acc.slice(0, 4000),
         tokensIn: usage?.tokensIn, tokensOut: usage?.tokensOut, costUsd: usage?.costUsd,
-        latencyMs: Date.now() - t0, status: 'ok',
+        latencyMs: Date.now() - t0, status: 'ok', piiCounts: counts,
       });
     } catch (e) {
-      await this.log(user, req, toolName, {
+      await this.log(user, scrubbedReq, toolName, {
         model: backend, output: { error: (e as Error).message },
-        latencyMs: Date.now() - t0, status: 'error',
+        latencyMs: Date.now() - t0, status: 'error', piiCounts: counts,
       });
       throw e;
     }
@@ -107,14 +152,18 @@ export class AiGatewayService {
   private log(
     user: RequestUser, req: LlmRequest, toolName: string | undefined,
     r: { model: string; output: unknown; tokensIn?: number; tokensOut?: number;
-         costUsd?: number; latencyMs: number; status: string },
+         costUsd?: number; latencyMs: number; status: string; piiCounts?: Partial<Record<PiiKind, number>> },
   ) {
+    // [F59] req đến đây LUÔN LÀ BẢN ĐÃ SCRUB (complete()/stream() truyền scrubbedReq) —
+    // audit log không bao giờ giữ PII gốc. piiScrubbed = số lượng theo loại, minh bạch
+    // cho dashboard governance mà KHÔNG lộ giá trị thật.
+    const piiScrubbed = r.piiCounts && Object.keys(r.piiCounts).length > 0 ? r.piiCounts : undefined;
     return this.prisma.withTenant(user.tenantId, (tx) =>
       tx.aiInteraction.create({
         data: {
           tenantId: user.tenantId, actorUserId: user.claims.sub, agent: req.agent,
           toolName, model: r.model, promptVersion: req.promptVersion,
-          input: { prompt: req.prompt, context: req.context ?? null } as any,
+          input: { prompt: req.prompt, context: req.context ?? null, piiScrubbed } as any,
           output: (r.output ?? undefined) as any,
           tokensIn: r.tokensIn, tokensOut: r.tokensOut, costUsd: r.costUsd,
           latencyMs: r.latencyMs, status: r.status,

@@ -12,3 +12,5 @@ process.env.OWNER_DATABASE_URL =
 // Lát 4c: tắt cache PolicyGuard trong test — policy global do owner ghi thẳng DB
 // (không qua API nên không invalidate được cache) phải có hiệu lực ngay
 process.env.POLICY_CACHE_TTL_MS = process.env.POLICY_CACHE_TTL_MS ?? '0';
+// [F59 trả nợ] tắt cache tên nhân sự PII-scrub trong test — mỗi case tự set person riêng
+process.env.PII_NAME_CACHE_TTL_MS = process.env.PII_NAME_CACHE_TTL_MS ?? '0';
