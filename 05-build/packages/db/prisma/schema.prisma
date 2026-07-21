@@ -1515,6 +1515,28 @@ model AiModelPrice {
   @@map("ai_model_price")
 }
 
+// [Last-mile Lát 2] ai_egress_policy — tenant CHẶN THÊM egress theo (dataClass, destination)
+// (thu hẹp, không mở rộng — bất biến pii/confidential⇒mock-only nằm trong CODE, không đọc
+// bảng này). Không có row ⇒ mặc định cho phép cho public/internal (đã qua cổng flag+key).
+model AiEgressPolicy {
+  id          String  @id @db.Uuid
+  tenantId    String  @map("tenant_id") @db.Uuid
+  dataClass   String  @map("data_class") // public|internal|confidential|pii
+  destination String // mock|anthropic|self_host
+  allowed     Boolean @default(false)
+  note        String?
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  version   Int       @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, dataClass, destination])
+  @@index([tenantId])
+  @@map("ai_egress_policy")
+}
+
 // [P1 Copilot] Phiên hội thoại Copilot + tin nhắn (tenant-bound, RLS).
 model AiConversation {
   id         String      @id @db.Uuid

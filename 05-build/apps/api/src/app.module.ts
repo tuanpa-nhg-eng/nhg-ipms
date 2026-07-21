@@ -46,6 +46,8 @@ import { OutboxDispatcher } from './modules/integration/outbox.dispatcher';
 import { MorningTodosService } from './modules/integration/morning-todos.service';
 import { AiGatewayService } from './modules/ai/ai-gateway.service';
 import { PiiScrubService } from './modules/ai/pii/pii-scrub.service';
+import { EgressPolicyService } from './modules/ai/egress/egress-policy.service';
+import { EgressPolicyController } from './modules/ai/egress/egress-policy.controller';
 import { AiChatService } from './modules/ai/ai-chat.service';
 import { AiChatController } from './modules/ai/ai-chat.controller';
 import { McpController } from './modules/ai/mcp/mcp.controller';
@@ -81,7 +83,7 @@ import { PolicyGuard } from './modules/policy/policy.guard';
     ConfigController, BrandController, OrgFunctionController, CanvasController,
     TaskCellController, DerivationController,
     ProcessController, IntegrationController,
-    McpController, AiChatController, EvalController, InlineAssistController, LearningController, GoldenController, EconomicsController, PolicyController, LibraryController,
+    McpController, AiChatController, EvalController, InlineAssistController, LearningController, GoldenController, EconomicsController, EgressPolicyController, PolicyController, LibraryController,
     AuthoringController, DictionaryController, TaskLoopController,
   ],
   providers: [
@@ -105,6 +107,7 @@ import { PolicyGuard } from './modules/policy/policy.guard';
     MorningTodosService,
     AiGatewayService,
     PiiScrubService,
+    EgressPolicyService,
     AiChatService,
     McpService,
     EvalService,

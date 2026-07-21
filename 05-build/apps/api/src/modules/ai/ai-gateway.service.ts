@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
 import type { RequestUser } from '../../common/auth/decorators';
 import { LlmClient, LlmRequest, LlmResponse, LlmStreamChunk, selectLlmBackend } from './llm/llm-client';
@@ -6,6 +6,8 @@ import { MockLlmClient } from './llm/mock-llm-client';
 import { AnthropicLlmClient } from './llm/anthropic-llm-client';
 import { PiiScrubService } from './pii/pii-scrub.service';
 import type { PiiKind } from './pii/pii-scrubber';
+import { EgressPolicyService } from './egress/egress-policy.service';
+import type { DataClass, EgressDestination } from './egress/egress-policy';
 
 /**
  * ai-gateway (#3 hạ tầng) — cổng DUY NHẤT gọi LLM:
@@ -15,13 +17,37 @@ import type { PiiKind } from './pii/pii-scrubber';
  * - [F59 trả nợ] PII scrub THUẬN trước khi request rời gateway (client mock/thật chỉ thấy
  *   bản đã scrub — log ai_interaction cũng ghi bản NÀY) và NGHỊCH trên response cho caller
  *   nội bộ (rehydrate ở RAM, không persist map ra DB).
+ * - [Last-mile Lát 2] Egress Policy — lớp gác THỨ HAI, cắt ngang, độc lập với cờ
+ *   ai_gateway_live: dữ liệu confidential/pii KHÔNG BAO GIỜ rời mock (self-host chưa
+ *   triển khai), dù cờ bật + có key. Chặn → status='blocked', KHÔNG gọi client.
  */
 @Injectable()
 export class AiGatewayService {
   private mock: LlmClient = new MockLlmClient();
   private anthropic: LlmClient = new AnthropicLlmClient();
 
-  constructor(private prisma: PrismaService, private pii: PiiScrubService) {}
+  constructor(private prisma: PrismaService, private pii: PiiScrubService, private egress: EgressPolicyService) {}
+
+  /**
+   * [Last-mile Lát 2] Chặn TRƯỚC khi gọi client — nhận `req` ĐÃ SCRUB (gọi SAU pii.scrubRequest
+   * trong complete()/stream()) để nếu bị chặn, audit log VẪN không bao giờ giữ PII gốc
+   * (dù chính request đó bị đánh dấu confidential/pii và không đi đâu cả).
+   */
+  private async guardEgress(
+    user: RequestUser, scrubbedReq: LlmRequest, piiCounts: Partial<Record<PiiKind, number>>,
+    backend: 'anthropic' | 'mock', toolName?: string,
+  ) {
+    const dataClass: DataClass = scrubbedReq.dataClass ?? 'internal';
+    const destination: EgressDestination = backend === 'anthropic' ? 'anthropic' : 'mock';
+    const decision = await this.egress.resolve(user.tenantId, dataClass, destination);
+    if (!decision.allowed) {
+      await this.log(user, scrubbedReq, toolName, {
+        model: backend, output: { blocked: true, reason: decision.reason },
+        latencyMs: 0, status: 'blocked', piiCounts,
+      });
+      throw new ForbiddenException(`ai-gateway: egress bị chặn — ${decision.reason}`);
+    }
+  }
 
   /** Flag tenant override thắng global; không có row nào ⇒ OFF (fail-closed). */
   async resolveBackend(tenantId: string): Promise<'anthropic' | 'mock'> {
@@ -42,6 +68,7 @@ export class AiGatewayService {
     // [F59] scrub TRƯỚC khi rời gateway — client (mock hay thật) chỉ thấy bản đã scrub.
     const { prompt, context, map, counts } = await this.pii.scrubRequest(user.tenantId, req.prompt, req.context);
     const scrubbedReq: LlmRequest = { ...req, prompt, context };
+    await this.guardEgress(user, scrubbedReq, counts, backend, toolName); // [Lát 2] throws nếu bị chặn — đã tự log
     try {
       const res = await client.complete(scrubbedReq);
       await this.log(user, scrubbedReq, toolName, {
@@ -81,6 +108,11 @@ export class AiGatewayService {
     // giữ lại đuôi token vỡ giữa 2 chunk — không lộ nửa token, không rơi ký tự thật).
     const { prompt, context, map, counts } = await this.pii.scrubRequest(user.tenantId, req.prompt, req.context);
     const scrubbedReq: LlmRequest = { ...req, prompt, context };
+    // [Lát 2] Đánh giá theo `backend` ĐÃ RESOLVE (ý định cấu hình: flag+key), KHÔNG theo
+    // `client` fallback thực tế — nếu không, hành vi chặn sẽ đổi âm thầm giữa "trước/sau
+    // khi AnthropicLlmClient hỗ trợ stream()" dù cấu hình egress không đổi. throws nếu bị
+    // chặn — đã tự log.
+    await this.guardEgress(user, scrubbedReq, counts, backend, toolName);
     const rehydrator = this.pii.createStreamRehydrator(map);
     let acc = ''; // tích luỹ bản ĐÃ SCRUB (đúng những gì client LLM thực sự thấy) — dùng để log
     let usage: LlmStreamChunk['usage'];

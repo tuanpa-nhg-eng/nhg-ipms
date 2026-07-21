@@ -14,6 +14,10 @@ export interface LlmRequest {
   /** [F147] Model + effort người dùng chọn ở picker — client thật dùng; mock bỏ qua. */
   model?: string;
   effort?: string;
+  /** [Last-mile Lát 2] Phân loại dữ liệu (AI-Native PRD §9) — mặc định 'internal' nếu
+   *  không khai (mọi agent nội bộ hiện có đều thuộc lớp này). Egress Policy Engine
+   *  đọc field này để quyết định request có được rời gateway hay không. */
+  dataClass?: 'public' | 'internal' | 'confidential' | 'pii';
 }
 
 export interface LlmResponse {
