@@ -3,6 +3,7 @@ import { uuidv7 } from '@ipms/db';
 import { PrismaService } from '../../../prisma.service';
 import type { RequestUser } from '../../../common/auth/decorators';
 import { AiGatewayService } from '../ai-gateway.service';
+import { DEFAULT_MODEL } from '../llm/llm-client';
 import { evaluateAssertions, EvalAssertion } from './assertions';
 import { INLINE_EVAL_AGENTS, parseInlineOutput } from './inline-replay';
 
@@ -84,8 +85,14 @@ export class EvalService {
     );
   }
 
-  /** Chạy suite: mỗi case → gateway.complete (mock) → assertion → result; summary vào run. */
-  async run(user: RequestUser, suiteId: string) {
+  /**
+   * Chạy suite: mỗi case → gateway.complete → assertion → result; summary vào run.
+   * [Last-mile Lát 4] `opts.model` — chỉ có tác dụng khi backend=anthropic (mock luôn
+   * bỏ qua, MockLlmClient không đọc req.model). `aiEvalRun.model` giờ ghi MODEL THẬT
+   * SẼ DÙNG ('mock' hoặc model cụ thể) — không còn ghi tên backend chung chung — để
+   * qualify()/readiness() biết CHÍNH XÁC model nào đã chứng minh, không suy diễn.
+   */
+  async run(user: RequestUser, suiteId: string, opts?: { model?: string }) {
     const { suite, cases } = await this.prisma.withTenant(user.tenantId, async (tx) => {
       const suite = await tx.aiEvalSuite.findFirst({ where: { id: suiteId, deletedAt: null } });
       if (!suite) throw new NotFoundException('Suite không tồn tại');
@@ -95,12 +102,15 @@ export class EvalService {
     });
 
     const backend = await this.gateway.resolveBackend(user.tenantId);
+    // [Lát 4] model THẬT sẽ chạy — tính TRƯỚC, dùng NHẤT QUÁN cho cả label lẫn request
+    // (không suy ngược từ response — tự đảm bảo mọi case trong 1 run cùng 1 model).
+    const model = backend === 'anthropic' ? (opts?.model ?? DEFAULT_MODEL) : 'mock';
     const runId = uuidv7();
     const startedAt = new Date();
     await this.prisma.withTenant(user.tenantId, (tx) =>
       tx.aiEvalRun.create({
         data: {
-          id: runId, tenantId: user.tenantId, suiteId, model: backend,
+          id: runId, tenantId: user.tenantId, suiteId, model,
           status: 'running', startedAt, createdBy: user.claims.sub,
         },
       }),
@@ -109,7 +119,7 @@ export class EvalService {
     // [F58] mọi lỗi ngoài per-case (đã catch riêng) → run kết thúc status='error',
     // không kẹt 'running' vĩnh viễn
     try {
-      return await this.executeRun(user, runId, suite, cases, backend);
+      return await this.executeRun(user, runId, suite, cases, model);
     } catch (e) {
       await this.prisma.withTenant(user.tenantId, (tx) =>
         tx.aiEvalRun.update({
@@ -125,7 +135,7 @@ export class EvalService {
     user: RequestUser, runId: string,
     suite: { agent: string; name: string },
     cases: Array<{ id: string; input: unknown; assertions: unknown }>,
-    backend: string,
+    model: string,
   ) {
     let pass = 0;
     let scoreSum = 0;
@@ -137,7 +147,10 @@ export class EvalService {
       try {
         const res = await this.gateway.complete(
           user,
-          { agent: suite.agent, prompt: input.prompt, context: input.context, promptVersion: input.promptVersion },
+          {
+            agent: suite.agent, prompt: input.prompt, context: input.context, promptVersion: input.promptVersion,
+            model, // [Lát 4] mock bỏ qua field này — anthropic dùng ĐÚNG model đã chốt ở run()
+          },
           `eval:${suite.name}`,
         );
         output = res.json ?? res.text;
@@ -170,7 +183,7 @@ export class EvalService {
       const summary = {
         pass, fail: cases.length - pass,
         avg_score: Number((scoreSum / cases.length).toFixed(3)),
-        deterministic: backend === 'mock',
+        deterministic: model === 'mock',
       };
       await tx.aiEvalRun.update({
         where: { id: runId },
@@ -224,8 +237,12 @@ export class EvalService {
    * Readiness per agent = run DONE mới nhất của TỪNG suite (learned + baseline)
    * so với launch bar. FAIL-CLOSED mọi nhánh: thiếu bar / thiếu suite / suite chưa
    * chạy / thiếu case / dưới ngưỡng → ready=false + reasons explainable.
-   * `liveQualified` TÁCH riêng: ready && có kết quả trên model KHÔNG PHẢI mock —
-   * kết quả mock chỉ chứng minh pipeline, KHÔNG chứng minh chất lượng model thật.
+   * [Last-mile Lát 4] `liveQualified` KHÔNG còn suy từ "có kết quả không-phải-mock
+   * TỪNG chạy qua" (dễ bị silent-swap: đổi model đang phục vụ mà không re-run vẫn
+   * đọc nhầm liveQualified cũ) — giờ đòi ĐÚNG 3 điều: model đang PHỤC VỤ agent
+   * (ai_agent_model, mặc định DEFAULT_MODEL) phải có 1 qualification (a) CHƯA HẾT
+   * HẠN (b) đạt bar HIỆN TẠI (re-check tại lúc đọc — bar bị siết sau khi qualify
+   * thì qualification cũ coi như vô hiệu, không đọc số cũ).
    */
   readiness(user: RequestUser) {
     return this.prisma.withTenant(user.tenantId, async (tx) => {
@@ -233,6 +250,7 @@ export class EvalService {
       const suites = await tx.aiEvalSuite.findMany({
         where: { deletedAt: null, agent: { startsWith: 'inline.' } },
       });
+      const agentModels = await tx.aiAgentModel.findMany({ where: { deletedAt: null } });
       const agents = [...new Set([...bars.map((b) => b.agent), ...suites.map((s) => s.agent)])].sort();
       const out = [];
       for (const agent of agents) {
@@ -279,22 +297,153 @@ export class EvalService {
         }
         const ready = !!bar && agentSuites.length > 0 && uncovered === 0
           && total >= bar.minCases && rawRate !== null && rawRate >= Number(bar.minPassRate);
-        const mockOnly = models.size === 0 || [...models].every((m) => m === 'mock');
-        if (ready && mockOnly) {
-          reasons.push('kết quả mới chỉ trên MOCK — pipeline OK nhưng CHƯA chứng minh chất lượng model thật');
+
+        // [Lát 4] Model-Qualification Gate — cấm silent-swap
+        const servingModel = agentModels.find((m) => m.agent === agent)?.model ?? DEFAULT_MODEL;
+        let liveQualified = false;
+        if (ready) {
+          if (servingModel === 'mock') {
+            reasons.push('model đang phục vụ là MOCK — pipeline OK nhưng CHƯA chứng minh chất lượng model thật (đổi qua PUT /ai/eval/agent-model sau khi qualify)');
+          } else {
+            const q = await tx.aiModelQualification.findFirst({
+              where: { agent, model: servingModel, expiresAt: { gt: new Date() } },
+              orderBy: { qualifiedAt: 'desc' },
+            });
+            if (!q) {
+              reasons.push(`model đang phục vụ '${servingModel}' CHƯA qualify (hoặc đã hết hạn) — chạy POST /ai/eval/qualify/${agent}`);
+            } else if (Number(q.passRate) < Number(bar!.minPassRate) || q.casesTotal < bar!.minCases) {
+              reasons.push(`qualification của '${servingModel}' không còn đạt bar HIỆN TẠI (bar đã siết sau khi qualify) — cần qualify lại`);
+            } else {
+              liveQualified = true;
+            }
+          }
         }
         out.push({
           agent,
           bar: bar ? { minPassRate: Number(bar.minPassRate), minCases: bar.minCases, note: bar.note } : null,
           cases: total, pass, fail: total - pass, passRate,
           models: [...models].sort(),
+          servingModel,
           suites: suiteViews,
           ready,
-          liveQualified: ready && !mockOnly,
+          liveQualified,
           reasons,
         });
       }
       return { agents: out };
     });
+  }
+
+  // ===== [Last-mile Lát 4] Model-Qualification Gate — cấm silent-swap =====
+
+  /** Model đang phục vụ agent — mặc định DEFAULT_MODEL nếu chưa pin tường minh. */
+  async getServingModel(user: RequestUser, agent: string): Promise<string> {
+    const row = await this.prisma.withTenant(user.tenantId, (tx) =>
+      tx.aiAgentModel.findFirst({ where: { agent, deletedAt: null } }),
+    );
+    return row?.model ?? DEFAULT_MODEL;
+  }
+
+  listAgentModels(user: RequestUser) {
+    return this.prisma.withTenant(user.tenantId, (tx) =>
+      tx.aiAgentModel.findMany({ where: { deletedAt: null }, orderBy: { agent: 'asc' } }),
+    );
+  }
+
+  /**
+   * Đổi model phục vụ agent — CHỈ chấp nhận khi model đích ('mock' luôn được, không
+   * cần chứng minh gì) đã có qualification CHƯA HẾT HẠN và đạt bar HIỆN TẠI. Đây là
+   * điểm CHẶN DUY NHẤT của "cấm silent-swap": không có đường nào khác đổi model phục
+   * vụ mà bỏ qua kiểm tra này (readiness() re-check độc lập tại thời điểm đọc, không
+   * tin tưởng mù quáng cờ này — 2 lớp).
+   */
+  async setServingModel(user: RequestUser, agent: string, model: string, note?: string) {
+    if (typeof model !== 'string' || model.length === 0 || model.length > 64) {
+      throw new UnprocessableEntityException('model bắt buộc, tối đa 64 ký tự');
+    }
+    if (model !== 'mock') {
+      const bar = await this.prisma.withTenant(user.tenantId, (tx) => tx.aiLaunchBar.findFirst({ where: { agent, deletedAt: null } }));
+      if (!bar) throw new UnprocessableEntityException(`Agent '${agent}' chưa có launch bar — không xác định được ngưỡng để chấp nhận model`);
+      const q = await this.prisma.withTenant(user.tenantId, (tx) =>
+        tx.aiModelQualification.findFirst({
+          where: { agent, model, expiresAt: { gt: new Date() } },
+          orderBy: { qualifiedAt: 'desc' },
+        }),
+      );
+      if (!q || Number(q.passRate) < Number(bar.minPassRate) || q.casesTotal < bar.minCases) {
+        throw new UnprocessableEntityException(
+          `Chưa có qualification hợp lệ (chưa hết hạn, đạt bar hiện tại ${Number(bar.minPassRate)}/${bar.minCases}) cho agent '${agent}' + model '${model}' — chạy POST /ai/eval/qualify/${agent} trước (cấm silent-swap).`,
+        );
+      }
+    }
+    return this.prisma.withTenant(user.tenantId, (tx) =>
+      tx.aiAgentModel.upsert({
+        where: { tenantId_agent: { tenantId: user.tenantId, agent } },
+        create: { id: uuidv7(), tenantId: user.tenantId, agent, model, note: note ?? null, createdBy: user.claims.sub },
+        update: { model, note: note ?? null, updatedBy: user.claims.sub, version: { increment: 1 }, deletedAt: null },
+      }),
+    );
+  }
+
+  /**
+   * Chạy LẠI (fresh, không tái dùng run cũ) toàn bộ suite của agent trên `opts.model`
+   * (chỉ có tác dụng khi backend=anthropic — mock luôn tự chạy model='mock' bất kể
+   * yêu cầu gì, nên KHÔNG BAO GIỜ "qualify hộ" được 1 model thật trong khi offline —
+   * đúng chủ đích: qualification chỉ có giá trị khi THẬT SỰ đã live cho lượt chạy đó).
+   * Đạt bar → ghi `ai_model_qualification` (APPEND-ONLY — bằng chứng vĩnh viễn, TTL
+   * qua expiresAt). Các suite lỡ chạy LẪN nhiều model khác nhau (VD nửa chừng đổi
+   * cờ/key) → từ chối, không chứng nhận mập mờ.
+   */
+  async qualify(user: RequestUser, agent: string, opts?: { model?: string; note?: string }) {
+    const bar = await this.prisma.withTenant(user.tenantId, (tx) => tx.aiLaunchBar.findFirst({ where: { agent, deletedAt: null } }));
+    if (!bar) throw new UnprocessableEntityException(`Agent '${agent}' chưa có launch bar — không qualify được`);
+    const suites = await this.prisma.withTenant(user.tenantId, (tx) => tx.aiEvalSuite.findMany({ where: { agent, deletedAt: null } }));
+    if (suites.length === 0) throw new UnprocessableEntityException(`Agent '${agent}' chưa có eval suite`);
+
+    const runIds: string[] = [];
+    const modelsSeen = new Set<string>();
+    let pass = 0;
+    let total = 0;
+    for (const s of suites) {
+      const run = await this.run(user, s.id, { model: opts?.model });
+      runIds.push(run!.id);
+      if (run!.model) modelsSeen.add(run!.model);
+      const sum = (run!.summary ?? {}) as { pass?: number; fail?: number };
+      pass += sum.pass ?? 0;
+      total += (sum.pass ?? 0) + (sum.fail ?? 0);
+    }
+    if (modelsSeen.size !== 1) {
+      throw new UnprocessableEntityException(
+        `Các suite chạy lẫn ${modelsSeen.size} model khác nhau trong 1 lượt qualify (${[...modelsSeen].join(', ')}) — không xác định được model để chứng nhận, chạy lại`,
+      );
+    }
+    const model = [...modelsSeen][0];
+    const rawRate = total > 0 ? pass / total : 0;
+    if (total < bar.minCases || rawRate < Number(bar.minPassRate)) {
+      throw new UnprocessableEntityException(
+        `Chưa đạt launch bar: ${pass}/${total} case (cần ≥${bar.minCases}), pass-rate ${rawRate.toFixed(3)} (cần ≥${Number(bar.minPassRate)}) — KHÔNG cấp qualification`,
+      );
+    }
+    const ttlDays = Number(process.env.AI_QUALIFICATION_TTL_DAYS ?? 90);
+    const expiresAt = new Date(Date.now() + ttlDays * 86_400_000);
+    return this.prisma.withTenant(user.tenantId, (tx) =>
+      tx.aiModelQualification.create({
+        data: {
+          id: uuidv7(), tenantId: user.tenantId, agent, model,
+          passRate: rawRate, casesTotal: total, runIds: runIds as any,
+          qualifiedBy: user.claims.sub, expiresAt, note: opts?.note ?? null,
+        },
+      }),
+    );
+  }
+
+  listQualifications(user: RequestUser, agent?: string) {
+    return this.prisma.withTenant(user.tenantId, (tx) =>
+      tx.aiModelQualification.findMany({
+        where: agent ? { agent } : {},
+        orderBy: { qualifiedAt: 'desc' },
+        take: 200,
+      }),
+    );
   }
 }

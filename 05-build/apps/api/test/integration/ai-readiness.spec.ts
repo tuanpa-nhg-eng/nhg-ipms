@@ -166,9 +166,14 @@ describe('Learning Loop L2 — eval replay + launch bar + readiness', () => {
     expect(fake.cases).toBeGreaterThanOrEqual(5);
     expect(fake.passRate).toBe(1);
     expect(fake.ready).toBe(true);
-    expect(fake.liveQualified).toBe(false); // mock-only — không đủ điều kiện bật live
-    expect(fake.reasons.join(' ')).toContain('MOCK');
-    expect(fake.models).toEqual(['mock']);
+    // [Last-mile Lát 4] liveQualified giờ đòi model ĐANG PHỤC VỤ (servingModel, mặc định
+    // DEFAULT_MODEL khi chưa pin) có qualification hợp lệ — chưa qualify ai cả ⇒ false,
+    // lý do nêu ĐÚNG tên model cần qualify (chính xác hơn "MOCK" chung chung của lát trước).
+    expect(fake.liveQualified).toBe(false);
+    expect(fake.servingModel).toBe('claude-opus-4-8');
+    expect(fake.reasons.join(' ')).toContain('claude-opus-4-8');
+    expect(fake.reasons.join(' ')).toContain('qualify');
+    expect(fake.models).toEqual(['mock']); // run THẬT vẫn chỉ chạy trên mock (flag OFF)
   });
 
   it('readiness fail-closed: 4 agent inline thật đều CÓ mặt, bar đầy đủ; mọi agent liveQualified=false trên mock', async () => {

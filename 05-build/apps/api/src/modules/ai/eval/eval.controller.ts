@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put, UnprocessableEntityException } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Query, UnprocessableEntityException } from '@nestjs/common';
 import {
   ArrayMaxSize, ArrayMinSize, IsArray, IsInt, IsNumber, IsObject, IsOptional, IsString, Length,
   Max, Min, ValidateNested,
@@ -26,6 +26,16 @@ class CreateSuiteDto {
 class LaunchBarDto {
   @IsNumber() @Min(0.001) @Max(1) minPassRate!: number;
   @IsInt() @Min(1) @Max(1000) minCases!: number;
+  @IsOptional() @IsString() @Length(1, 500) note?: string;
+}
+
+class SetAgentModelDto {
+  @IsString() @Length(1, 64) model!: string;
+  @IsOptional() @IsString() @Length(1, 500) note?: string;
+}
+
+class QualifyDto {
+  @IsOptional() @IsString() @Length(1, 64) model?: string;
   @IsOptional() @IsString() @Length(1, 500) note?: string;
 }
 
@@ -84,5 +94,35 @@ export class EvalController {
       throw new UnprocessableEntityException('agent 1–100 ký tự');
     }
     return this.evals.upsertBar(user, agent, dto);
+  }
+
+  // ===== [Last-mile Lát 4] Model-Qualification Gate — cấm silent-swap =====
+
+  @Get('agent-model')
+  @RequirePermission('ai:eval')
+  listAgentModels(@CurrentUser() user: RequestUser) {
+    return this.evals.listAgentModels(user);
+  }
+
+  @Put('agent-model/:agent')
+  @RequirePermission('ai:eval')
+  @Audited('ai_agent_model.upsert')
+  setAgentModel(@CurrentUser() user: RequestUser, @Param('agent') agent: string, @Body() dto: SetAgentModelDto) {
+    if (agent.length === 0 || agent.length > 100) throw new UnprocessableEntityException('agent 1–100 ký tự');
+    return this.evals.setServingModel(user, agent, dto.model, dto.note);
+  }
+
+  @Post('qualify/:agent')
+  @RequirePermission('ai:eval')
+  @Audited('ai_model_qualification.create')
+  qualify(@CurrentUser() user: RequestUser, @Param('agent') agent: string, @Body() dto: QualifyDto) {
+    if (agent.length === 0 || agent.length > 100) throw new UnprocessableEntityException('agent 1–100 ký tự');
+    return this.evals.qualify(user, agent, dto);
+  }
+
+  @Get('qualifications')
+  @RequirePermission('ai:eval')
+  listQualifications(@CurrentUser() user: RequestUser, @Query('agent') agent?: string) {
+    return this.evals.listQualifications(user, agent);
   }
 }

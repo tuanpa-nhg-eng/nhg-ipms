@@ -4,6 +4,9 @@
  * RED-LINE: KHÔNG gọi API thật cho tới khi chủ dự án cấp key + budget.
  */
 
+/** Model mặc định khi request không tự khai — dùng chung AnthropicLlmClient + eval/qualification (1 nguồn, không lệch). */
+export const DEFAULT_MODEL = 'claude-opus-4-8';
+
 export interface LlmRequest {
   /** Agent nghiệp vụ đứng sau lời gọi: 'config_copilot' | 'kpi_designer' | 'eval_harness'... */
   agent: string;

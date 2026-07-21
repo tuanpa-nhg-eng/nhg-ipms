@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { Injectable } from '@nestjs/common';
-import { LlmClient, LlmRequest, LlmResponse, LlmStreamChunk } from './llm-client';
+import { DEFAULT_MODEL, LlmClient, LlmRequest, LlmResponse, LlmStreamChunk } from './llm-client';
 
 /**
  * [Last-mile Lát 3] Claude API THẬT — vẫn CHƯA kích hoạt trên đường sống (RED-LINE:
@@ -20,7 +20,6 @@ import { LlmClient, LlmRequest, LlmResponse, LlmStreamChunk } from './llm-client
  * lát tính năng Copilot-live sau, ngoài phạm vi hạ tầng last-mile).
  */
 
-const DEFAULT_MODEL = 'claude-opus-4-8';
 const MAX_TOKENS = 4_096;
 
 // [skill claude-api] Opus 4.8/4.7/4.6, Sonnet 5/4.6, Fable 5 dùng thinking:{type:'adaptive'}

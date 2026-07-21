@@ -1537,6 +1537,48 @@ model AiEgressPolicy {
   @@map("ai_egress_policy")
 }
 
+// [Last-mile Lát 4] Model ĐANG PHỤC VỤ 1 agent khi live — pin tường minh, đổi PHẢI qua
+// EvalService.setServingModel() (chỉ chấp nhận khi có qualification hợp lệ, chưa hết
+// hạn, đạt bar hiện tại) — cấm silent-swap. Không có row ⇒ mặc định DEFAULT_MODEL.
+model AiAgentModel {
+  id       String  @id @db.Uuid
+  tenantId String  @map("tenant_id") @db.Uuid
+  agent    String
+  model    String
+  note     String?
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  version   Int       @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, agent])
+  @@map("ai_agent_model")
+}
+
+// [Last-mile Lát 4] Bằng chứng "model X đã chạy TOÀN BỘ golden suite của agent Y VÀ
+// đạt launch bar" — APPEND-ONLY (chuẩn ai_learning_signal/ai_interaction, không sửa/xoá
+// được kể cả owner). runIds = aiEvalRun.id[] thực sự đã chạy (bằng chứng, không suy diễn).
+// expiresAt tính SẴN lúc cấp (TTL AI_QUALIFICATION_TTL_DAYS) — đọc không cần job dọn.
+model AiModelQualification {
+  id          String   @id @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  agent       String
+  model       String
+  passRate    Decimal  @map("pass_rate") @db.Decimal(4, 3)
+  casesTotal  Int      @map("cases_total")
+  runIds      Json     @map("run_ids")
+  qualifiedAt DateTime @default(now()) @map("qualified_at") @db.Timestamptz(6)
+  qualifiedBy String?  @map("qualified_by") @db.Uuid
+  expiresAt   DateTime @map("expires_at") @db.Timestamptz(6)
+  note        String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([tenantId, agent, model])
+  @@map("ai_model_qualification")
+}
+
 // [P1 Copilot] Phiên hội thoại Copilot + tin nhắn (tenant-bound, RLS).
 model AiConversation {
   id         String      @id @db.Uuid
