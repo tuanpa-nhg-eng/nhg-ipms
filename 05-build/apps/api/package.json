@@ -14,6 +14,7 @@
     "test:integration": "jest --runInBand --testPathPattern integration"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.112.3",
     "@cedar-policy/cedar-wasm": "^4.11.2",
     "@ipms/db": "workspace:*",
     "@ipms/shared": "workspace:*",

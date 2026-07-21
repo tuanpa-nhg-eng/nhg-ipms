@@ -45,6 +45,7 @@ import { ConnectorRegistry } from './modules/integration/connectors/connector.re
 import { OutboxDispatcher } from './modules/integration/outbox.dispatcher';
 import { MorningTodosService } from './modules/integration/morning-todos.service';
 import { AiGatewayService } from './modules/ai/ai-gateway.service';
+import { AnthropicLlmClient } from './modules/ai/llm/anthropic-llm-client';
 import { PiiScrubService } from './modules/ai/pii/pii-scrub.service';
 import { EgressPolicyService } from './modules/ai/egress/egress-policy.service';
 import { EgressPolicyController } from './modules/ai/egress/egress-policy.controller';
@@ -106,6 +107,7 @@ import { PolicyGuard } from './modules/policy/policy.guard';
     OutboxDispatcher,
     MorningTodosService,
     AiGatewayService,
+    AnthropicLlmClient,
     PiiScrubService,
     EgressPolicyService,
     AiChatService,

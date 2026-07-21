@@ -55,3 +55,24 @@ export function callsPerMonth(callsInWindow: number, windowDays: number): number
   if (windowDays <= 0) return 0;
   return Math.round((callsInWindow / windowDays) * 30);
 }
+
+/**
+ * [F167] Gộp giá theo model — row TENANT (override) THẮNG row GLOBAL. Tách ra pure
+ * (dùng lại ở cả economics.service.ts báo cáo VÀ ai-gateway.service.ts Lát 3 — tính
+ * costUsd THẬT khi bật live, cùng 1 luật ưu tiên, không lệch nhau).
+ */
+export function dedupeModelPrices<T extends { model: string; tenantId: string | null }>(rows: T[]): T[] {
+  const m = new Map<string, T>();
+  for (const p of rows) {
+    const cur = m.get(p.model);
+    if (!cur || (cur.tenantId === null && p.tenantId !== null)) m.set(p.model, p);
+  }
+  return [...m.values()].sort((a, b) => a.model.localeCompare(b.model));
+}
+
+/** [Last-mile Lát 3] USD cho 1 lượt gọi THẬT theo giá niêm yết. Thiếu giá ⇒ 0 (tường minh, không throw — usage thật quan trọng hơn, thiếu giá không được chặn ghi nhận). */
+export function costForUsage(tokensIn: number, tokensOut: number, price: ModelPriceRow | null): number {
+  if (!price) return 0;
+  const cost = (tokensIn / 1_000_000) * price.inputUsdPerMTok + (tokensOut / 1_000_000) * price.outputUsdPerMTok;
+  return round6(cost);
+}

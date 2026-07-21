@@ -96,15 +96,11 @@ describe('[Last-mile Lát 2] Egress Policy Engine — ai-gateway thật', () => 
     expect((row!.output as any).reason).toContain('self-host');
     expect(Number(row!.costUsd ?? 0)).toBe(0); // chưa từng chạm client — chắc chắn 0đ
 
-    // 'internal' (mặc định) vẫn ĐI QUA egress — chạm client thật (Anthropic chưa kích
-    // hoạt lát 3 nên ném NotImplemented, KHÁC hẳn lỗi egress — chứng minh không bị chặn oan)
-    await expect(
-      gateway.complete(user, { agent: `egress-internal-${uniq}`, prompt: 'nghiệp vụ nội bộ' }),
-    ).rejects.toThrow(/chưa kích hoạt/);
-    const row2 = await owner.aiInteraction.findFirst({
-      where: { tenantId, agent: `egress-internal-${uniq}` }, orderBy: { at: 'desc' },
-    });
-    expect(row2!.status).toBe('error'); // lỗi client thật, KHÔNG PHẢI 'blocked'
+    // 'internal' (mặc định) KHÔNG bị egress chặn — kiểm qua EgressPolicyService.resolve()
+    // trực tiếp (không đi qua gateway.complete(): từ Lát 3 AnthropicLlmClient THẬT, đi hết
+    // egress sẽ chạm mạng thật ra Anthropic — không phù hợp cho unit/integration test).
+    const decision = await egress.resolve(tenantId, 'internal', 'anthropic');
+    expect(decision.allowed).toBe(true);
   });
 
   it('tenant CHẶN THÊM internal→anthropic qua policy tường minh (thu hẹp mặc định)', async () => {

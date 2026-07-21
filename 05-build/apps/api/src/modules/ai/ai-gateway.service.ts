@@ -8,6 +8,8 @@ import { PiiScrubService } from './pii/pii-scrub.service';
 import type { PiiKind } from './pii/pii-scrubber';
 import { EgressPolicyService } from './egress/egress-policy.service';
 import type { DataClass, EgressDestination } from './egress/egress-policy';
+import { EconomicsService } from './economics/economics.service';
+import { costForUsage } from './economics/economics.util';
 
 /**
  * ai-gateway (#3 hạ tầng) — cổng DUY NHẤT gọi LLM:
@@ -20,13 +22,27 @@ import type { DataClass, EgressDestination } from './egress/egress-policy';
  * - [Last-mile Lát 2] Egress Policy — lớp gác THỨ HAI, cắt ngang, độc lập với cờ
  *   ai_gateway_live: dữ liệu confidential/pii KHÔNG BAO GIỜ rời mock (self-host chưa
  *   triển khai), dù cờ bật + có key. Chặn → status='blocked', KHÔNG gọi client.
+ * - [Last-mile Lát 3] costUsd cho backend=anthropic tính THẬT qua EconomicsService
+ *   (ai_model_price, tenant override thắng global — F167) NGAY TẠI ĐÂY (client chỉ
+ *   báo cáo usage, không tự định giá — 1 nơi giữ luật giá, dùng chung với báo cáo §16).
  */
 @Injectable()
 export class AiGatewayService {
   private mock: LlmClient = new MockLlmClient();
-  private anthropic: LlmClient = new AnthropicLlmClient();
 
-  constructor(private prisma: PrismaService, private pii: PiiScrubService, private egress: EgressPolicyService) {}
+  constructor(
+    private prisma: PrismaService, private pii: PiiScrubService,
+    private egress: EgressPolicyService, private economics: EconomicsService,
+    // [Lát 3] DI (không `new` cứng) — test override bằng withTransport() giả.
+    private anthropic: AnthropicLlmClient,
+  ) {}
+
+  /** [Lát 3] Giá THẬT cho 1 lượt anthropic — chỉ gọi khi backend='anthropic' (mock giữ
+   *  nguyên costUsd=0 từ MockLlmClient, không tra giá, không đổi hành vi cũ). */
+  private async realCost(tenantId: string, model: string, tokensIn: number, tokensOut: number): Promise<number> {
+    const price = await this.economics.priceForModel(tenantId, model);
+    return costForUsage(tokensIn, tokensOut, price);
+  }
 
   /**
    * [Last-mile Lát 2] Chặn TRƯỚC khi gọi client — nhận `req` ĐÃ SCRUB (gọi SAU pii.scrubRequest
@@ -71,14 +87,19 @@ export class AiGatewayService {
     await this.guardEgress(user, scrubbedReq, counts, backend, toolName); // [Lát 2] throws nếu bị chặn — đã tự log
     try {
       const res = await client.complete(scrubbedReq);
+      // [Lát 3] anthropic → costUsd THẬT (client chỉ trả 0 placeholder); mock giữ nguyên.
+      const costUsd = backend === 'anthropic'
+        ? await this.realCost(user.tenantId, res.model, res.tokensIn, res.tokensOut)
+        : res.costUsd;
       await this.log(user, scrubbedReq, toolName, {
         model: res.model, output: res.json ?? res.text,
-        tokensIn: res.tokensIn, tokensOut: res.tokensOut, costUsd: res.costUsd,
+        tokensIn: res.tokensIn, tokensOut: res.tokensOut, costUsd,
         latencyMs: Date.now() - t0, status: 'ok', piiCounts: counts,
       });
       // Nghịch — caller nội bộ nhận bản THẬT (map chỉ tồn tại trong RAM lượt gọi này).
       return {
         ...res,
+        costUsd,
         text: this.pii.rehydrateText(res.text, map),
         json: res.json !== undefined ? this.pii.rehydrateValue(res.json, map) : res.json,
       };
@@ -91,16 +112,18 @@ export class AiGatewayService {
     }
   }
 
-  /** [P1 Copilot] Stream LLM + log ai_interaction khi kết thúc. Fail-closed về mock
-   *  nếu backend chọn không hỗ trợ stream (AnthropicLlmClient stream có ở P0). */
+  /**
+   * [P1 Copilot] Stream LLM + log ai_interaction khi kết thúc.
+   * [Lát 3] AnthropicLlmClient.stream() giờ THẬT (không còn stub) — nhánh fallback dưới
+   * đây là lưới an toàn thuần tuý (LlmClient tương lai lỡ không implement stream), KHÔNG
+   * còn phải là đường đi thường trực như trước lát 3.
+   */
   async *stream(user: RequestUser, req: LlmRequest, toolName?: string): AsyncIterable<LlmStreamChunk> {
     const backend = await this.resolveBackend(user.tenantId);
     const chosen = backend === 'anthropic' ? this.anthropic : this.mock;
-    // [F151] backend chọn 'anthropic' nhưng client chưa có stream (stub P0) → fallback mock
-    // NHƯNG cảnh báo rõ để vận hành biết cờ live CHƯA có tác dụng cho chat streaming.
     if (backend === 'anthropic' && !chosen.stream) {
       // eslint-disable-next-line no-console
-      console.warn('[ai-gateway] backend=anthropic nhưng AnthropicLlmClient chưa hỗ trợ stream() — tạm fallback MockLlmClient (implement ở P0).');
+      console.warn('[ai-gateway] backend=anthropic nhưng client hiện tại thiếu stream() — tạm fallback MockLlmClient.');
     }
     const client = chosen.stream ? chosen : this.mock;
     const t0 = Date.now();
@@ -149,9 +172,15 @@ export class AiGatewayService {
         }
         yield chunk;
       }
+      // [Lát 3] anthropic → costUsd THẬT cho log (chunk 'done' ĐÃ yield cho caller với
+      // placeholder 0 — không ai đọc costUsd từ chunk stream hiện tại, chỉ ai_interaction
+      // cần số đúng cho báo cáo economics §16).
+      const costUsd = backend === 'anthropic' && usage
+        ? await this.realCost(user.tenantId, usage.model, usage.tokensIn, usage.tokensOut)
+        : usage?.costUsd;
       await this.log(user, scrubbedReq, toolName, {
         model: usage?.model ?? backend, output: acc.slice(0, 4000),
-        tokensIn: usage?.tokensIn, tokensOut: usage?.tokensOut, costUsd: usage?.costUsd,
+        tokensIn: usage?.tokensIn, tokensOut: usage?.tokensOut, costUsd,
         latencyMs: Date.now() - t0, status: 'ok', piiCounts: counts,
       });
     } catch (e) {

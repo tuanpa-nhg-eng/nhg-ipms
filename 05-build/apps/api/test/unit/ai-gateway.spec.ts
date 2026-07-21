@@ -22,10 +22,16 @@ describe('selectLlmBackend — fail-closed về mock (RED-LINE)', () => {
   });
 });
 
-describe('AnthropicLlmClient — chỗ cắm chưa kích hoạt', () => {
-  it('complete() ném NotImplemented (RED-LINE chờ key)', async () => {
+describe('AnthropicLlmClient — chưa có key (RED-LINE)', () => {
+  const ORIGINAL_KEY = process.env.ANTHROPIC_API_KEY;
+  beforeAll(() => { delete process.env.ANTHROPIC_API_KEY; });
+  afterAll(() => {
+    if (ORIGINAL_KEY !== undefined) process.env.ANTHROPIC_API_KEY = ORIGINAL_KEY;
+  });
+
+  it('[Lát 3] complete() không có key → chặn tường minh trước khi chạm mạng', async () => {
     await expect(new AnthropicLlmClient().complete({ agent: 'x', prompt: 'y' }))
-      .rejects.toThrow(/chưa kích hoạt/);
+      .rejects.toThrow(/ANTHROPIC_API_KEY chưa được cấp/);
   });
 });
 

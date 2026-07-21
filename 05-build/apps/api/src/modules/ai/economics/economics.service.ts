@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../prisma.service';
 import type { RequestUser } from '../../../common/auth/decorators';
-import { buildProjections, callsPerMonth, percentile } from './economics.util';
+import { buildProjections, callsPerMonth, dedupeModelPrices, percentile } from './economics.util';
 
 /** Cửa sổ quan sát mặc định + trần mẫu (cờ sampled minh bạch khi chạm trần). */
 const WINDOW_DAYS = 30;
@@ -18,16 +18,6 @@ const SAMPLE_CAP = 10_000;
 export class EconomicsService {
   constructor(private prisma: PrismaService) {}
 
-  /** [F167] Gộp giá theo model — row tenant (override) THẮNG row global. */
-  private static dedupePrices<T extends { model: string; tenantId: string | null }>(rows: T[]): T[] {
-    const m = new Map<string, T>();
-    for (const p of rows) {
-      const cur = m.get(p.model);
-      if (!cur || (cur.tenantId === null && p.tenantId !== null)) m.set(p.model, p);
-    }
-    return [...m.values()].sort((a, b) => a.model.localeCompare(b.model));
-  }
-
   async listPrices(user: RequestUser) {
     const rows = await this.prisma.withTenant(user.tenantId, (tx) =>
       tx.aiModelPrice.findMany({
@@ -35,7 +25,17 @@ export class EconomicsService {
         orderBy: [{ model: 'asc' }],
       }),
     );
-    return EconomicsService.dedupePrices(rows);
+    return dedupeModelPrices(rows);
+  }
+
+  /** [Last-mile Lát 3] Giá 1 model — tenant override thắng global, dùng bởi ai-gateway
+   *  để tính costUsd THẬT khi backend=anthropic (cùng luật ưu tiên với báo cáo). */
+  async priceForModel(tenantId: string, model: string) {
+    const rows = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.aiModelPrice.findMany({ where: { deletedAt: null, model } }),
+    );
+    const row = dedupeModelPrices(rows)[0];
+    return row ? { model: row.model, inputUsdPerMTok: Number(row.inputUsdPerMTok), outputUsdPerMTok: Number(row.outputUsdPerMTok) } : null;
   }
 
   async report(user: RequestUser) {
@@ -58,7 +58,7 @@ export class EconomicsService {
     // "chi phí nếu bật live" sai lệch hàng chục lần — đúng con số quyết định PRD §16.
     const rows = rawRows.filter((r) => !r.toolName?.startsWith('eval:'));
 
-    const priceRows = EconomicsService.dedupePrices(prices).map((p) => ({
+    const priceRows = dedupeModelPrices(prices).map((p) => ({
       model: p.model,
       inputUsdPerMTok: Number(p.inputUsdPerMTok),
       outputUsdPerMTok: Number(p.outputUsdPerMTok),
