@@ -26,6 +26,27 @@ describe('scrubRequestPure — phát hiện + token hoá', () => {
     expect(short.prompt).toBe('Mã 12345 không phải CCCD');
   });
 
+  // [F169 — Reviewer đối kháng, BLOCKER] SĐT/CCCD viết có dấu phân cách (rất phổ biến
+  // khi người dùng tự gõ) trước đây BYPASS hoàn toàn — chỉ khớp chuỗi số liên tục.
+  it('[F169] SĐT có dấu chấm/gạch/khoảng trắng vẫn bị scrub (trước đây bypass)', () => {
+    for (const s of ['090.123.4567', '0912-345-678', '0912 345 678']) {
+      const r = scrubRequestPure(`Gọi số ${s} giúp tôi`, undefined);
+      expect(r.prompt).toContain('[[PII:phone:1]]');
+      expect(r.map['[[PII:phone:1]]']).toBe(s);
+    }
+  });
+
+  it('[F169] CCCD có khoảng trắng chia nhóm vẫn bị scrub (trước đây bypass)', () => {
+    const r = scrubRequestPure('CCCD: 001204 012345', undefined);
+    expect(r.prompt).toContain('[[PII:cccd:1]]');
+    expect(r.map['[[PII:cccd:1]]']).toBe('001204 012345');
+  });
+
+  it('[F169] không tạo false-positive trên mã tác vụ dạng chữ-số (không phải SĐT/CCCD)', () => {
+    const r = scrubRequestPure('Xem tác vụ TS-G01-C01-T001 trong Từ điển', undefined);
+    expect(r.prompt).toBe('Xem tác vụ TS-G01-C01-T001 trong Từ điển');
+  });
+
   it('số tiền định dạng VND bị scrub, số thường không bị', () => {
     const r = scrubRequestPure('Lương 15.000.000đ mỗi tháng', undefined);
     expect(r.prompt).toContain('[[PII:salary:1]]');
@@ -38,6 +59,16 @@ describe('scrubRequestPure — phát hiện + token hoá', () => {
     expect(r.prompt).toContain('[[PII:name:1]]');
     expect(r.prompt).not.toContain('Nguyễn Văn A');
     expect(r.counts.name).toBe(1); // không đếm đúp lồng nhau
+  });
+
+  // [F170 — Reviewer đối kháng, MINOR] So khớp tên trước đây case-sensitive tuyệt đối
+  // — tên viết HOA/thường khác knownNames sẽ lọt ra ngoài nguyên văn.
+  it('[F170] tên khớp KHÔNG phân biệt hoa/thường, value giữ ĐÚNG cách viết gốc', () => {
+    const r1 = scrubRequestPure('LIÊN HỆ NGUYỄN VĂN A GẤP', undefined, ['Nguyễn Văn A']);
+    expect(r1.prompt).toContain('[[PII:name:1]]');
+    expect(r1.map['[[PII:name:1]]']).toBe('NGUYỄN VĂN A'); // giữ nguyên chữ hoa trong text gốc
+    const r2 = scrubRequestPure('trao đổi với nguyễn văn a nhé', undefined, ['Nguyễn Văn A']);
+    expect(r2.map['[[PII:name:1]]']).toBe('nguyễn văn a');
   });
 
   it('tên KHÔNG trong knownNames thì không bị scrub (không đoán mò)', () => {

@@ -20,10 +20,15 @@ interface RawMatch {
   value: string;
 }
 
+// [F169 — Reviewer đối kháng] SĐT/CCCD viết tay tiếng Việt hầu như LUÔN có dấu phân
+// cách giữa các nhóm số (090.123.4567 · 0912-345-678 · 001204 012345) — regex ban đầu
+// chỉ khớp chuỗi số LIÊN TỤC bị bypass hoàn toàn ở dạng phổ biến nhất. Cho phép 1 dấu
+// phân cách [.\-\s] TUỲ CHỌN trước MỖI chữ số còn lại (phủ mọi cách chia nhóm mà không
+// cần biết trước quy tắc chia nhóm cụ thể) — thà quét rộng hơn cần thiết còn hơn để lọt.
 const PII_REGEXES: Array<{ kind: PiiKind; re: RegExp }> = [
   { kind: 'email', re: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g },
-  { kind: 'phone', re: /(?:\+84|0)(3|5|7|8|9)\d{8}(?!\d)/g },
-  { kind: 'cccd', re: /(?<!\d)\d{12}(?!\d)/g },
+  { kind: 'phone', re: /(?<!\d)(?:\+84|0)[.\-\s]?(3|5|7|8|9)(?:[.\-\s]?\d){8}(?!\d)/g },
+  { kind: 'cccd', re: /(?<!\d)\d(?:[.\-\s]?\d){11}(?!\d)/g },
   // (?![a-zA-Z0-9]) thay cho \b cuối — 'đ' không thuộc \w trong regex JS (ASCII-only),
   // nên \b sau 'đ' theo sau bởi khoảng trắng/kết chuỗi sẽ KHÔNG khớp (2 phía đều non-word).
   { kind: 'salary', re: /\b\d{1,3}(?:[.,]\d{3}){2,}\s?(?:đ|vnđ|vnd)(?![a-zA-Z0-9])/gi },
@@ -49,12 +54,17 @@ class Tokenizer {
 function findMatches(text: string, knownNames: string[]): RawMatch[] {
   const matches: RawMatch[] = [];
   // Tên nhân sự — dài nhất trước (tránh khớp con của tên dài hơn), bỏ tên quá ngắn/mơ hồ.
+  // [F170 — Reviewer đối kháng] So khớp KHÔNG phân biệt hoa/thường (person.fullName viết
+  // HOA TOÀN BỘ hoặc chữ thường vẫn phải bị scrub) — nhưng `value` lưu lại giữ ĐÚNG chữ
+  // hoa/thường như trong text gốc (để rehydrate ra byte-một-byte, không đổi cách viết).
   const names = [...new Set(knownNames)].filter((n) => n && n.length >= 4).sort((a, b) => b.length - a.length);
+  const lowerText = text.toLowerCase();
   for (const name of names) {
-    let idx = text.indexOf(name);
+    const lowerName = name.toLowerCase();
+    let idx = lowerText.indexOf(lowerName);
     while (idx !== -1) {
-      matches.push({ start: idx, end: idx + name.length, kind: 'name', value: name });
-      idx = text.indexOf(name, idx + name.length);
+      matches.push({ start: idx, end: idx + name.length, kind: 'name', value: text.slice(idx, idx + name.length) });
+      idx = lowerText.indexOf(lowerName, idx + name.length);
     }
   }
   for (const { kind, re } of PII_REGEXES) {

@@ -8,7 +8,7 @@
  * ④ Egress Policy (dataClass→đích — Lát 2) ⑤ Checklist sẵn sàng Live (Lát 5)
  * Permission ai:eval (designer@/admin@). Mọi số chi phí là ƯỚC LƯỢNG (nhãn estimated).
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Activity, CheckCircle2, CircleDollarSign, GraduationCap, KeyRound, Languages,
   ListChecks, LogOut, RefreshCw, ShieldAlert, ShieldCheck, XCircle,
@@ -84,7 +84,26 @@ export default function AiGovernancePage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const qualify = useCallback(async (agent: string) => {
+  // [F172 — Reviewer đối kháng] Chặn double-submit: qualify()/setServingModel() có thể
+  // TỐN TIỀN THẬT khi ai_gateway_live đã bật (chạy lại toàn bộ suite qua Anthropic thật)
+  // — click đúp/mạng chậm không được bắn 2 lượt song song cho CÙNG 1 hành động.
+  // pendingRef kiểm tra ĐỒNG BỘ (state React là bất đồng bộ/batched, không đủ nhanh để
+  // chặn click thứ 2 xảy ra trước lần re-render đầu tiên); pendingKeys chỉ để render UI.
+  const pendingRef = useRef<Set<string>>(new Set());
+  const [pendingKeys, setPendingKeys] = useState<Set<string>>(new Set());
+  const runExclusive = useCallback(async (key: string, fn: () => Promise<void>) => {
+    if (pendingRef.current.has(key)) return;
+    pendingRef.current.add(key);
+    setPendingKeys(new Set(pendingRef.current));
+    try {
+      await fn();
+    } finally {
+      pendingRef.current.delete(key);
+      setPendingKeys(new Set(pendingRef.current));
+    }
+  }, []);
+
+  const qualify = useCallback((agent: string) => runExclusive(`qualify:${agent}`, async () => {
     setActionMsg(null);
     try {
       const q = await call<{ model: string; passRate: string }>(`/ai/eval/qualify/${agent}`, { method: "POST", json: {} });
@@ -93,9 +112,9 @@ export default function AiGovernancePage() {
     } catch (e) {
       setActionMsg({ kind: "err", text: (e as Error).message });
     }
-  }, [call, load, L]);
+  }), [runExclusive, call, load, L]);
 
-  const setServingModel = useCallback(async (agent: string) => {
+  const setServingModel = useCallback((agent: string) => runExclusive(`setmodel:${agent}`, async () => {
     const model = pickModel[agent];
     if (!model) return;
     setActionMsg(null);
@@ -106,9 +125,9 @@ export default function AiGovernancePage() {
     } catch (e) {
       setActionMsg({ kind: "err", text: (e as Error).message });
     }
-  }, [call, load, pickModel, L]);
+  }), [runExclusive, call, load, pickModel, L]);
 
-  const setEgressAllowed = useCallback(async (dataClass: string, destination: string, allowed: boolean) => {
+  const setEgressAllowed = useCallback((dataClass: string, destination: string, allowed: boolean) => runExclusive(`egress:${dataClass}:${destination}`, async () => {
     setActionMsg(null);
     try {
       await call("/ai/egress-policies", { method: "PUT", json: { dataClass, destination, allowed } });
@@ -116,7 +135,7 @@ export default function AiGovernancePage() {
     } catch (e) {
       setActionMsg({ kind: "err", text: (e as Error).message });
     }
-  }, [call, load]);
+  }), [runExclusive, call, load]);
 
   return (
     <AppShell crumb={{ section: "Configuration Studio", page: L("Quản trị AI", "AI Governance") }}>
@@ -267,19 +286,27 @@ export default function AiGovernancePage() {
                   {a.reasons.map((r, i) => <li key={i}>{r}</li>)}
                 </ul>
               )}
-              {/* [Last-mile Lát 4/5] Model-Qualification Gate — hành động admin */}
+              {/* [Last-mile Lát 4/5] Model-Qualification Gate — hành động admin (khoá
+                  nút trong lúc gọi API — F172: chống double-submit tốn tiền thật khi live) */}
               <div className="aigov-card-actions">
-                <button className="btn ghost sm" disabled={!a.ready} title={!a.ready ? L("Cần đạt bar trước", "Must meet bar first") : ""}
+                <button className="btn ghost sm" disabled={!a.ready || pendingKeys.has(`qualify:${a.agent}`)}
+                  title={!a.ready ? L("Cần đạt bar trước", "Must meet bar first") : ""}
                   onClick={() => void qualify(a.agent)}>
-                  {L("Qualify (chạy lại toàn bộ suite)", "Qualify (re-run all suites)")}
+                  {pendingKeys.has(`qualify:${a.agent}`)
+                    ? L("Đang chạy…", "Running…")
+                    : L("Qualify (chạy lại toàn bộ suite)", "Qualify (re-run all suites)")}
                 </button>
                 <select className="studio-select" style={{ maxWidth: 200 }} value={pickModel[a.agent] ?? ""}
+                  disabled={pendingKeys.has(`setmodel:${a.agent}`)}
                   onChange={(e) => setPickModel((p) => ({ ...p, [a.agent]: e.target.value }))}>
                   <option value="">{L("chọn model…", "pick model…")}</option>
                   {MODEL_CHOICES.map((m) => <option key={m} value={m}>{m}</option>)}
                 </select>
-                <button className="btn ghost sm" disabled={!pickModel[a.agent]} onClick={() => void setServingModel(a.agent)}>
-                  {L("Đặt làm model phục vụ", "Set as serving model")}
+                <button className="btn ghost sm" disabled={!pickModel[a.agent] || pendingKeys.has(`setmodel:${a.agent}`)}
+                  onClick={() => void setServingModel(a.agent)}>
+                  {pendingKeys.has(`setmodel:${a.agent}`)
+                    ? L("Đang lưu…", "Saving…")
+                    : L("Đặt làm model phục vụ", "Set as serving model")}
                 </button>
               </div>
             </div>
@@ -325,8 +352,11 @@ export default function AiGovernancePage() {
                       </td>
                       <td>
                         {sensitive ? "—" : (
-                          <button className="btn ghost sm" onClick={() => void setEgressAllowed(dc, dest, !allowed)}>
-                            {allowed ? L("Chặn", "Block") : L("Cho phép", "Allow")}
+                          <button className="btn ghost sm" disabled={pendingKeys.has(`egress:${dc}:${dest}`)}
+                            onClick={() => void setEgressAllowed(dc, dest, !allowed)}>
+                            {pendingKeys.has(`egress:${dc}:${dest}`)
+                              ? L("Đang lưu…", "Saving…")
+                              : allowed ? L("Chặn", "Block") : L("Cho phép", "Allow")}
                           </button>
                         )}
                       </td>

@@ -255,6 +255,14 @@ export class EvalService {
       });
       const agentModels = await tx.aiAgentModel.findMany({ where: { deletedAt: null } });
       const agents = [...new Set([...bars.map((b) => b.agent), ...suites.map((s) => s.agent)])].sort();
+      // [F171 — Reviewer đối kháng] Nạp TRƯỚC 1 lượt (không N+1 trong loop dưới) toàn bộ
+      // qualification còn hạn cho các agent servingModel≠mock — sort qualifiedAt desc để
+      // .find() trong loop lấy đúng bản MỚI NHẤT (tương đương findFirst orderBy cũ).
+      const nonMockAgents = agents.filter((a) => (agentModels.find((m) => m.agent === a)?.model ?? DEFAULT_MODEL) !== 'mock');
+      const qualifications = nonMockAgents.length > 0 ? await tx.aiModelQualification.findMany({
+        where: { agent: { in: nonMockAgents }, expiresAt: { gt: new Date() } },
+        orderBy: { qualifiedAt: 'desc' },
+      }) : [];
       const out = [];
       for (const agent of agents) {
         const bar = bars.find((b) => b.agent === agent) ?? null;
@@ -308,10 +316,7 @@ export class EvalService {
           if (servingModel === 'mock') {
             reasons.push('model đang phục vụ là MOCK — pipeline OK nhưng CHƯA chứng minh chất lượng model thật (đổi qua PUT /ai/eval/agent-model sau khi qualify)');
           } else {
-            const q = await tx.aiModelQualification.findFirst({
-              where: { agent, model: servingModel, expiresAt: { gt: new Date() } },
-              orderBy: { qualifiedAt: 'desc' },
-            });
+            const q = qualifications.find((x) => x.agent === agent && x.model === servingModel);
             if (!q) {
               reasons.push(`model đang phục vụ '${servingModel}' CHƯA qualify (hoặc đã hết hạn) — chạy POST /ai/eval/qualify/${agent}`);
             } else if (Number(q.passRate) < Number(bar!.minPassRate) || q.casesTotal < bar!.minCases) {
