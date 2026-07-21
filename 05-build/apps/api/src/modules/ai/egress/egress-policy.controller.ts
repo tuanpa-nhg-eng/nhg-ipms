@@ -22,8 +22,12 @@ export class EgressPolicyController {
 
   @Get()
   @RequirePermission('ai:eval')
-  list(@CurrentUser() user: RequestUser) {
-    return { policies: this.egress.list(user), dataClasses: DATA_CLASSES, destinations: EGRESS_DESTINATIONS };
+  async list(@CurrentUser() user: RequestUser) {
+    // [Fix] PHẢI await — nếu không, `policies` là 1 Promise nằm trong object trả về
+    // (không phải chính response), Nest không tự đợi nó, JSON.stringify(Promise) ⇒ "{}"
+    // (phát hiện qua verify sống, không qua test — test trước chỉ kiểm dataClasses/destinations).
+    const policies = await this.egress.list(user);
+    return { policies, dataClasses: DATA_CLASSES, destinations: EGRESS_DESTINATIONS };
   }
 
   @Put()

@@ -67,13 +67,24 @@ export class AiGatewayService {
 
   /** Flag tenant override thắng global; không có row nào ⇒ OFF (fail-closed). */
   async resolveBackend(tenantId: string): Promise<'anthropic' | 'mock'> {
+    const { backend } = await this.liveStatus(tenantId);
+    return backend;
+  }
+
+  /**
+   * [Last-mile Lát 5] Vỡ nhỏ các điều kiện gộp trong resolveBackend() — cho FE
+   * "Checklist sẵn sàng Live" biết ĐANG THIẾU đúng cái gì (cờ hay key), không chỉ
+   * kết quả cuối 'mock'/'anthropic'. KHÔNG lộ giá trị key — chỉ boolean có/không.
+   */
+  async liveStatus(tenantId: string): Promise<{ flagEnabled: boolean; hasApiKey: boolean; backend: 'anthropic' | 'mock' }> {
     const flags = await this.prisma.withTenant(tenantId, (tx) =>
       tx.featureFlag.findMany({ where: { key: 'ai_gateway_live' } }),
     );
     const tenantFlag = flags.find((f) => f.tenantId === tenantId);
     const globalFlag = flags.find((f) => f.tenantId === null);
-    const enabled = (tenantFlag ?? globalFlag)?.enabled ?? false;
-    return selectLlmBackend({ liveFlagEnabled: enabled, hasApiKey: !!process.env.ANTHROPIC_API_KEY });
+    const flagEnabled = (tenantFlag ?? globalFlag)?.enabled ?? false;
+    const hasApiKey = !!process.env.ANTHROPIC_API_KEY;
+    return { flagEnabled, hasApiKey, backend: selectLlmBackend({ liveFlagEnabled: flagEnabled, hasApiKey }) };
   }
 
   /** Gọi LLM + log ai_interaction (kể cả khi lỗi — status='error'). */

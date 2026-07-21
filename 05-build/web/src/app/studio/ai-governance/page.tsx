@@ -1,15 +1,17 @@
 "use client";
 /**
- * [Learning Loop L4] Quản trị AI — dashboard READ-ONLY khép vòng PRD §14/§15/§16:
+ * [Learning Loop L4 + Last-mile Lát 5] Quản trị AI — khép vòng PRD §14/§15/§16 +
+ * checklist sẵn sàng bật AI thật (§9/§11):
  * ① Learning (tín hiệu Chấp nhận/Sửa/Bỏ per agent + field AI hay bị sửa — L0)
- * ② Eval readiness (pass-rate run mới nhất vs launch bar 🟢/🔴 — L2)
- * ③ Unit economics (token/latency P50/P95, cost thực = 0 trên mock, projection ×0.5/×1/×2 — L3)
+ * ② Eval readiness (pass-rate vs launch bar 🟢/🔴 + Model-Qualification Gate — L2/Lát4)
+ * ③ Unit economics (token/latency P50/P95, cost thực, projection ×0.5/×1/×2 — L3)
+ * ④ Egress Policy (dataClass→đích — Lát 2) ⑤ Checklist sẵn sàng Live (Lát 5)
  * Permission ai:eval (designer@/admin@). Mọi số chi phí là ƯỚC LƯỢNG (nhãn estimated).
  */
 import { useCallback, useEffect, useState } from "react";
 import {
-  Activity, CheckCircle2, CircleDollarSign, GraduationCap, Languages, LogOut,
-  RefreshCw, ShieldAlert, ShieldCheck, XCircle,
+  Activity, CheckCircle2, CircleDollarSign, GraduationCap, KeyRound, Languages,
+  ListChecks, LogOut, RefreshCw, ShieldAlert, ShieldCheck, XCircle,
 } from "lucide-react";
 import { AppShell } from "@/components/shell/AppShell";
 import { useStudio } from "@/lib/studio";
@@ -24,9 +26,10 @@ interface ReadinessAgent {
   agent: string;
   bar: { minPassRate: number; minCases: number; note?: string | null } | null;
   cases: number; pass: number; fail: number; passRate: number | null;
-  models: string[]; ready: boolean; liveQualified: boolean; reasons: string[];
+  models: string[]; servingModel: string; ready: boolean; liveQualified: boolean; reasons: string[];
   suites: Array<{ suiteId: string; name: string; latestRun: { pass: number; fail: number; model: string | null } | null }>;
 }
+interface LiveStatus { flagEnabled: boolean; hasApiKey: boolean; backend: "anthropic" | "mock" }
 interface EconomicsAgent {
   agent: string; calls: number; errors: number; actualCostUsd: number;
   callsPerMonth: number;
@@ -38,9 +41,11 @@ interface EconomicsReport {
   windowDays: number; estimated: boolean; basis: string; totalActualCostUsd: number;
   agents: EconomicsAgent[];
 }
+interface EgressPolicy { id: string; dataClass: string; destination: string; allowed: boolean; note?: string | null }
 
 const pct = (v: number | null) => (v == null ? "—" : `${Math.round(v * 100)}%`);
 const usd = (v: number) => (v === 0 ? "$0" : v < 0.01 ? `$${v.toFixed(6)}` : `$${v.toFixed(2)}`);
+const MODEL_CHOICES = ["mock", "claude-opus-4-8", "claude-sonnet-5", "claude-haiku-4-5", "claude-fable-5"];
 
 export default function AiGovernancePage() {
   const { call, session, logout } = useStudio();
@@ -48,23 +53,28 @@ export default function AiGovernancePage() {
   const L = (vi: string, en: string) => (lang === "vi" ? vi : en);
 
   const [learning, setLearning] = useState<{ totalSignals: number; agents: LearningAgent[] } | null>(null);
-  const [readiness, setReadiness] = useState<{ agents: ReadinessAgent[] } | null>(null);
+  const [readiness, setReadiness] = useState<{ agents: ReadinessAgent[]; liveStatus: LiveStatus } | null>(null);
   const [economics, setEconomics] = useState<EconomicsReport | null>(null);
+  const [egress, setEgress] = useState<{ policies: EgressPolicy[]; dataClasses: string[]; destinations: string[] } | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [actionMsg, setActionMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [pickModel, setPickModel] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     setBusy(true);
     setErr(null);
     try {
-      const [l, r, e] = await Promise.all([
+      const [l, r, e, g] = await Promise.all([
         call<{ totalSignals: number; agents: LearningAgent[] }>("/ai/learning/stats"),
-        call<{ agents: ReadinessAgent[] }>("/ai/eval/readiness"),
+        call<{ agents: ReadinessAgent[]; liveStatus: LiveStatus }>("/ai/eval/readiness"),
         call<EconomicsReport>("/ai/economics"),
+        call<{ policies: EgressPolicy[]; dataClasses: string[]; destinations: string[] }>("/ai/egress-policies"),
       ]);
       setLearning(l);
       setReadiness(r);
       setEconomics(e);
+      setEgress(g);
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -73,6 +83,40 @@ export default function AiGovernancePage() {
   }, [call]);
 
   useEffect(() => { void load(); }, [load]);
+
+  const qualify = useCallback(async (agent: string) => {
+    setActionMsg(null);
+    try {
+      const q = await call<{ model: string; passRate: string }>(`/ai/eval/qualify/${agent}`, { method: "POST", json: {} });
+      setActionMsg({ kind: "ok", text: L(`Đã qualify '${agent}' cho model ${q.model} (pass-rate ${q.passRate}).`, `Qualified '${agent}' for ${q.model} (pass-rate ${q.passRate}).`) });
+      await load();
+    } catch (e) {
+      setActionMsg({ kind: "err", text: (e as Error).message });
+    }
+  }, [call, load, L]);
+
+  const setServingModel = useCallback(async (agent: string) => {
+    const model = pickModel[agent];
+    if (!model) return;
+    setActionMsg(null);
+    try {
+      await call(`/ai/eval/agent-model/${agent}`, { method: "PUT", json: { model } });
+      setActionMsg({ kind: "ok", text: L(`Đã đổi model phục vụ '${agent}' sang ${model}.`, `Serving model for '${agent}' set to ${model}.`) });
+      await load();
+    } catch (e) {
+      setActionMsg({ kind: "err", text: (e as Error).message });
+    }
+  }, [call, load, pickModel, L]);
+
+  const setEgressAllowed = useCallback(async (dataClass: string, destination: string, allowed: boolean) => {
+    setActionMsg(null);
+    try {
+      await call("/ai/egress-policies", { method: "PUT", json: { dataClass, destination, allowed } });
+      await load();
+    } catch (e) {
+      setActionMsg({ kind: "err", text: (e as Error).message });
+    }
+  }, [call, load]);
 
   return (
     <AppShell crumb={{ section: "Configuration Studio", page: L("Quản trị AI", "AI Governance") }}>
@@ -99,6 +143,62 @@ export default function AiGovernancePage() {
         <div className="studio-msg err">
           {err} — {L("cần quyền ai:eval (đăng nhập designer@/admin@)", "requires ai:eval (login designer@/admin@)")}
         </div>
+      )}
+      {actionMsg && <div className={`studio-msg ${actionMsg.kind}`}>{actionMsg.text}</div>}
+
+      {/* ⑤ [Last-mile Lát 5] Checklist sẵn sàng bật AI thật */}
+      {readiness && (
+        <section className="aigov-section">
+          <h2><ListChecks size={16} /> {L("Checklist sẵn sàng Live", "Live-readiness checklist")}</h2>
+          <div className="aigov-cards">
+            <div className={`aigov-card ${readiness.liveStatus.hasApiKey ? "ok" : "bad"}`}>
+              <div className="aigov-card-head">
+                <KeyRound size={14} />
+                <span>ANTHROPIC_API_KEY</span>
+                {readiness.liveStatus.hasApiKey
+                  ? <span className="aigov-badge ok"><CheckCircle2 size={12} /> {L("đã cấp", "present")}</span>
+                  : <span className="aigov-badge bad"><XCircle size={12} /> {L("chưa cấp", "missing")}</span>}
+              </div>
+              <div className="aigov-card-metrics">
+                <span>{L("Đọc từ biến môi trường — không hiển thị giá trị.", "Read from env var — value never shown.")}</span>
+              </div>
+            </div>
+            <div className={`aigov-card ${readiness.liveStatus.flagEnabled ? "ok" : "bad"}`}>
+              <div className="aigov-card-head">
+                <span>ai_gateway_live</span>
+                {readiness.liveStatus.flagEnabled
+                  ? <span className="aigov-badge ok"><CheckCircle2 size={12} /> ON</span>
+                  : <span className="aigov-badge bad"><XCircle size={12} /> OFF</span>}
+              </div>
+              <div className="aigov-card-metrics">
+                <span>{L("Backend hiện tại", "Current backend")}: <b className="mono">{readiness.liveStatus.backend}</b></span>
+              </div>
+            </div>
+            <div className={`aigov-card ${readiness.agents.filter((a) => a.ready).length === readiness.agents.length && readiness.agents.length > 0 ? "ok" : "bad"}`}>
+              <div className="aigov-card-head">
+                <span>{L("Agent đạt bar", "Agents ready")}</span>
+              </div>
+              <div className="aigov-card-metrics">
+                <span><b>{readiness.agents.filter((a) => a.ready).length}</b> / {readiness.agents.length}</span>
+              </div>
+            </div>
+            <div className={`aigov-card ${readiness.agents.filter((a) => a.liveQualified).length === readiness.agents.length && readiness.agents.length > 0 ? "ok" : "bad"}`}>
+              <div className="aigov-card-head">
+                <ShieldCheck size={14} />
+                <span>{L("Agent đã qualify model đang phục vụ", "Agents live-qualified")}</span>
+              </div>
+              <div className="aigov-card-metrics">
+                <span><b>{readiness.agents.filter((a) => a.liveQualified).length}</b> / {readiness.agents.length}</span>
+              </div>
+            </div>
+          </div>
+          <div className="aigov-footnote">
+            {L(
+              "Đủ 4 mục xanh + Egress không chặn model đích ⇒ mới nên cân nhắc bật ai_gateway_live cho người dùng thật. Bất biến cứng: dữ liệu pii/confidential KHÔNG BAO GIỜ egress (self-host chưa triển khai) — không mục nào ở đây thay đổi được điều đó.",
+              "All 4 green + Egress not blocking the target model ⇒ only then consider turning ai_gateway_live on for real users. Hard invariant: pii/confidential data NEVER egresses (no self-host yet) — nothing here changes that.",
+            )}
+          </div>
+        </section>
       )}
 
       {/* ① Learning — tín hiệu học từ HITL */}
@@ -157,15 +257,91 @@ export default function AiGovernancePage() {
                 <span><b>{pct(a.passRate)}</b> pass-rate</span>
                 <span>{L("ngưỡng", "bar")} <b>{a.bar ? pct(a.bar.minPassRate) : "—"}</b></span>
                 <span><b>{a.cases}</b> case ({L("cần", "need")} ≥{a.bar?.minCases ?? "—"})</span>
-                <span className="mono">{a.models.join(", ") || "—"}</span>
+                <span className="mono">{L("đã chạy", "ran")}: {a.models.join(", ") || "—"}</span>
+              </div>
+              <div className="aigov-card-metrics">
+                <span>{L("model đang phục vụ", "serving model")}: <b className="mono">{a.servingModel}</b></span>
               </div>
               {a.reasons.length > 0 && (
                 <ul className="aigov-reasons">
                   {a.reasons.map((r, i) => <li key={i}>{r}</li>)}
                 </ul>
               )}
+              {/* [Last-mile Lát 4/5] Model-Qualification Gate — hành động admin */}
+              <div className="aigov-card-actions">
+                <button className="btn ghost sm" disabled={!a.ready} title={!a.ready ? L("Cần đạt bar trước", "Must meet bar first") : ""}
+                  onClick={() => void qualify(a.agent)}>
+                  {L("Qualify (chạy lại toàn bộ suite)", "Qualify (re-run all suites)")}
+                </button>
+                <select className="studio-select" style={{ maxWidth: 200 }} value={pickModel[a.agent] ?? ""}
+                  onChange={(e) => setPickModel((p) => ({ ...p, [a.agent]: e.target.value }))}>
+                  <option value="">{L("chọn model…", "pick model…")}</option>
+                  {MODEL_CHOICES.map((m) => <option key={m} value={m}>{m}</option>)}
+                </select>
+                <button className="btn ghost sm" disabled={!pickModel[a.agent]} onClick={() => void setServingModel(a.agent)}>
+                  {L("Đặt làm model phục vụ", "Set as serving model")}
+                </button>
+              </div>
             </div>
           ))}
+        </div>
+        <div className="aigov-footnote">
+          {L(
+            "Cấm silent-swap: đổi model phục vụ CHỈ được chấp nhận khi model đích đã Qualify (chạy thật toàn bộ suite, đạt bar) — bar bị siết sau đó sẽ tự vô hiệu qualification cũ.",
+            "Anti silent-swap: changing the serving model is ONLY accepted once the target model has been Qualified (real run of all suites, meeting the bar) — raising the bar later auto-invalidates stale qualifications.",
+          )}
+        </div>
+      </section>
+
+      {/* ④ [Last-mile Lát 2] Egress Policy — dataClass → đích */}
+      <section className="aigov-section">
+        <h2><ShieldAlert size={16} /> {L("Chính sách Egress", "Egress policy")}
+          <span className="aigov-sub">{L("dữ liệu đi đâu — theo phân loại", "where data may go — by classification")}</span>
+        </h2>
+        {egress && (
+          <div className="aigov-tablewrap">
+            <table className="aigov-table">
+              <thead>
+                <tr>
+                  <th>{L("Phân loại", "Data class")}</th><th>{L("Đích", "Destination")}</th>
+                  <th>{L("Trạng thái", "Status")}</th><th>{L("Hành động", "Action")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {egress.dataClasses.flatMap((dc) => egress.destinations.filter((d) => d !== "mock").map((dest) => {
+                  const sensitive = dc === "confidential" || dc === "pii";
+                  const row = egress.policies.find((p) => p.dataClass === dc && p.destination === dest);
+                  const allowed = sensitive ? false : (row?.allowed ?? true);
+                  return (
+                    <tr key={`${dc}-${dest}`}>
+                      <td className="mono">{dc}</td>
+                      <td className="mono">{dest}</td>
+                      <td>
+                        {sensitive
+                          ? <span className="aigov-badge bad"><XCircle size={12} /> {L("LUÔN CHẶN (bất biến)", "ALWAYS BLOCKED (hard invariant)")}</span>
+                          : allowed
+                            ? <span className="aigov-badge ok"><CheckCircle2 size={12} /> {L("cho phép", "allowed")}</span>
+                            : <span className="aigov-badge bad"><XCircle size={12} /> {L("chặn (tenant)", "blocked (tenant)")}</span>}
+                      </td>
+                      <td>
+                        {sensitive ? "—" : (
+                          <button className="btn ghost sm" onClick={() => void setEgressAllowed(dc, dest, !allowed)}>
+                            {allowed ? L("Chặn", "Block") : L("Cho phép", "Allow")}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                }))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div className="aigov-footnote">
+          {L(
+            "mock luôn được phép (không rời máy) — không hiển thị ở bảng này. pii/confidential chặn cứng trong code (self-host chưa triển khai), không sửa được qua UI.",
+            "mock is always allowed (never leaves the machine) — not shown here. pii/confidential are hard-blocked in code (no self-host yet) and cannot be edited via this UI.",
+          )}
         </div>
       </section>
 

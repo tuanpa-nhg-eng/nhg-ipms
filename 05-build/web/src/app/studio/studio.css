@@ -150,3 +150,5 @@
   border: 1px solid #f5b70044; border-radius: 8px; padding: 6px 10px; margin-bottom: 8px;
 }
 .aigov-footnote { font-size: 11px; color: var(--nhg-text-secondary); margin-top: 8px; }
+/* [Last-mile Lát 5] Model-Qualification Gate — hành động trên card readiness */
+.aigov-card-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 2px; }

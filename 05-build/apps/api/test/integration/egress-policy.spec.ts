@@ -145,6 +145,10 @@ describe('[Last-mile Lát 2] Egress Policy Engine — ai-gateway thật', () => 
     expect(ok.status).toBe(200);
     expect(ok.body.dataClasses).toEqual(['public', 'internal', 'confidential', 'pii']);
     expect(ok.body.destinations).toEqual(['mock', 'anthropic', 'self_host']);
+    // [Fix — verify sống bắt được] policies PHẢI là mảng thật (đã có bug: quên await
+    // trong controller khiến JSON.stringify(Promise) ⇒ "{}", che giấu vì trước đó
+    // chỉ kiểm dataClasses/destinations, không kiểm chính field bị lỗi.
+    expect(Array.isArray(ok.body.policies)).toBe(true);
   });
 
   it('PUT /ai/egress-policies: pii+anthropic+allowed=true → 422 (bất biến cứng qua HTTP)', async () => {

@@ -174,6 +174,10 @@ describe('Learning Loop L2 — eval replay + launch bar + readiness', () => {
     expect(fake.reasons.join(' ')).toContain('claude-opus-4-8');
     expect(fake.reasons.join(' ')).toContain('qualify');
     expect(fake.models).toEqual(['mock']); // run THẬT vẫn chỉ chạy trên mock (flag OFF)
+
+    // [Last-mile Lát 5] liveStatus — checklist FE đọc TRỰC TIẾP thiếu cờ/key nào,
+    // không suy diễn từ agents[]. Mặc định flag OFF → backend=mock dù có key.
+    expect(res.body.liveStatus).toEqual({ flagEnabled: false, hasApiKey: false, backend: 'mock' });
   });
 
   it('readiness fail-closed: 4 agent inline thật đều CÓ mặt, bar đầy đủ; mọi agent liveQualified=false trên mock', async () => {

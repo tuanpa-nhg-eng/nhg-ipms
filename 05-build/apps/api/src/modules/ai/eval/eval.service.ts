@@ -244,8 +244,11 @@ export class EvalService {
    * HẠN (b) đạt bar HIỆN TẠI (re-check tại lúc đọc — bar bị siết sau khi qualify
    * thì qualification cũ coi như vô hiệu, không đọc số cũ).
    */
-  readiness(user: RequestUser) {
-    return this.prisma.withTenant(user.tenantId, async (tx) => {
+  async readiness(user: RequestUser) {
+    // [Lát 5] liveStatus KHÔNG cần tenant context DB (đọc feature_flag) — gọi ngoài
+    // withTenant của phần còn lại để không lồng 2 lượt withTenant lãng phí.
+    const liveStatus = await this.gateway.liveStatus(user.tenantId);
+    const body = await this.prisma.withTenant(user.tenantId, async (tx) => {
       const bars = await tx.aiLaunchBar.findMany({ where: { deletedAt: null } });
       const suites = await tx.aiEvalSuite.findMany({
         where: { deletedAt: null, agent: { startsWith: 'inline.' } },
@@ -332,6 +335,7 @@ export class EvalService {
       }
       return { agents: out };
     });
+    return { ...body, liveStatus };
   }
 
   // ===== [Last-mile Lát 4] Model-Qualification Gate — cấm silent-swap =====
