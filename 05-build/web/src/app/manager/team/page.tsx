@@ -29,6 +29,8 @@ interface TeamResponse {
   orgUnitIds: string[];
   periodKey: string | null;
   cycleId: string | null;
+  /** true = danh sách bị cắt ở trần 500 — phải báo cho người dùng biết đang nhìn thiếu. */
+  capped?: boolean;
   members: TeamMember[];
 }
 
@@ -146,6 +148,15 @@ export default function TeamPage() {
       </div>
 
       {msg && <div className={`studio-msg ${msg.kind === "ok" ? "ok" : "err"}`} style={{ marginBottom: 14 }}>{msg.text}</div>}
+      {team?.capped && (
+        <div className="ai-flag" style={{ marginBottom: 14 }}>
+          <TriangleAlert size={15} />
+          <span>
+            Danh sách đã đạt trần hiển thị (500 người) — bạn đang xem THIẾU. Lọc theo đơn vị
+            để xem đủ.
+          </span>
+        </div>
+      )}
       {loading && <Card><span className="muted tiny">Đang tải…</span></Card>}
 
       {!loading && (

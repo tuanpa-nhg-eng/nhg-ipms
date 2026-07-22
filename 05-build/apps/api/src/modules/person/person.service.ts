@@ -72,17 +72,23 @@ export class PersonService {
         return { orgUnitIds, periodKey: filter.periodKey ?? null, members: [] };
       }
 
-      const members = await tx.person.findMany({
+      // Trần 500 người/đội. Trả kèm cờ `capped` thay vì cắt im lặng: trưởng phòng phải
+      // biết mình đang nhìn thiếu người, nếu không sẽ tưởng đội chỉ có bấy nhiêu và ra
+      // quyết định trên danh sách khuyết (cùng tinh thần cờ `capped` của Từ điển Tác vụ).
+      const CAP = 500;
+      const rows = await tx.person.findMany({
         where: { deletedAt: null, status: 'active', OR: or },
         select: {
           id: true, employeeCode: true, fullName: true, email: true,
           orgUnitId: true, managerId: true, positionId: true,
         },
         orderBy: { employeeCode: 'asc' },
-        take: 500,
+        take: CAP + 1,
       });
+      const capped = rows.length > CAP;
+      const members = capped ? rows.slice(0, CAP) : rows;
       if (members.length === 0) {
-        return { orgUnitIds, periodKey: filter.periodKey ?? null, members: [] };
+        return { orgUnitIds, periodKey: filter.periodKey ?? null, capped: false, members: [] };
       }
       const ids = members.map((m) => m.id);
 
@@ -122,6 +128,7 @@ export class PersonService {
         orgUnitIds,
         periodKey: filter.periodKey ?? null,
         cycleId: filter.cycleId ?? null,
+        capped,
         members: members.map((m) => ({
           ...m,
           checkin: checkinBy.get(m.id) ?? null,
