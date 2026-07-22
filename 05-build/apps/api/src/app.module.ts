@@ -74,6 +74,11 @@ import { TaskLoopService } from './modules/taskloop/taskloop.service';
 import { PolicyController } from './modules/policy/policy.controller';
 import { PolicyService } from './modules/policy/policy.service';
 import { PolicyGuard } from './modules/policy/policy.guard';
+// [Trục A — L1]
+import { AuditController } from './modules/audit/audit.controller';
+import { AuditService } from './modules/audit/audit.service';
+import { OverviewController } from './modules/strategy/overview.controller';
+import { OverviewService } from './modules/strategy/overview.service';
 
 @Module({
   controllers: [
@@ -86,6 +91,8 @@ import { PolicyGuard } from './modules/policy/policy.guard';
     ProcessController, IntegrationController,
     McpController, AiChatController, EvalController, InlineAssistController, LearningController, GoldenController, EconomicsController, EgressPolicyController, PolicyController, LibraryController,
     AuthoringController, DictionaryController, TaskLoopController,
+    // [Trục A — L1] read-model cho 18 màn persona
+    AuditController, OverviewController,
   ],
   providers: [
     PrismaService,
@@ -99,6 +106,8 @@ import { PolicyGuard } from './modules/policy/policy.guard';
     CheckinService,
     ReviewService,
     CalibrationService,
+    AuditService,
+    OverviewService,
     ConfigService,
     DerivationService,
     ProcessService,

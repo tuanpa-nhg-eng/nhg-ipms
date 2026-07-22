@@ -1,8 +1,8 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Req } from '@nestjs/common';
 import { Type } from 'class-transformer';
 import {
-  ArrayMaxSize, IsArray, IsInt, IsISO8601, IsNumber, IsOptional, IsString, IsUUID,
-  Length, Min, ValidateNested,
+  ArrayMaxSize, IsArray, IsIn, IsInt, IsISO8601, IsNumber, IsOptional, IsString, IsUUID,
+  Length, Max, Min, ValidateNested,
 } from 'class-validator';
 import { Audited, CurrentUser, RequirePermission, RequestUser } from '../../common/auth/decorators';
 import { ReviewService } from './review.service';
@@ -40,6 +40,17 @@ class ComputeScoreDto {
   manualActuals!: ManualActualDto[];
 }
 
+const REVIEW_STATUSES = ['draft', 'self_done', 'manager_done', 'calibrated', 'final'] as const;
+
+class ListReviewsDto {
+  // [F74] uuid validate NGAY TẠI CỬA — không để chuỗi lạ đi vào query
+  @IsOptional() @IsUUID() cycleId?: string;
+  @IsOptional() @IsUUID() revieweeId?: string;
+  // whitelist trạng thái (F137): giá trị lạ → 400, không âm thầm trả rỗng
+  @IsOptional() @IsIn(REVIEW_STATUSES as unknown as string[]) status?: string;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(200) limit?: number;
+}
+
 class FinalizeDto {
   @IsString() @Length(1, 20) finalRating!: string;
   @IsString() @Length(1, 2000) rationale!: string;
@@ -68,6 +79,14 @@ export class ReviewController {
   @Audited('review.create')
   createReview(@CurrentUser() user: RequestUser, @Body() dto: CreateReviewDto) {
     return this.reviews.createReview(user, dto);
+  }
+
+  // [Trục A — L1] Danh sách review, lọc scope trong query (I1). Đặt TRƯỚC ':id' để
+  // Nest không nuốt '/reviews' vào route param.
+  @Get('reviews')
+  @RequirePermission('review:read')
+  list(@CurrentUser() user: RequestUser, @Query() q: ListReviewsDto) {
+    return this.reviews.list(user, q);
   }
 
   @Get('reviews/:id')

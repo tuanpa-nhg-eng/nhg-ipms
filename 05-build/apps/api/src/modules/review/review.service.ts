@@ -3,7 +3,7 @@ import {
 } from '@nestjs/common';
 import { uuidv7 } from '@ipms/db';
 import { PrismaService } from '../../prisma.service';
-import { assertScope } from '../../common/auth/scope.util';
+import { assertScope, effectiveScope } from '../../common/auth/scope.util';
 import type { RequestUser } from '../../common/auth/decorators';
 import {
   computeScore, ScoringError, ScoringItem, IpcTier, DEFAULT_IPC_MAP,
@@ -64,6 +64,91 @@ export class ReviewService {
           createdBy: user.claims.sub, updatedBy: user.claims.sub,
         },
       });
+    });
+  }
+
+  /**
+   * [Trục A — L1] Danh sách review. Trước lát này CHỈ có `GET /reviews/:id` ⇒ FE không
+   * có cách nào dựng màn "đội của tôi" / "chu kỳ đang chạy" mà không đoán id.
+   *
+   * [I1 — bất biến quan trọng nhất của trục] Lọc scope NGAY TRONG QUERY, không lọc sau
+   * khi đọc: employee (scope self) chỉ thấy review của CHÍNH MÌNH; trưởng phòng (org_unit)
+   * thấy người thuộc phòng phụ trách; hrbp/admin (tenant) thấy toàn tenant. Fail-closed:
+   * scope 'scoped' mà không có org_unit lẫn person_id ⇒ where không khớp gì.
+   *
+   * [I5] Whitelist select — KHÔNG trả nguyên row (row có selfReflection/managerAssessment
+   * là văn bản nhạy cảm, chỉ nên đọc ở màn chi tiết qua get() đã có assertScope riêng).
+   *
+   * [F43 — chủ dự án chốt 22/07/2026] reviewee ĐƯỢC thấy điểm/hạng của chính mình
+   * trước khi cycle final ⇒ finalScore/proposedRating không bị che cho chủ thể.
+   */
+  list(
+    user: RequestUser,
+    filter: { cycleId?: string; status?: string; revieweeId?: string; limit?: number } = {},
+  ) {
+    const LIST_CAP = 200;
+    const take = Math.min(Math.max(filter.limit ?? LIST_CAP, 1), LIST_CAP);
+    return this.prisma.withTenant(user.tenantId, async (tx) => {
+      const scope = effectiveScope(user);
+      let scopeWhere: Record<string, unknown> = {};
+      if (scope.mode === 'scoped') {
+        const or: Record<string, unknown>[] = [];
+        if (scope.selfPersonId) or.push({ revieweeId: scope.selfPersonId });
+        if (scope.orgUnitIds.length > 0) {
+          const members = await tx.person.findMany({
+            where: { orgUnitId: { in: scope.orgUnitIds }, deletedAt: null },
+            select: { id: true },
+          });
+          if (members.length > 0) or.push({ revieweeId: { in: members.map((m) => m.id) } });
+        }
+        // Không có scope nào khớp ⇒ deny bằng điều kiện không bao giờ đúng (fail-closed).
+        scopeWhere = or.length > 0
+          ? { OR: or }
+          : { revieweeId: '00000000-0000-0000-0000-000000000000' };
+      }
+
+      const rows = await tx.review.findMany({
+        where: {
+          deletedAt: null,
+          ...scopeWhere,
+          ...(filter.cycleId ? { cycleId: filter.cycleId } : {}),
+          ...(filter.status ? { status: filter.status as never } : {}),
+          ...(filter.revieweeId ? { revieweeId: filter.revieweeId } : {}),
+        },
+        select: {
+          id: true, cycleId: true, revieweeId: true, scorecardId: true,
+          status: true, proposedRating: true, finalRating: true, finalScore: true,
+          ipcGrade: true, version: true, updatedAt: true,
+        },
+        orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+        take: take + 1,
+      });
+      const capped = rows.length > take;
+      const page = capped ? rows.slice(0, take) : rows;
+
+      // Tên người được đánh giá: 1 query gộp (không N+1). Chỉ lấy trường hiển thị.
+      const persons = page.length
+        ? await tx.person.findMany({
+            where: { id: { in: [...new Set(page.map((r) => r.revieweeId))] } },
+            select: { id: true, fullName: true, employeeCode: true, orgUnitId: true },
+          })
+        : [];
+      const byId = new Map(persons.map((p) => [p.id, p]));
+
+      return {
+        total: page.length,
+        capped,
+        reviews: page.map((r) => ({
+          ...r,
+          reviewee: byId.get(r.revieweeId)
+            ? {
+                id: r.revieweeId,
+                fullName: byId.get(r.revieweeId)!.fullName,
+                employeeCode: byId.get(r.revieweeId)!.employeeCode,
+              }
+            : null,
+        })),
+      };
     });
   }
 

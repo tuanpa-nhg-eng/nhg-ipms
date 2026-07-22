@@ -9,6 +9,93 @@ import type { RequestUser } from '../../common/auth/decorators';
 export class CalibrationService {
   constructor(private prisma: PrismaService) {}
 
+  /**
+   * [Trục A — L1] Đọc phiên cân chỉnh. Trước lát này calibration CHỈ có POST ⇒ mở màn
+   * /hr/calibration là mất trắng phiên đang chạy, không xem lại được quyết định đã ra.
+   *
+   * Permission `calibration:run` (hrbp/admin) — cố ý KHÔNG hạ xuống review:read: bảng
+   * quyết định cân chỉnh lộ rating so sánh giữa các cá nhân, rộng hơn nhiều so với
+   * "đọc review trong phạm vi của mình". Vì permission đã hẹp (scope tenant), không
+   * lọc scope thêm ở đây; nếu sau này cấp cho vai scope org_unit thì PHẢI lọc như
+   * ReviewService.list().
+   */
+  listSessions(user: RequestUser, filter: { cycleId?: string } = {}) {
+    return this.prisma.withTenant(user.tenantId, async (tx) => {
+      const sessions = await tx.calibrationSession.findMany({
+        where: { deletedAt: null, ...(filter.cycleId ? { cycleId: filter.cycleId } : {}) },
+        select: {
+          id: true, cycleId: true, orgUnitId: true, status: true,
+          scheduledAt: true, createdAt: true, updatedAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      });
+      // Đếm quyết định trong 1 lượt (không N+1 theo số phiên)
+      const counts = sessions.length
+        ? await tx.calibrationDecision.groupBy({
+            by: ['sessionId'],
+            where: { sessionId: { in: sessions.map((s) => s.id) }, deletedAt: null },
+            _count: { _all: true },
+          })
+        : [];
+      const byId = new Map(counts.map((c) => [c.sessionId, c._count._all]));
+      return sessions.map((s) => ({ ...s, decisionCount: byId.get(s.id) ?? 0 }));
+    });
+  }
+
+  /** Chi tiết 1 phiên + các quyết định (kèm tên người được cân chỉnh để hiển thị). */
+  getSession(user: RequestUser, id: string) {
+    return this.prisma.withTenant(user.tenantId, async (tx) => {
+      const session = await tx.calibrationSession.findFirst({
+        where: { id, deletedAt: null },
+        select: {
+          id: true, cycleId: true, orgUnitId: true, status: true,
+          scheduledAt: true, createdAt: true, updatedAt: true,
+        },
+      });
+      if (!session) throw new NotFoundException('Session not found');
+
+      const decisions = await tx.calibrationDecision.findMany({
+        where: { sessionId: id, deletedAt: null },
+        select: {
+          id: true, reviewId: true, ratingBefore: true, ratingAfter: true,
+          rationale: true, decidedBy: true, createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 500,
+      });
+
+      // Gộp tên reviewee: 2 query, không lặp theo số quyết định.
+      const reviews = decisions.length
+        ? await tx.review.findMany({
+            where: { id: { in: [...new Set(decisions.map((d) => d.reviewId))] } },
+            select: { id: true, revieweeId: true, status: true },
+          })
+        : [];
+      const persons = reviews.length
+        ? await tx.person.findMany({
+            where: { id: { in: [...new Set(reviews.map((r) => r.revieweeId))] } },
+            select: { id: true, fullName: true, employeeCode: true },
+          })
+        : [];
+      const personById = new Map(persons.map((p) => [p.id, p]));
+      const reviewById = new Map(reviews.map((r) => [r.id, r]));
+
+      return {
+        ...session,
+        decisions: decisions.map((d) => {
+          const rv = reviewById.get(d.reviewId);
+          const p = rv ? personById.get(rv.revieweeId) : undefined;
+          return {
+            ...d,
+            reviewStatus: rv?.status ?? null,
+            reviewee: p ? { id: p.id, fullName: p.fullName, employeeCode: p.employeeCode } : null,
+          };
+        }),
+      };
+    });
+  }
+
   createSession(user: RequestUser, input: { cycleId?: string; orgUnitId?: string }) {
     return this.prisma.withTenant(user.tenantId, async (tx) => {
       // [F40] validate tham chiếu tồn tại

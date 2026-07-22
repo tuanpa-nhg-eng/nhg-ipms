@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { IsInt, IsOptional, IsString, IsUUID, Length, Min } from 'class-validator';
 import { Audited, CurrentUser, RequirePermission, RequestUser } from '../../common/auth/decorators';
 import { CalibrationService } from './calibration.service';
@@ -6,6 +6,10 @@ import { CalibrationService } from './calibration.service';
 class CreateSessionDto {
   @IsOptional() @IsUUID() cycleId?: string;
   @IsOptional() @IsUUID() orgUnitId?: string;
+}
+
+class ListSessionsDto {
+  @IsOptional() @IsUUID() cycleId?: string;
 }
 
 class DecisionDto {
@@ -19,6 +23,19 @@ class DecisionDto {
 @Controller()
 export class CalibrationController {
   constructor(private calibration: CalibrationService) {}
+
+  // [Trục A — L1] đọc phiên cân chỉnh (trước đây chỉ có POST)
+  @Get('calibration-sessions')
+  @RequirePermission('calibration:run')
+  listSessions(@CurrentUser() user: RequestUser, @Query() q: ListSessionsDto) {
+    return this.calibration.listSessions(user, q);
+  }
+
+  @Get('calibration-sessions/:id')
+  @RequirePermission('calibration:run')
+  getSession(@CurrentUser() user: RequestUser, @Param('id', ParseUUIDPipe) id: string) {
+    return this.calibration.getSession(user, id);
+  }
 
   @Post('calibration-sessions')
   @RequirePermission('calibration:run')

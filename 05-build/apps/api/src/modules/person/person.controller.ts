@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
-import { IsEmail, IsIn, IsOptional, IsString, IsUUID, Length } from 'class-validator';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { IsEmail, IsIn, IsOptional, IsString, IsUUID, Length, Matches } from 'class-validator';
 import { PERSON_STATUSES } from '@ipms/shared';
 import { Audited, CurrentUser, RequirePermission, RequestUser } from '../../common/auth/decorators';
 import { PersonService } from './person.service';
@@ -13,6 +13,19 @@ class CreatePersonDto {
   @IsOptional() @IsUUID() managerId?: string;
 }
 
+const CADENCES = ['weekly', 'monthly', 'quarterly', 'yearly'] as const;
+
+class TeamQueryDto {
+  @IsOptional() @IsUUID() orgUnitId?: string;
+  @IsOptional() @IsUUID() cycleId?: string;
+  @IsOptional() @IsIn(CADENCES as unknown as string[]) cadence?: string;
+  // periodKey đủ mọi cadence: 2026-07 · 2026-W26 · 2026-Q3 · 2026
+  @IsOptional() @Matches(/^\d{4}(-(\d{2}|W\d{2}|Q[1-4]))?$/, {
+    message: 'periodKey sai định dạng (vd 2026-07, 2026-W26, 2026-Q3, 2026)',
+  })
+  periodKey?: string;
+}
+
 @Controller()
 export class PersonController {
   constructor(private persons: PersonService) {}
@@ -21,6 +34,13 @@ export class PersonController {
   @RequirePermission('person:read')
   list(@CurrentUser() user: RequestUser) {
     return this.persons.list(user.tenantId);
+  }
+
+  // [Trục A — L1] Roster đội + trạng thái kỳ. Đặt TRƯỚC mọi route 'persons/:x'.
+  @Get('persons/team')
+  @RequirePermission('person:read')
+  team(@CurrentUser() user: RequestUser, @Query() q: TeamQueryDto) {
+    return this.persons.team(user, q);
   }
 
   @Get('me')
