@@ -43,10 +43,25 @@ export class PersonController {
     return this.persons.team(user, q);
   }
 
+  /**
+   * Hồ sơ của chính mình + DANH SÁCH QUYỀN của chính mình.
+   *
+   * [Trục A — L4] Vì sao trả permissions: JWT chỉ mang sub/tid/email/person_id (F144),
+   * nên FE không có cách nào biết người dùng được phép làm gì ⇒ hoặc phải hiện mọi nút
+   * rồi để bấm vào ăn 403, hoặc phải đoán theo vai. Cả hai đều vi phạm bất biến "khoá
+   * nút TRUNG THỰC kèm lý do" (I3). Cho người dùng biết quyền CỦA CHÍNH HỌ không phải
+   * là rò rỉ — server vẫn là nơi gác duy nhất, đây chỉ để giao diện nói thật.
+   */
   @Get('me')
   @RequirePermission('person:read')
-  me(@CurrentUser() user: RequestUser) {
-    return this.persons.me(user.tenantId, user.claims.person_id);
+  async me(@CurrentUser() user: RequestUser) {
+    const person = await this.persons.me(user.tenantId, user.claims.person_id);
+    return {
+      ...(person ?? {}),
+      id: person?.id ?? null,
+      permissions: [...user.permissions].sort(),
+      scopes: user.scopes.map((s) => ({ scopeType: s.scopeType, scopeId: s.scopeId ?? null })),
+    };
   }
 
   @Post('persons')

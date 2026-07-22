@@ -1,76 +1,285 @@
+"use client";
+/**
+ * [Trục A — L4] Phòng cân chỉnh đánh giá — nối `/calibration-sessions` (read-model L1)
+ * + `/calibration-decisions` + `/reviews?cycleId=`.
+ *
+ * Ràng buộc nghiệp vụ được phản ánh đúng trên giao diện:
+ *  · Lý do đổi hạng BẮT BUỘC ≥10 ký tự (explainable) — nút khoá tới khi đủ.
+ *  · Chỉ cân chỉnh phiếu đã qua đánh giá quản lý; phiếu đã chốt thì khoá.
+ *  · Không cân chỉnh phiếu của chính mình (SoD) — khoá kèm lý do, không để bấm rồi lỗi.
+ *  · Đổi hạng dùng optimistic lock (version) — chống hai người sửa cùng lúc.
+ */
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Scale, ShieldCheck, TriangleAlert, Lock, Plus, History } from "lucide-react";
 import { AppShell } from "@/components/shell/AppShell";
-import { Card, Badge } from "@/components/ui";
-import { ratingDist, calibrationOutliers } from "@/lib/mock";
-import { Scale, Sparkles, TriangleAlert, Check, ShieldCheck } from "lucide-react";
+import { Badge, Card } from "@/components/ui";
+import { useStudio } from "@/lib/studio";
+import type { MeResponse, ReviewCycleRow, ReviewRow } from "@/lib/api";
 
-const sevMap: Record<string, { tone: string; label: string }> = {
-  high: { tone: "red", label: "Ưu tiên" },
-  med: { tone: "amber", label: "Theo dõi" },
-  ok: { tone: "green", label: "Nhất quán" },
-};
-const barColor = ["#037236", "#0A8040", "#1D6FB8", "#B7791F", "#ED2024"];
+interface ReviewListRow extends ReviewRow {
+  reviewee: { id: string; fullName: string; employeeCode: string } | null;
+}
+interface SessionRow {
+  id: string; cycleId?: string | null; orgUnitId?: string | null;
+  status: string; createdAt: string; decisionCount: number;
+}
+interface SessionDetail extends SessionRow {
+  decisions: Array<{
+    id: string; reviewId: string; ratingBefore?: string | null; ratingAfter?: string | null;
+    rationale: string; createdAt: string; reviewStatus?: string | null;
+    reviewee: { id: string; fullName: string; employeeCode: string } | null;
+  }>;
+}
+
+const CALIBRATABLE = ["manager_done", "calibrated"];
 
 export default function CalibrationPage() {
-  const total = ratingDist.reduce((a, r) => a + r.count, 0);
+  const { call } = useStudio();
+  const [me, setMe] = useState<MeResponse | null>(null);
+  const [cycles, setCycles] = useState<ReviewCycleRow[]>([]);
+  const [cycleId, setCycleId] = useState("");
+  const [sessions, setSessions] = useState<SessionRow[]>([]);
+  const [sessionId, setSessionId] = useState("");
+  const [detail, setDetail] = useState<SessionDetail | null>(null);
+  const [reviews, setReviews] = useState<ReviewListRow[]>([]);
+  const [draft, setDraft] = useState<Record<string, { rating: string; rationale: string }>>({});
+  const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<string | null>(null);
+  const pending = useRef(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [m, cy, ss] = await Promise.all([
+        call<MeResponse>("/me"),
+        call<ReviewCycleRow[]>("/review-cycles"),
+        call<SessionRow[]>("/calibration-sessions").catch(() => [] as SessionRow[]),
+      ]);
+      setMe(m); setCycles(cy); setSessions(ss);
+      const useCycle = cycleId || cy.find((c) => c.status === "open")?.id || "";
+      if (!cycleId && useCycle) setCycleId(useCycle);
+      if (useCycle) {
+        const list = await call<{ reviews: ReviewListRow[] }>(`/reviews?cycleId=${useCycle}`);
+        setReviews(list.reviews);
+      }
+      const useSession = sessionId || ss[0]?.id || "";
+      if (!sessionId && useSession) setSessionId(useSession);
+      if (useSession) {
+        setDetail(await call<SessionDetail>(`/calibration-sessions/${useSession}`));
+      }
+    } catch (e) {
+      setMsg({ kind: "err", text: (e as Error).message });
+    } finally { setLoading(false); }
+  }, [call, cycleId, sessionId]);
+  useEffect(() => { void load(); }, [load]);
+
+  const can = (p: string) => !!me?.permissions?.includes(p);
+
+  const dist = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const r of reviews) {
+      const k = r.finalRating ?? r.proposedRating;
+      if (k) m[k] = (m[k] ?? 0) + 1;
+    }
+    return Object.entries(m).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [reviews]);
+
+  const act = async (key: string, fn: () => Promise<unknown>, ok: string) => {
+    if (pending.current) return;
+    pending.current = true; setBusy(key); setMsg(null);
+    try {
+      await fn(); setMsg({ kind: "ok", text: ok }); await load();
+    } catch (e) {
+      setMsg({ kind: "err", text: (e as Error).message });
+    } finally { pending.current = false; setBusy(null); }
+  };
+
+  const createSession = () =>
+    act("session", async () => {
+      const s = await call<{ id: string }>("/calibration-sessions", {
+        method: "POST", json: cycleId ? { cycleId } : {},
+      });
+      setSessionId(s.id);
+    }, "Đã mở phiên cân chỉnh.");
+
+  const decide = (r: ReviewListRow) => {
+    const d = draft[r.id];
+    return act(r.id, () => call("/calibration-decisions", {
+      method: "POST",
+      json: {
+        sessionId, reviewId: r.id, ratingAfter: d.rating,
+        rationale: d.rationale, version: r.version,
+      },
+    }), `Đã cân chỉnh hạng cho ${r.reviewee?.fullName ?? "nhân sự"}.`);
+  };
+
   return (
-    <AppShell crumb={{ section: "HR / B1", page: "Phòng cân chỉnh đánh giá" }}>
+    <AppShell crumb={{ section: "HR", page: "Phòng cân chỉnh" }}>
       <div className="page-head">
-        <div className="eyebrow">Phòng cân chỉnh đánh giá · Calibration · Quý 3/2026 · Khối Đại học</div>
-        <h1>Hiệu chỉnh công bằng &amp; nhất quán</h1>
-        <p>So sánh phân phối rating cross-BU, phát hiện outlier/bias. Mọi thay đổi rating bắt buộc rationale + audit.</p>
+        <div className="eyebrow">Calibration · công bằng giữa các đơn vị</div>
+        <h1>Phòng cân chỉnh đánh giá</h1>
+        <p>Soát phân bố hạng, điều chỉnh có lý do ghi lại — mọi thay đổi đều truy được nguồn.</p>
       </div>
 
-      <div className="grid g2">
-        <Card title={<><Scale size={16} color="var(--nhg-primary)" /> Phân phối rating</>} sub={`${total} nhân sự · trước calibration`}>
-          {ratingDist.map((r, i) => (
-            <div key={r.grade} style={{ marginBottom: 10 }}>
-              <div className="row between" style={{ marginBottom: 4 }}>
-                <span className="tiny"><b>{r.grade}</b> <span className="muted">· {r.count} người</span></span>
-                <span className="tiny numeric muted">{r.pct}%</span>
-              </div>
-              <div className="progress"><span style={{ width: `${r.pct}%`, background: barColor[i] }} /></div>
-            </div>
-          ))}
-          <hr className="hr" />
-          <div className="ai-flag"><TriangleAlert size={15} /><span>Tỷ lệ A+/A = 36% — cao hơn ngưỡng khuyến nghị 30%, cân nhắc rà soát inflation.</span></div>
-        </Card>
+      {msg && <div className={`studio-msg ${msg.kind === "ok" ? "ok" : "err"}`} style={{ marginBottom: 14 }}>{msg.text}</div>}
+      {loading && <Card><span className="muted tiny">Đang tải…</span></Card>}
 
-        <div className="ai-panel">
-          <div className="ai-head"><Sparkles size={16} color="#6D28A8" /> <b>Calibration Assistant</b>
-            <span className="ai-chip" style={{ marginLeft: "auto" }}>AI · không chốt rating</span></div>
-          <div className="ai-draft">
-            Chuẩn bị calibration pack: <b>3 outlier</b> cần thảo luận, 1 manager có pattern chấm thấp (deflation),
-            2 review thiếu evidence cho rating đề xuất. Gợi ý câu hỏi đính kèm từng case bên dưới.
+      {!loading && !can("calibration:run") && (
+        <Card>
+          <div className="row" style={{ gap: 8 }}>
+            <Lock size={16} />
+            <span className="tiny muted">
+              Bạn không có quyền chạy cân chỉnh (<b>calibration:run</b>). Quyền này thuộc HRBP
+              và quản trị viên đơn vị — đăng nhập <b>hr@</b> để thao tác.
+            </span>
           </div>
-          <div className="card-sub">Câu hỏi gợi ý cho hội đồng</div>
-          <div className="ai-flag" style={{ background: "rgba(109,40,168,.1)", color: "#6D28A8" }}><span>“Evidence nào chứng minh mức A+ cho trường hợp Đỗ Hải Yến?”</span></div>
-          <div className="ai-flag" style={{ background: "rgba(109,40,168,.1)", color: "#6D28A8" }}><span>“Manager B chấm thấp đồng loạt — do tiêu chí hay do kỳ vọng?”</span></div>
-        </div>
-      </div>
+        </Card>
+      )}
 
-      <Card className="section-gap" title="Outlier &amp; bias cần hiệu chỉnh" sub="AI flag — quyết định thuộc hội đồng calibration">
-        <table className="table">
-          <thead><tr><th>Nhân sự</th><th>BU</th><th>Manager</th><th>Đề xuất</th><th>Mức</th><th>Cảnh báo</th><th></th></tr></thead>
-          <tbody>
-            {calibrationOutliers.map((o) => (
-              <tr key={o.person}>
-                <td><b>{o.person}</b></td>
-                <td><Badge tone="gray">{o.bu}</Badge></td>
-                <td className="muted">{o.mgr}</td>
-                <td><Badge tone={o.proposed.startsWith("A") ? "green" : o.proposed === "C" || o.proposed === "D" ? "red" : "info"}>{o.proposed}</Badge></td>
-                <td><Badge tone={sevMap[o.sev].tone}>{sevMap[o.sev].label}</Badge></td>
-                <td className="muted tiny">{o.flag}</td>
-                <td className="rt"><button className="btn ghost sm">Mở review</button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <hr className="hr" />
-        <div className="row between">
-          <span className="muted tiny"><ShieldCheck size={13} style={{ verticalAlign: "-2px" }} /> Đổi rating yêu cầu nhập <b>rationale</b> — ghi audit + version.</span>
-          <button className="btn primary sm"><Check size={15} /> Chốt phiên calibration</button>
-        </div>
-      </Card>
+      {!loading && can("calibration:run") && (
+        <>
+          <div className="studio-toolbar" style={{ marginBottom: 14 }}>
+            <div className="studio-field" style={{ minWidth: 250 }}>
+              <label>Chu kỳ</label>
+              <select className="studio-input" value={cycleId} onChange={(e) => setCycleId(e.target.value)}>
+                {cycles.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.status})</option>)}
+              </select>
+            </div>
+            <div className="studio-field" style={{ minWidth: 250 }}>
+              <label>Phiên cân chỉnh</label>
+              <select className="studio-input" value={sessionId} onChange={(e) => setSessionId(e.target.value)}>
+                {sessions.length === 0 && <option value="">— chưa có phiên —</option>}
+                {sessions.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {new Date(s.createdAt).toLocaleString("vi-VN")} · {s.status} ({s.decisionCount} quyết định)
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button className="btn ghost sm" disabled={busy !== null} onClick={() => void createSession()}>
+              <Plus size={15} /> {busy === "session" ? "…" : "Mở phiên"}
+            </button>
+          </div>
+
+          <div className="grid" style={{ gridTemplateColumns: "1.6fr 1fr" }}>
+            <Card
+              title={<><Scale size={16} color="var(--nhg-primary)" /> Danh sách cân chỉnh</>}
+              sub="Chỉ phiếu đã qua đánh giá quản lý mới cân chỉnh được"
+            >
+              {reviews.length === 0 && <span className="tiny muted">Chu kỳ này chưa có phiếu.</span>}
+              {reviews.length > 0 && (
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Nhân sự</th><th className="rt">Điểm</th><th>Hạng hiện tại</th>
+                      <th style={{ width: 260 }}>Cân chỉnh</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reviews.map((r) => {
+                      const isSelf = r.revieweeId === me?.id;
+                      const editable = CALIBRATABLE.includes(r.status) && !isSelf && !!sessionId;
+                      const d = draft[r.id] ?? { rating: r.proposedRating ?? "", rationale: "" };
+                      const ready = d.rating.trim().length > 0 && d.rationale.trim().length >= 10;
+                      return (
+                        <tr key={r.id}>
+                          <td>
+                            <b>{r.reviewee?.fullName ?? r.revieweeId.slice(0, 8)}</b>
+                            <div className="muted tiny">{r.reviewee?.employeeCode}</div>
+                          </td>
+                          <td className="rt numeric">{r.finalScore != null ? Math.round(Number(r.finalScore)) : "—"}</td>
+                          <td>
+                            <Badge tone={r.status === "final" ? "green" : "amber"}>
+                              {r.finalRating ?? r.proposedRating ?? "—"}
+                            </Badge>
+                          </td>
+                          <td>
+                            {isSelf ? (
+                              <span className="row tiny muted" style={{ gap: 6 }}>
+                                <Lock size={13} /> Không cân chỉnh phiếu của chính mình
+                              </span>
+                            ) : r.status === "final" ? (
+                              <span className="row tiny muted" style={{ gap: 6 }}>
+                                <Lock size={13} /> Đã chốt — khoá
+                              </span>
+                            ) : !CALIBRATABLE.includes(r.status) ? (
+                              <span className="tiny muted">Chờ quản lý đánh giá xong</span>
+                            ) : !sessionId ? (
+                              <span className="tiny muted">Mở phiên trước</span>
+                            ) : (
+                              <div className="grid" style={{ gap: 6 }}>
+                                <input
+                                  className="studio-input" style={{ fontSize: 12 }} value={d.rating}
+                                  onChange={(e) => setDraft((s) => ({ ...s, [r.id]: { ...d, rating: e.target.value } }))}
+                                  placeholder="Hạng mới (A/B/C)"
+                                />
+                                <input
+                                  className="studio-input" style={{ fontSize: 12 }} value={d.rationale}
+                                  onChange={(e) => setDraft((s) => ({ ...s, [r.id]: { ...d, rationale: e.target.value } }))}
+                                  placeholder="Lý do (≥10 ký tự) — bắt buộc"
+                                />
+                                <button
+                                  className="btn primary sm" disabled={!ready || busy !== null || !editable}
+                                  onClick={() => void decide(r)}
+                                >
+                                  {busy === r.id ? "Đang lưu…" : "Cân chỉnh"}
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </Card>
+
+            <div className="grid" style={{ gap: 16 }}>
+              <Card title="Phân bố hạng" sub="Theo chu kỳ đang chọn">
+                {dist.length === 0 && <span className="tiny muted">Chưa có hạng nào được đề xuất.</span>}
+                {dist.map(([k, n]) => (
+                  <div key={k} className="row between" style={{ padding: "6px 0" }}>
+                    <span className="tiny"><b>{k}</b></span>
+                    <span className="tiny numeric muted">{n} người</span>
+                  </div>
+                ))}
+              </Card>
+
+              <Card title={<><History size={16} color="var(--nhg-primary)" /> Quyết định trong phiên</>} sub="Lưu vĩnh viễn, có lý do">
+                {(!detail || detail.decisions.length === 0) && (
+                  <span className="tiny muted">Phiên này chưa có quyết định nào.</span>
+                )}
+                <div className="timeline">
+                  {detail?.decisions.map((d) => (
+                    <div key={d.id} className="tl-item">
+                      <div className="t">
+                        {d.reviewee?.fullName ?? d.reviewId.slice(0, 8)} ·{" "}
+                        {new Date(d.createdAt).toLocaleString("vi-VN")}
+                      </div>
+                      <div className="m">
+                        <b>{d.ratingBefore ?? "—"} → {d.ratingAfter}</b>
+                        <div className="muted tiny" style={{ marginTop: 3 }}>{d.rationale}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+
+              <Card>
+                <div className="row" style={{ gap: 8 }}>
+                  <ShieldCheck size={16} color="var(--nhg-primary)" />
+                  <span className="tiny muted">
+                    Mỗi lần đổi hạng ghi lại hạng trước/sau + lý do + người quyết định, kèm
+                    vết kiểm toán trong cùng giao dịch.
+                  </span>
+                </div>
+              </Card>
+            </div>
+          </div>
+        </>
+      )}
     </AppShell>
   );
 }

@@ -542,6 +542,10 @@ export interface MeResponse {
   email?: string | null;
   orgUnitId?: string | null;
   managerId?: string | null;
+  /** [L4] Quyền của CHÍNH người đang đăng nhập — để giao diện khoá nút trung thực (I3).
+   *  Server vẫn là nơi gác duy nhất; danh sách này chỉ dùng cho hiển thị. */
+  permissions?: string[];
+  scopes?: Array<{ scopeType: string; scopeId: string | null }>;
 }
 
 export type GoalStatus = "draft" | "active" | "at_risk" | "off_track" | "done" | "cancelled";
