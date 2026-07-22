@@ -30,10 +30,11 @@ class TeamQueryDto {
 export class PersonController {
   constructor(private persons: PersonService) {}
 
+  // [F183] lọc scope + whitelist trường — xem ghi chú ở PersonService.list
   @Get('persons')
   @RequirePermission('person:read')
   list(@CurrentUser() user: RequestUser) {
-    return this.persons.list(user.tenantId);
+    return this.persons.list(user);
   }
 
   // [Trục A — L1] Roster đội + trạng thái kỳ. Đặt TRƯỚC mọi route 'persons/:x'.

@@ -8,11 +8,11 @@
  * — bịa ra là hại thật. Chỉ hiển thị thứ đo được, và nêu rõ phần chưa có.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { UserCog, Construction, TriangleAlert } from "lucide-react";
+import { UserCog, Construction, TriangleAlert, Lock } from "lucide-react";
 import { AppShell } from "@/components/shell/AppShell";
 import { Badge, Card, Progress } from "@/components/ui";
 import { useStudio } from "@/lib/studio";
-import type { ReviewCycleRow, ReviewRow } from "@/lib/api";
+import type { MeResponse, ReviewCycleRow, ReviewRow } from "@/lib/api";
 
 interface ReviewListRow extends ReviewRow {
   reviewee: { id: string; fullName: string; employeeCode: string } | null;
@@ -32,22 +32,39 @@ export default function TalentPage() {
   const [cycleId, setCycleId] = useState("");
   const [reviews, setReviews] = useState<ReviewListRow[]>([]);
   const [overview, setOverview] = useState<Overview | null>(null);
+  /**
+   * [F177 — Reviewer đối kháng] `exec_viewer` KHÔNG có `review:read`, nên phần phân bố
+   * hạng không đọc được. Trước bản vá lời gọi `/review-cycles` không bọc catch ⇒ ném
+   * banner lỗi thô, dropdown rỗng, và — tệ nhất — panel "đang gánh việc chệch hướng"
+   * (đọc từ /exec/overview, VẪN thành công) hiện tên người thật bên cạnh dòng chữ
+   * "chưa phiếu nào có hạng". Trang nửa thật nửa giả, người đọc không biết phần nào
+   * bị che. Nay tách rõ: thiếu quyền thì NÓI thiếu quyền, không giả vờ là không có dữ liệu.
+   */
+  const [canReadReviews, setCanReadReviews] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [cy, ov] = await Promise.all([
-        call<ReviewCycleRow[]>("/review-cycles"),
-        call<Overview>("/exec/overview").catch(() => null),
-      ]);
-      setCycles(cy); setOverview(ov);
-      const use = cycleId || cy.find((c) => c.status === "open")?.id || cy[0]?.id || "";
-      if (!cycleId && use) setCycleId(use);
-      if (use) {
-        const list = await call<{ reviews: ReviewListRow[] }>(`/reviews?cycleId=${use}`);
-        setReviews(list.reviews);
+      const me = await call<MeResponse>("/me");
+      const mayRead = !!me.permissions?.includes("review:read");
+      setCanReadReviews(mayRead);
+
+      const ov = await call<Overview>("/exec/overview").catch(() => null);
+      setOverview(ov);
+
+      if (mayRead) {
+        const cy = await call<ReviewCycleRow[]>("/review-cycles");
+        setCycles(cy);
+        const use = cycleId || cy.find((c) => c.status === "open")?.id || cy[0]?.id || "";
+        if (!cycleId && use) setCycleId(use);
+        if (use) {
+          const list = await call<{ reviews: ReviewListRow[] }>(`/reviews?cycleId=${use}`);
+          setReviews(list.reviews);
+        }
+      } else {
+        setCycles([]); setReviews([]);
       }
       setErr(null);
     } catch (e) {
@@ -91,20 +108,33 @@ export default function TalentPage() {
 
       {!loading && (
         <>
-          <div className="studio-toolbar" style={{ marginBottom: 14 }}>
-            <div className="studio-field" style={{ minWidth: 300 }}>
-              <label>Chu kỳ</label>
-              <select className="studio-input" value={cycleId} onChange={(e) => setCycleId(e.target.value)}>
-                {cycles.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.status})</option>)}
-              </select>
+          {canReadReviews && (
+            <div className="studio-toolbar" style={{ marginBottom: 14 }}>
+              <div className="studio-field" style={{ minWidth: 300 }}>
+                <label>Chu kỳ</label>
+                <select className="studio-input" value={cycleId} onChange={(e) => setCycleId(e.target.value)}>
+                  {cycles.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.status})</option>)}
+                </select>
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="grid" style={{ gridTemplateColumns: "1.5fr 1fr" }}>
             <div className="grid" style={{ gap: 16 }}>
               <Card title={<><UserCog size={16} color="var(--nhg-primary)" /> Phân bố kết quả đánh giá</>}
-                sub={`${rated}/${reviews.length} phiếu đã có hạng`}>
-                {dist.length === 0 && (
+                sub={canReadReviews ? `${rated}/${reviews.length} phiếu đã có hạng` : "Cần quyền đọc đánh giá"}>
+                {!canReadReviews && (
+                  <div className="row" style={{ gap: 10, alignItems: "flex-start" }}>
+                    <Lock size={16} />
+                    <span className="tiny muted">
+                      Tài khoản của bạn không có quyền <b>review:read</b> nên phần phân bố hạng
+                      không hiển thị được. <b>Đây là thiếu quyền, không phải &ldquo;chưa có dữ
+                      liệu&rdquo;</b> — số liệu có thể đang tồn tại. Vai điều hành được thiết kế
+                      chỉ đọc mục tiêu; muốn xem kết quả đánh giá cần tài khoản HR.
+                    </span>
+                  </div>
+                )}
+                {canReadReviews && dist.length === 0 && (
                   <span className="tiny muted">
                     Chưa phiếu nào có hạng trong chu kỳ này.
                   </span>

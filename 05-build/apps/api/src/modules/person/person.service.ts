@@ -19,10 +19,43 @@ export interface CreatePersonInput {
 export class PersonService {
   constructor(private prisma: PrismaService) {}
 
-  list(tenantId: string) {
-    return this.prisma.withTenant(tenantId, (tx) =>
-      tx.person.findMany({ where: { deletedAt: null }, orderBy: { employeeCode: 'asc' } }),
-    );
+  /**
+   * [F183 — Reviewer đối kháng, chủ dự án chốt SIẾT 22/07/2026]
+   *
+   * Trước bản vá: trả NGUYÊN ROW của TOÀN BỘ person trong tenant cho bất kỳ ai có
+   * `person:read` — mà quyền đó cấp cho cả role `employee`. Nhân viên thường gọi
+   * `GET /persons` đọc được email, mã nhân viên, phòng ban, người quản lý, ngày vào
+   * làm, thâm niên của mọi người. Lỗ có từ Phase 0, nằm ngoài 6 commit trục A, nhưng
+   * trục A tuyên bố giữ I1 KHÔNG ĐIỀU KIỆN nên không thể để im.
+   *
+   * Nay hai lớp, cùng khuôn với mọi read-model khác của trục:
+   *   ① Lọc scope ngay trong query (self → chính mình · org_unit → người trong đơn vị
+   *      phụ trách · tenant → toàn tenant).
+   *   ② Whitelist select — bỏ `hireDate`/`seniorityMonths`/`externalId`/`createdBy`…
+   *      Danh bạ cần tên–mã–phòng để làm việc, không cần hồ sơ nhân sự.
+   */
+  list(user: RequestUser) {
+    return this.prisma.withTenant(user.tenantId, async (tx) => {
+      const scope = effectiveScope(user);
+      let scopeWhere: Record<string, unknown> = {};
+      if (scope.mode === 'scoped') {
+        const or: Record<string, unknown>[] = [];
+        if (scope.selfPersonId) or.push({ id: scope.selfPersonId });
+        if (scope.orgUnitIds.length > 0) or.push({ orgUnitId: { in: scope.orgUnitIds } });
+        scopeWhere = or.length > 0
+          ? { OR: or }
+          : { id: '00000000-0000-0000-0000-000000000000' }; // fail-closed
+      }
+      return tx.person.findMany({
+        where: { deletedAt: null, ...scopeWhere },
+        select: {
+          id: true, employeeCode: true, fullName: true, email: true,
+          orgUnitId: true, positionId: true, managerId: true, status: true,
+        },
+        orderBy: { employeeCode: 'asc' },
+        take: 1000,
+      });
+    });
   }
 
   me(tenantId: string, personId: string | undefined) {
@@ -64,12 +97,22 @@ export class PersonService {
         orgUnitIds = scope.mode === 'tenant' ? [] : scope.orgUnitIds;
       }
 
+      // [F176 — Reviewer đối kháng] Người scope TENANT (hrbp/admin) không truyền
+      // orgUnitId thì "đội" = TOÀN TENANT, không phải rỗng.
+      //
+      // Trước bản vá: tenant ⇒ orgUnitIds=[] ⇒ mệnh đề `or` chỉ còn {managerId: mình}
+      // ⇒ hr@ nhận members=0 dù tenant có 18 người. Hậu quả THẬT ở màn /hr/review-cycle:
+      // "nhân sự chưa có phiếu" = 0 nên nút tạo phiếu hàng loạt chạy rỗng và báo
+      // "Đã tạo 0 phiếu" MÀU XANH — HR tin cả công ty đã có phiếu. Lỗi lọt vì driver
+      // kiểm chứng chỉ đánh vai mgr@ (org_unit), không đánh hr@ (tenant).
+      const tenantWide = scope.mode === 'tenant' && !filter.orgUnitId;
+
       const or: Record<string, unknown>[] = [];
       if (orgUnitIds.length > 0) or.push({ orgUnitId: { in: orgUnitIds } });
       if (selfPersonId) or.push({ managerId: selfPersonId });
-      // Fail-closed: không xác định được đội ⇒ trả rỗng, KHÔNG mặc định "cả tenant".
-      if (or.length === 0) {
-        return { orgUnitIds, periodKey: filter.periodKey ?? null, members: [] };
+      // Fail-closed: KHÔNG có quyền tenant mà cũng không xác định được đội ⇒ trả rỗng.
+      if (!tenantWide && or.length === 0) {
+        return { orgUnitIds, periodKey: filter.periodKey ?? null, capped: false, members: [] };
       }
 
       // Trần 500 người/đội. Trả kèm cờ `capped` thay vì cắt im lặng: trưởng phòng phải
@@ -77,7 +120,7 @@ export class PersonService {
       // quyết định trên danh sách khuyết (cùng tinh thần cờ `capped` của Từ điển Tác vụ).
       const CAP = 500;
       const rows = await tx.person.findMany({
-        where: { deletedAt: null, status: 'active', OR: or },
+        where: { deletedAt: null, status: 'active', ...(tenantWide ? {} : { OR: or }) },
         select: {
           id: true, employeeCode: true, fullName: true, email: true,
           orgUnitId: true, managerId: true, positionId: true,

@@ -130,6 +130,8 @@ async function requestUserFor(
 export async function seedPerfDemo(opts: {
   tenantCode?: string;
   purge?: boolean;
+  dryRun?: boolean;
+  confirm?: boolean;
   prisma?: PrismaService;
   ownerUrl?: string;
   log?: (msg: string) => void;
@@ -164,6 +166,22 @@ export async function seedPerfDemo(opts: {
     });
 
     if (opts.purge) {
+      // [F182 — Reviewer] purge xoá CỨNG theo tiền tố tên/mã trên tenant mặc định H.01
+      // (tenant pilot THẬT). Rủi ro: phiếu của người thật nằm trong một chu kỳ `[DEMO]`
+      // cũng bị xoá. Nay bắt xác nhận tường minh khi đụng tenant khác T2.TEST, và có
+      // chế độ đếm-thử để nhìn trước khi xoá.
+      if (opts.dryRun) {
+        const n = await purgeDemo(owner, tenant.id, codePrefix, log, true);
+        log(`[DRY-RUN] '${tenantCode}': SẼ gỡ ${n} bản ghi demo. Chưa xoá gì.`);
+        return result;
+      }
+      if (tenantCode !== 'T2.TEST' && !opts.confirm) {
+        throw new Error(
+          `Từ chối purge tenant '${tenantCode}' (không phải T2.TEST) khi chưa xác nhận.\n` +
+          `  Xem trước:  pnpm --filter @ipms/api seed:perfdemo ${tenantCode} --purge --dry-run\n` +
+          `  Thực hiện:  pnpm --filter @ipms/api seed:perfdemo ${tenantCode} --purge --yes`,
+        );
+      }
       const n = await purgeDemo(owner, tenant.id, codePrefix, log);
       log(`Purge '${tenantCode}': gỡ ${n} bản ghi demo. audit_log giữ nguyên (append-only).`);
       const dictAfter = await owner.taskCell.count({
@@ -439,6 +457,7 @@ export async function seedPerfDemo(opts: {
  *  là thao tác vận hành ngoài luồng người dùng. audit_log KHÔNG đụng (append-only). */
 async function purgeDemo(
   owner: PrismaClient, tenantId: string, codePrefix: string, log: (m: string) => void,
+  dryRun = false,
 ): Promise<number> {
   const persons = await owner.person.findMany({
     where: { tenantId, employeeCode: { startsWith: codePrefix } },
@@ -449,8 +468,11 @@ async function purgeDemo(
     where: { tenantId, name: { startsWith: DEMO_TAG } }, select: { id: true },
   });
   const cycleIds = cycles.map((c) => c.id);
+  // [F182] CHỈ xoá phiếu của chính người demo. Nhánh cũ `cycleId in cycleIds` cuốn theo
+  // phiếu của NGƯỜI THẬT nếu họ tình cờ nằm trong một chu kỳ tên `[DEMO]` — mất dữ liệu
+  // thật vì một quy ước đặt tên.
   const reviewRows = await owner.review.findMany({
-    where: { tenantId, OR: [{ cycleId: { in: cycleIds } }, { revieweeId: { in: personIds } }] },
+    where: { tenantId, revieweeId: { in: personIds } },
     select: { id: true },
   });
   const reviewIds = reviewRows.map((r) => r.id);
@@ -472,27 +494,52 @@ async function purgeDemo(
   const appUserIds = appUsers.map((u) => u.id);
 
   let n = 0;
-  const del = async (label: string, fn: () => Promise<{ count: number }>) => {
+  const del = async (
+    label: string,
+    fn: () => Promise<{ count: number }>,
+    count: () => Promise<number>,
+  ) => {
+    if (dryRun) {
+      const c = await count();
+      if (c) log(`  · [dry-run] ${label}: ${c}`);
+      n += c;
+      return;
+    }
     const r = await fn();
     if (r.count) log(`  · ${label}: ${r.count}`);
     n += r.count;
   };
 
-  await del('review_item_score', () => owner.reviewItemScore.deleteMany({ where: { reviewId: { in: reviewIds } } }));
-  await del('review', () => owner.review.deleteMany({ where: { id: { in: reviewIds } } }));
-  await del('review_cycle', () => owner.reviewCycle.deleteMany({ where: { id: { in: cycleIds } } }));
-  await del('checkin_goal_update', () => owner.checkinGoalUpdate.deleteMany({ where: { checkinId: { in: checkinIds } } }));
-  await del('checkin', () => owner.checkin.deleteMany({ where: { id: { in: checkinIds } } }));
-  await del('evidence', () => owner.evidence.deleteMany({ where: { tenantId, OR: [{ ownerId: { in: personIds } }, { relatedKpiId: { in: kpiIds } }] } }));
-  await del('scorecard_item', () => owner.scorecardItem.deleteMany({ where: { scorecardId: { in: scorecardIds } } }));
-  await del('scorecard', () => owner.scorecard.deleteMany({ where: { id: { in: scorecardIds } } }));
-  await del('kpi_score_tier', () => owner.kpiScoreTier.deleteMany({ where: { kpiId: { in: kpiIds } } }));
-  await del('kpi', () => owner.kpi.deleteMany({ where: { id: { in: kpiIds } } }));
-  await del('goal', () => owner.goal.deleteMany({ where: { tenantId, nameVi: { startsWith: DEMO_TAG } } }));
-  await del('objective', () => owner.objective.deleteMany({ where: { tenantId, nameVi: { startsWith: DEMO_TAG } } }));
-  await del('user_role', () => owner.userRole.deleteMany({ where: { appUserId: { in: appUserIds } } }));
-  await del('app_user', () => owner.appUser.deleteMany({ where: { id: { in: appUserIds } } }));
-  await del('person', () => owner.person.deleteMany({ where: { id: { in: personIds } } }));
+  await del('review_item_score', () => owner.reviewItemScore.deleteMany({ where: { reviewId: { in: reviewIds } } }),
+    () => owner.reviewItemScore.count({ where: { reviewId: { in: reviewIds } } }));
+  await del('review', () => owner.review.deleteMany({ where: { id: { in: reviewIds } } }),
+    () => owner.review.count({ where: { id: { in: reviewIds } } }));
+  await del('review_cycle', () => owner.reviewCycle.deleteMany({ where: { id: { in: cycleIds } } }),
+    () => owner.reviewCycle.count({ where: { id: { in: cycleIds } } }));
+  await del('checkin_goal_update', () => owner.checkinGoalUpdate.deleteMany({ where: { checkinId: { in: checkinIds } } }),
+    () => owner.checkinGoalUpdate.count({ where: { checkinId: { in: checkinIds } } }));
+  await del('checkin', () => owner.checkin.deleteMany({ where: { id: { in: checkinIds } } }),
+    () => owner.checkin.count({ where: { id: { in: checkinIds } } }));
+  await del('evidence', () => owner.evidence.deleteMany({ where: { tenantId, OR: [{ ownerId: { in: personIds } }, { relatedKpiId: { in: kpiIds } }] } }),
+    () => owner.evidence.count({ where: { tenantId, OR: [{ ownerId: { in: personIds } }, { relatedKpiId: { in: kpiIds } }] } }));
+  await del('scorecard_item', () => owner.scorecardItem.deleteMany({ where: { scorecardId: { in: scorecardIds } } }),
+    () => owner.scorecardItem.count({ where: { scorecardId: { in: scorecardIds } } }));
+  await del('scorecard', () => owner.scorecard.deleteMany({ where: { id: { in: scorecardIds } } }),
+    () => owner.scorecard.count({ where: { id: { in: scorecardIds } } }));
+  await del('kpi_score_tier', () => owner.kpiScoreTier.deleteMany({ where: { kpiId: { in: kpiIds } } }),
+    () => owner.kpiScoreTier.count({ where: { kpiId: { in: kpiIds } } }));
+  await del('kpi', () => owner.kpi.deleteMany({ where: { id: { in: kpiIds } } }),
+    () => owner.kpi.count({ where: { id: { in: kpiIds } } }));
+  await del('goal', () => owner.goal.deleteMany({ where: { tenantId, nameVi: { startsWith: DEMO_TAG } } }),
+    () => owner.goal.count({ where: { tenantId, nameVi: { startsWith: DEMO_TAG } } }));
+  await del('objective', () => owner.objective.deleteMany({ where: { tenantId, nameVi: { startsWith: DEMO_TAG } } }),
+    () => owner.objective.count({ where: { tenantId, nameVi: { startsWith: DEMO_TAG } } }));
+  await del('user_role', () => owner.userRole.deleteMany({ where: { appUserId: { in: appUserIds } } }),
+    () => owner.userRole.count({ where: { appUserId: { in: appUserIds } } }));
+  await del('app_user', () => owner.appUser.deleteMany({ where: { id: { in: appUserIds } } }),
+    () => owner.appUser.count({ where: { id: { in: appUserIds } } }));
+  await del('person', () => owner.person.deleteMany({ where: { id: { in: personIds } } }),
+    () => owner.person.count({ where: { id: { in: personIds } } }));
   return n;
 }
 
@@ -500,7 +547,9 @@ async function purgeDemo(
 if (require.main === module) {
   const args = process.argv.slice(2);
   const purge = args.includes('--purge');
+  const dryRun = args.includes('--dry-run');
+  const confirm = args.includes('--yes');
   const tenantCode = args.find((a) => !a.startsWith('--'));
-  seedPerfDemo({ tenantCode, purge })
+  seedPerfDemo({ tenantCode, purge, dryRun, confirm })
     .catch((e) => { console.error(e); process.exit(1); });
 }

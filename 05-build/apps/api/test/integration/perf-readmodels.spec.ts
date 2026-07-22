@@ -8,8 +8,12 @@
  *   I5 — whitelist select: danh sách không trả văn bản đánh giá; audit không trả payload.
  *   I6 — tenant_admin KHÔNG có audit:read (SoD), 403 ở đây là hành vi ĐÚNG.
  *
- * Dữ liệu: dựa trên seed:perfdemo (6 nhân viên demo + cycle [DEMO]). Test tự bỏ qua
- * các assert phụ thuộc dữ liệu demo nếu chưa seed, nhưng các assert bảo mật thì LUÔN chạy.
+ * Dữ liệu: dựa trên seed:perfdemo (6 nhân viên demo + cycle [DEMO]).
+ *
+ * [F181 — Reviewer đối kháng] Các assert BẢO MẬT không được phép chạy rỗng: mỗi vòng
+ * lặp assert đều có `expect(length).toBeGreaterThan(0)` đứng trước, và các test hồi quy
+ * (I1, F115, F175) NÉM LỖI nếu thiếu dữ liệu dựng thay vì `return` im lặng — một test
+ * tự tắt tiếng nguy hiểm hơn không có test, vì nó vẫn hiện màu xanh.
  */
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
@@ -81,12 +85,15 @@ describe('[Trục A L1] Read-model vòng đời hiệu suất', () => {
       const res = await auth(demo1)(request(app.getHttpServer()).get('/api/v1/reviews')).expect(200);
       const rows = res.body.reviews as Array<{ revieweeId: string }>;
       expect(Array.isArray(rows)).toBe(true);
+      // [F181] chốt chặn chống assert rỗng: phải CÓ phiếu thì vòng dưới mới có nghĩa
+      expect(rows.length).toBeGreaterThan(0);
       for (const r of rows) expect(r.revieweeId).toBe(demo1.personId);
     });
 
     it('[I1] hỏi đích danh review người khác vẫn KHÔNG trả (lọc trong query, không lọc sau)', async () => {
       const other = demoPersonIds.find((id) => id !== demo1.personId);
-      if (!other) return;
+      // [F181] KHÔNG bỏ qua im lặng: đây là test hồi quy I1, thiếu dữ liệu phải đỏ
+      if (!other) throw new Error('Thiếu seed:perfdemo — test I1 không thể chạy');
       const res = await auth(demo1)(
         request(app.getHttpServer()).get(`/api/v1/reviews?revieweeId=${other}`),
       ).expect(200);
@@ -95,6 +102,7 @@ describe('[Trục A L1] Read-model vòng đời hiệu suất', () => {
 
     it('[I5] danh sách không trả văn bản tự đánh giá / trường nội bộ', async () => {
       const res = await auth(hr)(request(app.getHttpServer()).get('/api/v1/reviews?limit=5')).expect(200);
+      expect(res.body.reviews.length).toBeGreaterThan(0); // [F181] không cho assert chạy rỗng
       for (const r of res.body.reviews) {
         expect(r).not.toHaveProperty('selfReflection');
         expect(r).not.toHaveProperty('managerAssessment');
@@ -136,17 +144,74 @@ describe('[Trục A L1] Read-model vòng đời hiệu suất', () => {
       const root = await owner.orgUnit.findFirst({
         where: { tenantId: mgr.tenantId, code: 'ROOT', deletedAt: null },
       });
-      const mgrPerson = await owner.person.findFirst({ where: { id: mgr.personId! } });
-      // chỉ có nghĩa khi ROOT khác đơn vị mgr phụ trách
-      if (!root || root.id === mgrPerson?.orgUnitId) return;
+      const mgrRole = await owner.userRole.findFirst({
+        where: { tenantId: mgr.tenantId, appUserId: mgr.userId, scopeType: 'org_unit', deletedAt: null },
+      });
+      // [F181] test hồi quy F115 — thiếu điều kiện dựng thì phải ĐỎ, không im lặng bỏ qua
+      if (!root) throw new Error('Thiếu org_unit ROOT — seed sai');
+      if (!mgrRole?.scopeId) throw new Error('mgr@ không có scope org_unit — seed sai');
+      expect(root.id).not.toBe(mgrRole.scopeId); // ROOT phải NGOÀI phạm vi mgr thì test mới có nghĩa
       await auth(mgr)(
         request(app.getHttpServer()).get(`/api/v1/persons/team?orgUnitId=${root.id}`),
       ).expect(403);
     });
 
+    it('[F176] người scope TENANT (hrbp) thấy TOÀN TENANT, không phải rỗng', async () => {
+      // Vé F176: trước bản vá, tenant ⇒ orgUnitIds=[] ⇒ chỉ còn {managerId: mình} ⇒ 0 người.
+      // Hậu quả thật: /hr/review-cycle báo "0 người chưa có phiếu" và nút tạo phiếu hàng
+      // loạt chạy rỗng nhưng hiện toast XANH "Đã tạo 0 phiếu" — HR tin cả công ty đã đủ.
+      const res = await auth(hr)(request(app.getHttpServer()).get('/api/v1/persons/team')).expect(200);
+      const members = res.body.members as Array<{ id: string }>;
+      const totalActive = await owner.person.count({
+        where: { tenantId: hr.tenantId, deletedAt: null, status: 'active' },
+      });
+      expect(totalActive).toBeGreaterThan(0);
+      expect(members.length).toBe(Math.min(totalActive, 500));
+      // và phải nhiều hơn hẳn phạm vi một phòng (đối chứng với mgr)
+      const mgrRes = await auth(mgr)(request(app.getHttpServer()).get('/api/v1/persons/team')).expect(200);
+      expect(members.length).toBeGreaterThan((mgrRes.body.members as unknown[]).length);
+    });
+
+    it('[F176] tenant + orgUnitId tường minh vẫn thu hẹp đúng đơn vị', async () => {
+      const mgrRole = await owner.userRole.findFirst({
+        where: { tenantId: mgr.tenantId, appUserId: mgr.userId, scopeType: 'org_unit', deletedAt: null },
+      });
+      if (!mgrRole?.scopeId) throw new Error('mgr@ không có scope org_unit — seed sai');
+      const res = await auth(hr)(
+        request(app.getHttpServer()).get(`/api/v1/persons/team?orgUnitId=${mgrRole.scopeId}`),
+      ).expect(200);
+      const members = res.body.members as Array<{ orgUnitId: string | null }>;
+      expect(members.length).toBeGreaterThan(0);
+      for (const m of members) expect(m.orgUnitId).toBe(mgrRole.scopeId);
+    });
+
     it('[I1] nhân viên gọi → đội RỖNG, không lộ danh sách người', async () => {
       const res = await auth(demo1)(request(app.getHttpServer()).get('/api/v1/persons/team')).expect(200);
       expect(res.body.members).toHaveLength(0);
+    });
+
+    it('[F183] GET /persons — nhân viên chỉ thấy người trong phạm vi + KHÔNG lộ hồ sơ nhân sự', async () => {
+      // Vé F183 (Reviewer, chủ dự án chốt SIẾT): trước bản vá endpoint trả NGUYÊN ROW
+      // của TOÀN BỘ person trong tenant cho bất kỳ ai có person:read — kể cả employee.
+      const res = await auth(demo1)(request(app.getHttpServer()).get('/api/v1/persons')).expect(200);
+      const rows = res.body as Array<Record<string, unknown>>;
+      expect(rows.length).toBeGreaterThan(0);
+
+      // ① lọc scope: demo1 scope self ⇒ chỉ chính mình
+      for (const p of rows) expect(p.id).toBe(demo1.personId);
+
+      // ② whitelist trường: không lộ hồ sơ nhân sự
+      for (const p of rows) {
+        expect(p).not.toHaveProperty('hireDate');
+        expect(p).not.toHaveProperty('seniorityMonths');
+        expect(p).not.toHaveProperty('externalId');
+        expect(p).not.toHaveProperty('createdBy');
+        expect(p).toHaveProperty('fullName'); // vẫn đủ dùng
+      }
+
+      // đối chứng: người scope tenant vẫn thấy toàn bộ (không phá năng lực hợp lệ)
+      const wide = await auth(hr)(request(app.getHttpServer()).get('/api/v1/persons')).expect(200);
+      expect((wide.body as unknown[]).length).toBeGreaterThan(rows.length);
     });
 
     it('periodKey sai định dạng → 400', async () => {
@@ -161,6 +226,7 @@ describe('[Trục A L1] Read-model vòng đời hiệu suất', () => {
         request(app.getHttpServer()).get('/api/v1/audit-logs?limit=10'),
       ).expect(200);
       expect(Array.isArray(res.body.entries)).toBe(true);
+      expect(res.body.entries.length).toBeGreaterThan(0); // [F181]
       for (const e of res.body.entries) expect(typeof e.id).toBe('string');
     });
 
@@ -168,6 +234,7 @@ describe('[Trục A L1] Read-model vòng đời hiệu suất', () => {
       const res = await auth(auditor)(
         request(app.getHttpServer()).get('/api/v1/audit-logs?limit=20'),
       ).expect(200);
+      expect(res.body.entries.length).toBeGreaterThan(0); // [F181]
       for (const e of res.body.entries) {
         expect(e).not.toHaveProperty('before');
         expect(e).not.toHaveProperty('after');
@@ -305,14 +372,66 @@ describe('[Trục A L1] Read-model vòng đời hiệu suất', () => {
       const mine = await auth(demo1)(request(app.getHttpServer()).get('/api/v1/exec/overview')).expect(200);
       expect(mine.body.scope).toBe('scoped');
       expect(mine.body.goals.total).toBeLessThan(all.body.goals.total);
-      // goal at-risk trả về (nếu có) phải là của chính người gọi
       for (const g of mine.body.atRisk ?? []) expect(g.ownerId).toBe(demo1.personId);
     });
 
-    it('không có kpi:read thì không kèm khối KPI', async () => {
-      // auditor CÓ kpi:read ⇒ kỳ vọng có; dùng làm đối chứng cho nhánh permission
-      const res = await auth(auditor)(request(app.getHttpServer()).get('/api/v1/exec/overview')).expect(200);
-      expect(res.body.kpi).not.toBeNull();
+    it('[F181][I1] danh sách at-risk KHÔNG rò người khác — có dựng dữ liệu để assert thật sự chạy', async () => {
+      // Vé F181: bản trước chỉ lặp `mine.body.atRisk ?? []`, mà demo1 hôm đó có 0 goal
+      // at-risk ⇒ vòng lặp chạy 0 lần ⇒ assert DUY NHẤT chặn rò danh sách at-risk qua
+      // endpoint tổng hợp KHÔNG HỀ CHẠY. Nay ép goal của demo1 về off_track để chắc chắn
+      // có dữ liệu, rồi mới assert — và assert luôn rằng nó có chạy.
+      const mineGoal = await owner.goal.findFirst({
+        where: { tenantId: demo1.tenantId, ownerId: demo1.personId!, deletedAt: null },
+      });
+      if (!mineGoal) throw new Error('Thiếu dữ liệu seed:perfdemo — chạy pnpm --filter @ipms/api seed:perfdemo');
+      const before = { status: mineGoal.status, healthScore: mineGoal.healthScore };
+      await owner.goal.update({
+        where: { id: mineGoal.id },
+        data: { status: 'off_track', healthScore: 12 },
+      });
+      try {
+        const mine = await auth(demo1)(request(app.getHttpServer()).get('/api/v1/exec/overview')).expect(200);
+        const atRisk = mine.body.atRisk as Array<{ ownerId: string }>;
+        // chốt chặn chống test rỗng: phải CÓ dòng thì assert dưới mới có nghĩa
+        expect(atRisk.length).toBeGreaterThan(0);
+        for (const g of atRisk) expect(g.ownerId).toBe(demo1.personId);
+
+        // đối chứng: người có phạm vi rộng hơn thấy nhiều hơn (chứng minh không phải
+        // "rỗng vì endpoint hỏng")
+        const wide = await auth(exec)(request(app.getHttpServer()).get('/api/v1/exec/overview')).expect(200);
+        expect((wide.body.atRisk as unknown[]).length).toBeGreaterThanOrEqual(atRisk.length);
+      } finally {
+        await owner.goal.update({ where: { id: mineGoal.id }, data: before });
+      }
+    });
+
+    it('[F181] khối KPI chỉ trả cho người CÓ kpi:read — kiểm cả hai nhánh', async () => {
+      // Vé F181: test cũ tên là "không có kpi:read thì không kèm khối KPI" nhưng lại
+      // dùng auditor (CÓ kpi:read) và assert kpi !== null — kiểm NGƯỢC với tên, nhánh
+      // phủ định chưa từng chạy. Nay dựng đúng cả hai nhánh trên cùng một user.
+      const has = await auth(auditor)(request(app.getHttpServer()).get('/api/v1/exec/overview')).expect(200);
+      expect(has.body.kpi).not.toBeNull();
+
+      // gỡ tạm kpi:read khỏi role auditor để chạy nhánh phủ định
+      const auditorRole = await owner.role.findFirst({ where: { code: 'auditor', tenantId: null } });
+      const kpiRead = await owner.permission.findFirst({ where: { code: 'kpi:read' } });
+      const link = await owner.rolePermission.findFirst({
+        where: { roleId: auditorRole!.id, permissionId: kpiRead!.id },
+      });
+      if (!link) throw new Error('Seed đổi: auditor không còn kpi:read — cập nhật lại test');
+      await owner.rolePermission.deleteMany({
+        where: { roleId: auditorRole!.id, permissionId: kpiRead!.id },
+      });
+      try {
+        const without = await auth(auditor)(
+          request(app.getHttpServer()).get('/api/v1/exec/overview'),
+        ).expect(200);
+        expect(without.body.kpi).toBeNull();
+      } finally {
+        await owner.rolePermission.create({
+          data: { roleId: auditorRole!.id, permissionId: kpiRead!.id },
+        });
+      }
     });
   });
 

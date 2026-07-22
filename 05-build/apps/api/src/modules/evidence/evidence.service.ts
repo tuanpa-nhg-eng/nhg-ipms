@@ -1,9 +1,10 @@
 import {
-  ConflictException, Injectable, NotFoundException, UnprocessableEntityException,
+  ConflictException, ForbiddenException, Injectable, NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { uuidv7 } from '@ipms/db';
 import { PrismaService } from '../../prisma.service';
-import { assertScope, effectiveScope } from '../../common/auth/scope.util';
+import { assertScope, effectiveScope, hasTenantScope } from '../../common/auth/scope.util';
 import type { RequestUser } from '../../common/auth/decorators';
 
 export interface CreateEvidenceInput {
@@ -135,10 +136,18 @@ export class EvidenceService {
       if (ev.ownerId && personId && ev.ownerId === personId) {
         throw new ConflictException('Không tự xác minh bằng chứng của chính mình (SoD)');
       }
-      // ② Scope: bằng chứng phải thuộc phạm vi phụ trách
+      // ② Scope: bằng chứng phải thuộc phạm vi phụ trách.
+      // [F179 — Reviewer] Bản vá đầu bọc cả hai lớp trong `if (ev.ownerId)`, nên bằng
+      // chứng KHÔNG CHỦ (connector nạp thiếu/sai mã nhân viên) đi lọt cả hai — ai có
+      // `evidence:verify` cũng xác minh được, kể cả người không liên quan. Nay FAIL-CLOSED:
+      // không xác định được chủ thì chỉ vai scope TENANT mới được quyết.
       if (ev.ownerId) {
         const owner = await tx.person.findFirst({ where: { id: ev.ownerId, deletedAt: null } });
         assertScope(user, { ownerPersonId: ev.ownerId, orgUnitId: owner?.orgUnitId }, 'evidence:verify');
+      } else if (!hasTenantScope(user.scopes)) {
+        throw new ForbiddenException(
+          'Bằng chứng chưa gắn chủ sở hữu — chỉ vai phạm vi toàn đơn vị mới xác minh được',
+        );
       }
       return tx.evidence.update({
         where: { id },
@@ -176,6 +185,18 @@ export class EvidenceService {
         }
         if (r.relatedKpiCode && !kpiByCode.has(r.relatedKpiCode)) {
           failed.push({ externalId: r.externalId, issue: `KPI code '${r.relatedKpiCode}' không tồn tại` });
+          continue;
+        }
+        // [F179 — Reviewer] Bất đối xứng cũ: mã KPI sai thì vào failed[], còn mã nhân
+        // viên sai bị NUỐT IM LẶNG (`personByCode.get()` trả undefined ⇒ ownerId=null)
+        // — connector báo "created" trong khi bằng chứng vĩnh viễn không tính cho ai.
+        // Lỗi toàn vẹn dữ liệu thật: KPI `system` chấm theo owner, bản ghi mồ côi
+        // không bao giờ vào điểm mà cũng không ai biết là đã hỏng.
+        if (r.ownerEmployeeCode && !personByCode.has(r.ownerEmployeeCode)) {
+          failed.push({
+            externalId: r.externalId,
+            issue: `Mã nhân viên '${r.ownerEmployeeCode}' không tồn tại`,
+          });
           continue;
         }
         const data = {

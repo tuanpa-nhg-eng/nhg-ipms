@@ -14,7 +14,11 @@ class ListAuditDto {
   @IsOptional() @IsISO8601() from?: string;
   @IsOptional() @IsISO8601() to?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(200) limit?: number;
-  @IsOptional() @IsString() @Matches(/^\d{1,20}$/) cursor?: string; // BigInt dạng chuỗi
+  // [F178 — Reviewer] `\d{1,20}` rộng hơn phạm vi int8 (tối đa 19 chữ số): cursor
+  // 20 chữ số qua được DTO, `BigInt()` parse thành công nên try/catch trong service
+  // không cứu, rồi VỠ Ở TẦNG DB ⇒ 500. Siết về 19 chữ số + chặn trần int8.
+  @IsOptional() @IsString() @Matches(/^\d{1,19}$/, { message: 'cursor không hợp lệ' })
+  cursor?: string;
 }
 
 class AuditStatsDto {

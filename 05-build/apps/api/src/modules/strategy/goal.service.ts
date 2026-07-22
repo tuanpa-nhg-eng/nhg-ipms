@@ -77,6 +77,17 @@ export class GoalService {
         const parent = await tx.goal.findFirst({ where: { id: input.parentGoalId, deletedAt: null } });
         if (!parent) throw new UnprocessableEntityException('Parent goal not found');
       }
+      // [F180 — Reviewer] `orgUnitId` là NHÃN do người tạo tự đặt, trước đây ghi thẳng
+      // không kiểm chứng — trong khi GoalService.list (nhánh cũ F174 giữ lại) dùng chính
+      // nhãn đó làm điều kiện đọc. Hệ quả kiểm chứng được: hr@ (ở ROOT) tạo goal cho
+      // chính mình dán nhãn ADMISSIONS ⇒ trưởng phòng ADMISSIONS đọc được goal của người
+      // NGOÀI phòng. Nay nhãn phải nằm trong phạm vi người tạo — không tự dán vào phòng
+      // mình không phụ trách.
+      if (input.orgUnitId) {
+        const ou = await tx.orgUnit.findFirst({ where: { id: input.orgUnitId, deletedAt: null } });
+        if (!ou) throw new UnprocessableEntityException('Org unit not found');
+        assertScope(user, { ownerPersonId: null, orgUnitId: input.orgUnitId }, 'goal:label-org-unit');
+      }
       return tx.goal.create({
         data: {
           id: uuidv7(), tenantId,
