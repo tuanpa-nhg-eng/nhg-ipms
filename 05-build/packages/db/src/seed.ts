@@ -263,6 +263,7 @@ async function main() {
     async function seedStudioUser(
       prefix: string, roleCode: string,
       scope: { scopeType: string; scopeId?: string } = { scopeType: 'tenant' },
+      personOrgUnitId?: string,
     ) {
       const p = await prisma.person.upsert({
         where: { tenantId_employeeCode: { tenantId: tenant.id, employeeCode: `${code}-${prefix.toUpperCase()}` } },
@@ -271,7 +272,7 @@ async function main() {
           id: uuidv7(), tenantId: tenant.id, employeeCode: `${code}-${prefix.toUpperCase()}`,
           fullName: `${roleCode} (${code})`,
           email: `${prefix}@${code.toLowerCase().replace('.', '')}.nhg.local`,
-          status: 'active', orgUnitId: root.id,
+          status: 'active', orgUnitId: personOrgUnitId ?? root.id,
         },
       });
       const u = await prisma.appUser.upsert({
@@ -306,6 +307,18 @@ async function main() {
     await seedStudioUser('curator', 'library_curator');
     // [4j] Trưởng phòng — cổng ủy quyền + duyệt active của phòng (scope org_unit)
     await seedStudioUser('dept', 'dept_head', { scopeType: 'org_unit', scopeId: dept.id });
+
+    // [Trục A — L0] Persona vòng đời hiệu suất. Trước trục này chỉ có admin@/emp1@ +
+    // 5 vai Studio ⇒ 18 màn employee/manager/hr/exec/audit KHÔNG có ai đăng nhập được.
+    // mgr@ để scope ORG_UNIT (chỉ phòng mình) — chính là điều kiện chứng minh bất biến
+    // I1 (không đọc chéo) và I3 (SoD không tự duyệt) khi chạy E2E đa persona ở Lát 6.
+    // Person của mgr@ đặt TRONG phòng (không phải root) vì checkin.review/review.manager
+    // assertScope theo person.orgUnitId của người được duyệt.
+    await seedStudioUser('mgr', 'manager', { scopeType: 'org_unit', scopeId: dept.id }, dept.id);
+    await seedStudioUser('hr', 'hrbp');
+    await seedStudioUser('exec', 'exec_viewer');
+    // auditor@: giữ đúng SoD — auditor CÓ audit:read, tenant_admin KHÔNG (xem GLOBAL_ROLES).
+    await seedStudioUser('auditor', 'auditor');
 
     // [F53] SoD mặc định fail-closed: config:write ⟂ config:publish
     // (tenant muốn tắt → soft-delete rule; mặc định KHÔNG ai vừa sửa vừa publish)

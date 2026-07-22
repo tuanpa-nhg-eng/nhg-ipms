@@ -529,3 +529,102 @@ export interface DictCellDetail {
     isDictionary?: boolean;
   } | null;
 }
+
+// ===== Vòng đời hiệu suất — Trục A (goal · check-in · review · calibration) =====
+// Kiểu là SUBSET những trường FE thật sự dùng, cố ý KHÔNG mirror nguyên row DB:
+// read-model backend whitelist select (I5) nên thêm trường ở đây mà BE không trả
+// sẽ lộ ra ngay lúc render, thay vì im lặng nhận dữ liệu thừa.
+
+export interface MeResponse {
+  id: string;
+  employeeCode: string;
+  fullName: string;
+  email?: string | null;
+  orgUnitId?: string | null;
+  managerId?: string | null;
+}
+
+export type GoalStatus = "draft" | "active" | "at_risk" | "off_track" | "done" | "cancelled";
+
+export interface GoalRow {
+  id: string;
+  nameVi: string;
+  description?: string | null;
+  period: string;
+  ownerId: string;
+  objectiveId?: string | null;
+  orgUnitId?: string | null;
+  weight?: string | number | null;
+  healthScore?: string | number | null;
+  status: GoalStatus;
+  updatedAt: string;
+}
+
+export interface ObjectiveRow {
+  id: string;
+  kind: "okr" | "kgi";
+  nameVi: string;
+  period: string;
+  parentId?: string | null;
+  weight?: string | number | null;
+  status: string;
+}
+
+export interface CheckinGoalUpdateRow {
+  id: string;
+  goalId: string;
+  progressPct: string | number;
+  note?: string | null;
+}
+
+export interface CheckinRow {
+  id: string;
+  personId: string;
+  cadence: "weekly" | "monthly" | "quarterly" | "yearly";
+  periodKey: string;
+  progressNote?: string | null;
+  blocker?: string | null;
+  managerComment?: string | null;
+  status: "open" | "submitted" | "reviewed";
+  createdAt: string;
+  goalUpdates?: CheckinGoalUpdateRow[];
+}
+
+export type ReviewStatus = "draft" | "self_done" | "manager_done" | "calibrated" | "final";
+
+export interface ReviewRow {
+  id: string;
+  cycleId: string;
+  revieweeId: string;
+  scorecardId?: string | null;
+  selfReflection?: string | null;
+  managerAssessment?: string | null;
+  proposedRating?: string | null;
+  finalRating?: string | null;
+  finalScore?: string | number | null;
+  ipcGrade?: string | null;
+  status: ReviewStatus;
+  version: number;
+  updatedAt: string;
+}
+
+export interface ReviewCycleRow {
+  id: string;
+  name: string;
+  period: string;
+  startDate?: string | null;
+  endDate?: string | null;
+  status: "planned" | "open" | "closed";
+}
+
+/** Điểm từng dòng scorecard — explainable: giữ formulaVersion + target đã dùng. */
+export interface ReviewItemScoreRow {
+  id: string;
+  kpiId: string;
+  actualValue?: string | number | null;
+  targetValue?: string | number | null;
+  achievedPct?: string | number | null;
+  score?: string | number | null;
+  weight?: string | number | null;
+  formulaVersion?: number | null;
+}

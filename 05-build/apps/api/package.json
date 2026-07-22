@@ -10,6 +10,7 @@
     "start:dev": "ts-node --transpile-only src/main.ts",
     "seed:taskcatalog": "ts-node --transpile-only src/scripts/seed-task-catalog.ts",
     "seed:golden": "ts-node --transpile-only src/scripts/seed-golden-fin.ts",
+    "seed:perfdemo": "ts-node --transpile-only src/scripts/seed-perf-demo.ts",
     "test": "jest --testPathIgnorePatterns integration",
     "test:integration": "jest --runInBand --testPathPattern integration"
   },
