@@ -7,7 +7,7 @@ import {
   Network, Users, Scale, ScrollText, FileCheck, Rocket,
   Bot, UserCog, CalendarCog, Grid3x3, ShieldCheck, MessageSquareText, CalendarCheck,
   ChevronDown, SlidersHorizontal, Workflow, Building2, GitFork, Palette, BookPlus, Inbox,
-  BookOpenText, ClipboardList, Gauge, Activity,
+  BookOpenText, ClipboardList, Gauge, Activity, LayoutList,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
@@ -42,6 +42,8 @@ export function Sidebar() {
       { href: "/exec/ai-adoption", label: t("nav.aiadoption"), icon: <Bot size={ICON} /> },
     ]},
     { id: "work", group: t("nav.work"), links: [
+      // [Trục A L2] Bàn làm việc đứng đầu nhóm: đây là trang nhân viên mở đầu ngày
+      { href: "/employee", label: t("nav.workbench"), icon: <LayoutList size={ICON} /> },
       { href: "/employee/my-goals", label: t("nav.mygoals"), icon: <Target size={ICON} /> },
       { href: "/employee/check-in", label: t("nav.mycheckin"), icon: <CalendarCheck size={ICON} /> },
       { href: "/employee/review", label: t("nav.myreview"), icon: <FileCheck size={ICON} /> },
