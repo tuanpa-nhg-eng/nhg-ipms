@@ -84,6 +84,8 @@ export class CheckinService {
       for (const gu of input.goalUpdates) {
         const goal = await tx.goal.findFirst({ where: { id: gu.goalId, deletedAt: null } });
         if (!goal) throw new UnprocessableEntityException(`Goal ${gu.goalId} not found`);
+        // [F175] "goal của chính mình luôn cập nhật được" đã xử lý TRONG assertScope
+        // (một cơ chế duy nhất, không vá rải rác ở từng service).
         assertScope(user, { ownerPersonId: goal.ownerId, orgUnitId: goal.orgUnitId }, 'checkin:goal-update');
       }
 

@@ -45,8 +45,21 @@ export function assertScope(user: RequestUser, resource: ScopedResource, action:
   const orgScopes = user.scopes.filter((s) => s.scopeType === 'org_unit' && s.scopeId);
   if (resource.orgUnitId && orgScopes.some((s) => s.scopeId === resource.orgUnitId)) return;
 
-  const hasSelf = user.scopes.some((s) => s.scopeType === 'self');
-  if (hasSelf && resource.ownerPersonId && resource.ownerPersonId === user.claims.person_id) return;
+  // [F175] Tài nguyên của CHÍNH MÌNH thì luôn qua — không đòi vai phải có scope `self`.
+  //
+  // Trước bản vá, nhánh này yêu cầu user có role mang scopeType='self'. Hệ quả thật:
+  // role `manager`/`dept_head` chỉ mang scope `org_unit`, nên trưởng phòng KHÔNG nộp
+  // được check-in của chính mình và KHÔNG cập nhật được tiến độ mục tiêu của chính mình
+  // (403), trừ khi goal tình cờ gắn nhãn đúng đơn vị họ phụ trách. Bắt được khi kiểm
+  // chứng sống L3 trục A.
+  //
+  // Đây là sửa MÔ HÌNH, không phải nới lỏng: `scope` mô tả user với TỚI ĐÂU NGOÀI bản
+  // thân (self < org_unit < tenant), không có vai nào mang nghĩa "cả phòng TRỪ chính
+  // mình". Việc cấm một người tự thao tác trên hồ sơ của mình (tự duyệt, tự chấm) là
+  // trách nhiệm của các luật SoD tường minh (F26 tự bơm điểm, F30 tự chấm manager,
+  // F41 tự duyệt check-in) — những luật đó nằm ở service và KHÔNG đi qua hàm này,
+  // nên nới ở đây không đụng tới chúng.
+  if (resource.ownerPersonId && resource.ownerPersonId === user.claims.person_id) return;
 
   throw new ForbiddenException(`Scope không cho phép ${action} trên tài nguyên này`);
 }

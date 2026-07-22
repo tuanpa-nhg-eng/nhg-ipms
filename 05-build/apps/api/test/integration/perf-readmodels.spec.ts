@@ -193,6 +193,105 @@ describe('[Trục A L1] Read-model vòng đời hiệu suất', () => {
     });
   });
 
+  // ===================== [F174] scope goal theo NGƯỜI SỞ HỮU =====================
+  describe('[F174] GET /goals — phạm vi org_unit phân giải qua người sở hữu', () => {
+    it('trưởng phòng thấy goal của người trong phòng KỂ CẢ khi goal không gắn orgUnitId', async () => {
+      const mgrPerson = await owner.person.findFirst({ where: { id: mgr.personId! } });
+      expect(mgrPerson?.orgUnitId).toBeTruthy();
+
+      // goal cho một nhân viên trong phòng, CỐ Ý không truyền orgUnitId
+      const target = await owner.person.findFirst({
+        where: {
+          tenantId: mgr.tenantId, orgUnitId: mgrPerson!.orgUnitId,
+          employeeCode: { startsWith: 'H.01-DEMO-' }, deletedAt: null,
+        },
+      });
+      if (!target) return;
+
+      const created = await auth(hr)(
+        request(app.getHttpServer()).post('/api/v1/goals').send({
+          nameVi: `[TEST-F174] goal không gắn đơn vị ${Date.now()}`,
+          period: '2026-Q3', ownerId: target.id,
+        }),
+      ).expect(201);
+
+      try {
+        expect(created.body.orgUnitId ?? null).toBeNull(); // đúng là không gắn nhãn
+        const res = await auth(mgr)(request(app.getHttpServer()).get('/api/v1/goals')).expect(200);
+        const ids = (res.body as Array<{ id: string }>).map((g) => g.id);
+        expect(ids).toContain(created.body.id);
+      } finally {
+        await owner.goal.deleteMany({ where: { id: created.body.id } });
+      }
+    });
+
+    it('[I1] nhân viên vẫn KHÔNG thấy goal của người khác sau bản vá', async () => {
+      const res = await auth(demo1)(request(app.getHttpServer()).get('/api/v1/goals')).expect(200);
+      for (const g of res.body as Array<{ ownerId: string }>) {
+        expect(g.ownerId).toBe(demo1.personId);
+      }
+    });
+  });
+
+  // ============ [F175] người có scope org_unit vẫn check-in cho CHÍNH MÌNH ============
+  describe('[F175] POST /checkins — trưởng phòng nộp check-in của chính mình', () => {
+    it('nộp được dù vai chỉ có scope org_unit (không có scope self)', async () => {
+      const mgrPerson = await owner.person.findFirst({ where: { id: mgr.personId! } });
+      // goal của chính trưởng phòng, KHÔNG gắn orgUnitId (ép đi đúng nhánh vừa vá)
+      const goal = await owner.goal.create({
+        data: {
+          id: require('@ipms/db').uuidv7(), tenantId: mgr.tenantId,
+          nameVi: `[TEST-F175] goal của trưởng phòng ${Date.now()}`,
+          period: '2026-Q4', ownerId: mgrPerson!.id, status: 'active',
+        },
+      });
+      const periodKey = `2027-${String((Date.now() % 12) + 1).padStart(2, '0')}`;
+      try {
+        const res = await auth(mgr)(
+          request(app.getHttpServer()).post('/api/v1/checkins').send({
+            cadence: 'monthly', periodKey,
+            goalUpdates: [{ goalId: goal.id, progressPct: 70 }],
+          }),
+        );
+        expect(res.status).toBe(201);
+
+        // [I3] nhưng vẫn KHÔNG được tự nhận xét check-in của chính mình
+        await auth(mgr)(
+          request(app.getHttpServer()).post(`/api/v1/checkins/${res.body.id}/review`)
+            .send({ managerComment: 'tự duyệt' }),
+        ).expect(409);
+
+        await owner.checkinGoalUpdate.deleteMany({ where: { checkinId: res.body.id } });
+        await owner.checkin.deleteMany({ where: { id: res.body.id } });
+      } finally {
+        await owner.goal.deleteMany({ where: { id: goal.id } });
+      }
+    });
+
+    it('KHÔNG nới quyền: vẫn không check-in hộ goal của người khác ngoài phạm vi', async () => {
+      // demo1 (scope self) thử cập nhật goal của demo2 → phải bị chặn
+      const others = await owner.person.findMany({
+        where: {
+          tenantId: mgr.tenantId, employeeCode: { startsWith: 'H.01-DEMO-' },
+          id: { not: demo1.personId! }, deletedAt: null,
+        },
+        select: { id: true }, take: 1,
+      });
+      if (others.length === 0) return;
+      const otherGoal = await owner.goal.findFirst({
+        where: { ownerId: others[0].id, deletedAt: null }, select: { id: true },
+      });
+      if (!otherGoal) return;
+      const res = await auth(demo1)(
+        request(app.getHttpServer()).post('/api/v1/checkins').send({
+          cadence: 'monthly', periodKey: '2027-11',
+          goalUpdates: [{ goalId: otherGoal.id, progressPct: 99 }],
+        }),
+      );
+      expect(res.status).toBe(403);
+    });
+  });
+
   // ===================== GET /exec/overview =====================
   describe('GET /exec/overview', () => {
     it('exec (scope tenant) thấy tổng hợp toàn tenant', async () => {

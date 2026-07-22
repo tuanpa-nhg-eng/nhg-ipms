@@ -34,7 +34,23 @@ export class GoalService {
       if (scope.mode === 'scoped') {
         const or: Record<string, unknown>[] = [];
         if (scope.selfPersonId) or.push({ ownerId: scope.selfPersonId });
-        if (scope.orgUnitIds.length > 0) or.push({ orgUnitId: { in: scope.orgUnitIds } });
+        if (scope.orgUnitIds.length > 0) {
+          // Goal gắn nhãn đơn vị (cột goal.org_unit_id) — hành vi cũ, giữ nguyên.
+          or.push({ orgUnitId: { in: scope.orgUnitIds } });
+          // [F174] + goal của NGƯỜI thuộc đơn vị mình phụ trách.
+          // Trước bản vá, phạm vi org_unit chỉ so `goal.org_unit_id`, trong khi
+          // CheckinService.list / ReviewService.list / PersonService.team đều phân giải
+          // qua `person.org_unit_id` của người sở hữu. `orgUnitId` lại là trường TUỲ CHỌN
+          // khi tạo goal ⇒ mọi goal không gắn nhãn (tạo qua API không truyền, hoặc do
+          // engine kéo theo sinh ra) trở nên VÔ HÌNH với chính trưởng phòng của người đó:
+          // màn "Đội của tôi" đếm thiếu mục tiêu mà không báo lỗi gì. Bắt được khi kiểm
+          // chứng sống L3 (goal có thật trong DB, API trả 0 dòng).
+          const members = await tx.person.findMany({
+            where: { orgUnitId: { in: scope.orgUnitIds }, deletedAt: null },
+            select: { id: true },
+          });
+          if (members.length > 0) or.push({ ownerId: { in: members.map((m) => m.id) } });
+        }
         scopeWhere = or.length > 0 ? { OR: or } : { ownerId: '00000000-0000-0000-0000-000000000000' };
       }
       return tx.goal.findMany({
