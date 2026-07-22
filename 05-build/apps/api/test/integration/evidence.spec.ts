@@ -53,8 +53,18 @@ describe('Evidence Hub (integration)', () => {
   let evidenceId: string;
 
   it('tạo evidence manual → pending', async () => {
+    // [F22] Bằng chứng thuộc về NGƯỜI KHÁC (emp1), không phải chính người sẽ xác minh —
+    // trước bản vá test này tạo cho chính admin rồi để admin tự xác minh, tức là test
+    // đang KHOÁ LẠI đúng cái lỗ SoD. Nay dựng đúng luồng thật: nhân viên nộp bằng chứng,
+    // người có thẩm quyền khác xác minh.
+    const emp = await owner.person.findFirst({
+      where: { tenantId: h01.id, employeeCode: { endsWith: '-EMP1' }, deletedAt: null },
+    });
     const res = await api().post('/api/v1/evidence').set(h01Req())
-      .send({ type: 'document', uri: 'https://example.local/report.pdf', payload: { note: 'BC tháng 6' } });
+      .send({
+        type: 'document', uri: 'https://example.local/report.pdf',
+        payload: { note: 'BC tháng 6' }, ownerId: emp!.id,
+      });
     expect(res.status).toBe(201);
     expect(res.body.status).toBe('pending');
     expect(res.body.sourceSystem).toBe('manual');
@@ -71,6 +81,69 @@ describe('Evidence Hub (integration)', () => {
     const again = await api().post(`/api/v1/evidence/${evidenceId}/verify`).set(h01Req())
       .send({ decision: 'rejected' });
     expect(again.status).toBe(409);
+  });
+
+  it('[F22] KHÔNG tự xác minh bằng chứng của chính mình — kể cả admin (SoD)', async () => {
+    // admin tạo bằng chứng cho CHÍNH MÌNH (ownerId mặc định = person của người gọi)
+    const mine = await api().post('/api/v1/evidence').set(h01Req())
+      .send({ type: 'metric', payload: { value: 999, note: 'tự cấp cho mình' } });
+    expect(mine.status).toBe(201);
+
+    const selfVerify = await api().post(`/api/v1/evidence/${mine.body.id}/verify`).set(h01Req())
+      .send({ decision: 'verified' });
+    expect(selfVerify.status).toBe(409);
+
+    // vẫn còn pending — không bị lật trạng thái
+    const still = await owner.evidence.findFirst({ where: { id: mine.body.id } });
+    expect(still!.status).toBe('pending');
+    await owner.evidence.deleteMany({ where: { id: mine.body.id } });
+  });
+
+  it('[F22] KHÔNG xác minh bằng chứng ngoài phạm vi phụ trách', async () => {
+    // dept@ có scope org_unit; bằng chứng thuộc người ở đơn vị KHÁC (approver ở ROOT)
+    const dept = await owner.appUser.findFirst({
+      where: { tenantId: h01.id, email: { startsWith: 'dept@' }, status: 'active' },
+    });
+    const outsider = await owner.person.findFirst({
+      where: { tenantId: h01.id, employeeCode: { endsWith: '-APPROVER' }, deletedAt: null },
+    });
+    if (!dept || !outsider) return;
+    // Cấp tạm quyền verify cho dept@ để cô lập đúng biến số SCOPE (không phải permission).
+    // LƯU Ý: person của dept@ nằm ở ROOT nhưng PHẠM VI PHỤ TRÁCH là ADMISSIONS — phải lấy
+    // scope từ chính user_role dept_head, KHÔNG lấy theo org_unit của person, nếu không sẽ
+    // vô tình cấp phạm vi ROOT (chứa cả người "ngoài phòng") và test mất ý nghĩa.
+    const role = await owner.role.findFirst({ where: { code: 'manager', tenantId: null } });
+    const deptHeadRole = await owner.userRole.findFirst({
+      where: { tenantId: h01.id, appUserId: dept.id, scopeType: 'org_unit', deletedAt: null },
+    });
+    if (!deptHeadRole?.scopeId) return;
+    // outsider phải nằm NGOÀI phạm vi đó
+    const outsiderPerson = await owner.person.findFirst({ where: { id: outsider.id } });
+    if (outsiderPerson?.orgUnitId === deptHeadRole.scopeId) return;
+    const tmp = await owner.userRole.create({
+      data: {
+        id: require('@ipms/db').uuidv7(), tenantId: h01.id, appUserId: dept.id,
+        roleId: role!.id, scopeType: 'org_unit', scopeId: deptHeadRole.scopeId,
+      },
+    });
+    try {
+      const ev = await api().post('/api/v1/evidence').set(h01Req())
+        .send({ type: 'metric', payload: { value: 1 }, ownerId: outsider.id });
+      expect(ev.status).toBe(201);
+
+      const deptToken = jwt.sign(
+        { sub: dept.id, tid: h01.id, email: dept.email, person_id: dept.personId ?? undefined },
+        getJwtSecret(), { expiresIn: '1h' },
+      );
+      const res = await api().post(`/api/v1/evidence/${ev.body.id}/verify`)
+        .set({ Authorization: `Bearer ${deptToken}`, 'X-Tenant-Id': h01.id })
+        .send({ decision: 'verified' });
+      expect(res.status).toBe(403);
+
+      await owner.evidence.deleteMany({ where: { id: ev.body.id } });
+    } finally {
+      await owner.userRole.deleteMany({ where: { id: tmp.id } });
+    }
   });
 
   it('bulk sync idempotent: chạy 2 lần cùng external_id → lần 1 created, lần 2 updated (không nhân bản)', async () => {

@@ -377,7 +377,9 @@ export async function seedPerfDemo(opts: {
         relatedKpiId: kpiIds['DEMO-FIN-01'],
       });
       // HITL: trưởng phòng xác minh (evidence:verify) — KPI system chỉ tính bản VERIFIED.
-      await evidenceSvc.review(tenant.id, mgr.claims.sub, mgrPersonId, ev.id, 'verified');
+      // [F22] Người xác minh (mgr) khác chủ sở hữu (nhân viên) và cùng phòng ⇒ qua cả
+      // hai lớp gác mới. Seed cố ý KHÔNG tự-cấp-tự-duyệt.
+      await evidenceSvc.review(mgr, ev.id, 'verified');
       result.evidence++;
     }
 

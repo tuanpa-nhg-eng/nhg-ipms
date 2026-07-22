@@ -74,7 +74,7 @@ export class EvidenceController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ReviewEvidenceDto,
   ) {
-    return this.evidence.review(user.tenantId, user.claims.sub, user.claims.person_id, id, dto.decision);
+    return this.evidence.review(user, id, dto.decision);
   }
 
   /** Connector bulk sync — idempotent theo (source, external_id). Fallback CSV/ETL. */

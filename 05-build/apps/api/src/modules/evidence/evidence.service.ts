@@ -102,12 +102,44 @@ export class EvidenceService {
     });
   }
 
-  /** Human-in-the-loop: verify/reject evidence — reviewer ghi danh, audit ở interceptor. */
-  review(tenantId: string, actorId: string, personId: string | undefined, id: string, decision: 'verified' | 'rejected') {
+  /**
+   * Human-in-the-loop: verify/reject evidence — reviewer ghi danh, audit ở interceptor.
+   *
+   * [F22 — TRẢ NỢ, mở từ Phase 1] Trước bản vá, hàm này KHÔNG có kiểm tra nào ngoài
+   * trạng thái pending: không SoD, không scope. Hậu quả kiểm chứng được (script độc lập
+   * trên API dev): một trưởng phòng tạo bằng chứng CHO CHÍNH MÌNH rồi TỰ XÁC MINH
+   * (`reviewerId === ownerId`), và xác minh được cả bằng chứng của người thuộc PHÒNG KHÁC.
+   *
+   * Vì sao nghiêm trọng: KPI phương pháp `system` lấy bằng chứng VERIFIED trong khung kỳ
+   * để tính điểm (F29) ⇒ đây là đường tự thổi điểm của chính mình, đi vòng qua toàn bộ
+   * SoD của vòng đánh giá (F26/F30 chỉ chặn tự chấm, không chặn tự cấp bằng chứng).
+   *
+   * Hai lớp gác, cùng khuôn với phần còn lại của hệ:
+   *   ① SoD tuyệt đối — không tự xác minh bằng chứng của chính mình (kể cả admin).
+   *   ② Scope — chỉ xác minh trong phạm vi phụ trách (self/org_unit/tenant).
+   */
+  review(
+    user: RequestUser,
+    id: string,
+    decision: 'verified' | 'rejected',
+  ) {
+    const tenantId = user.tenantId;
+    const actorId = user.claims.sub;
+    const personId = user.claims.person_id;
     return this.prisma.withTenant(tenantId, async (tx) => {
       const ev = await tx.evidence.findFirst({ where: { id, deletedAt: null } });
       if (!ev) throw new NotFoundException('Evidence not found');
       if (ev.status !== 'pending') throw new ConflictException(`Evidence đã ở trạng thái ${ev.status}`);
+
+      // ① SoD: người cấp bằng chứng ⟂ người xác minh
+      if (ev.ownerId && personId && ev.ownerId === personId) {
+        throw new ConflictException('Không tự xác minh bằng chứng của chính mình (SoD)');
+      }
+      // ② Scope: bằng chứng phải thuộc phạm vi phụ trách
+      if (ev.ownerId) {
+        const owner = await tx.person.findFirst({ where: { id: ev.ownerId, deletedAt: null } });
+        assertScope(user, { ownerPersonId: ev.ownerId, orgUnitId: owner?.orgUnitId }, 'evidence:verify');
+      }
       return tx.evidence.update({
         where: { id },
         data: { status: decision, reviewerId: personId ?? null, updatedBy: actorId, version: { increment: 1 } },
