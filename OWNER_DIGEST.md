@@ -492,3 +492,25 @@ Tất cả đã chuyển sang **đúng vai**, không trả quyền lại cho `ad
 **VERIFY:** `admin-api.spec.ts` 46/46 (chạy 2 lần đều xanh) · **FULL SUITE 564/564 runInBand** (48 suite, +48 so với L0, chạy 2 lần đều xanh, seed lại giữa 2 lần) · typecheck api PASS · `next build` 32 route PASS (không đổi baseline) · J9 nguyên vẹn (419 cell, cost H.01 = 0, `ai_gateway_live` TẮT).
 
 **Tiếp theo:** L2 màn "Người dùng & Vai trò" (`/admin/users`) — hợp đồng API đã chốt ở đây, an toàn để dựng FE trên nền này.
+
+---
+
+## Trục B — Quản trị 3 tầng · **Lát 3: Cơ cấu tổ chức + trả nợ F121** · **28/07/2026 · 🎯 MỐC DEMO — 📍 DỪNG BÁO CÁO theo kế hoạch**
+
+> Commit `3903d74` (L2 `/admin/users` ở `bcce3da` liền trước, không phải mốc dừng nhưng đã xong trên đường tới đây).
+
+**🎯 Mốc demo đạt được và ĐÃ DIỄN TẬP qua API dev thật (không phải chỉ đọc code):** tạo "Nguyễn Demo L3" bằng `admin@` → xếp vào phòng ADMISSIONS → gán vai `employee` (scope self) → người mới đăng nhập bằng chính email vừa tạo → `GET /me/access` trả đúng bộ quyền `employee` (`goal:write`/`checkin:write`/`review:write`/…) kèm `grantedBy: admin@h01.nhg.local` → `GET /admin/users` bị chặn 403 đúng thiết kế. Trọn vòng **"tạo → gán vai → đăng nhập → thấy đúng khu vực, không thấy khu vực khác"** — sống.
+
+### Cơ cấu tổ chức (`/admin/org`)
+- `tree()` thêm **"Đếm người theo từng đơn vị"** + tên người quản lý — `groupBy` một lượt trên toàn tenant, không N+1 theo số node.
+- `PATCH /org-units/:id` nhận thêm `managerId` — mở rộng hợp đồng L1 (cột `manager_id` chưa tồn tại lúc chốt hợp đồng đó, thêm ở lát này khi màn thực sự cần).
+- FE: bảng phẳng thụt lề theo cây (không phải canvas kéo-thả — đó là việc của `/studio/org` Configuration Studio, mục đích khác hẳn: đây là công cụ CRUD quản trị, không phải bàn thiết kế). Đổi tên/cha, gán quản lý, tạo/lưu trữ đơn vị — mọi hành động ẩn theo quyền (J4). `org_admin` chỉ đọc được cây, đúng thiết kế L0 (không giữ `org:write`/`orgunit:update`/`orgunit:archive`).
+
+### F121 TRẢ NỢ
+Nhân viên **chuyển phòng** (đổi `person.orgUnitId` qua `PATCH /admin/users/:id`) giờ **tự thu hồi** mọi `authoring_grant` đang active của người đó ở **phòng cũ**, cùng transaction với chính lần đổi phòng: soft-delete `user_role` đã materialize + audit `authoring.revoke_on_transfer` (ghi cả org unit cũ lẫn mới). Trước lát này, nhân viên chuyển phòng vẫn giữ quyền soạn tác vụ ở phòng đã rời đi — trưởng phòng cũ phải **nhớ** mà gỡ tay, một món nợ tồn từ lát 4l (không có UI để trả trước trục B). Đây là lần đầu tiên (và duy nhất) luồng chuyển phòng có UI trong app, nên đây đúng là **chỗ rẻ nhất** để trả — không có đường nào khác đổi được `person.orgUnitId`.
+
+**VERIFY:** 51/51 test admin-api.spec (bổ sung khối personCount+manager + 2 ca F121: grant phòng cũ bị revoke đúng lúc, grant phòng KHÁC/đã-revoked-từ-trước KHÔNG bị đụng vào), chạy 2 lần đều xanh · **FULL SUITE 569/569 runInBand** (48 suite) · typecheck api+web PASS · `next build` **35 route** PASS · J9 nguyên vẹn (419 cell, cost H.01 = 0).
+
+**Gotcha môi trường gặp lại lần 2 (xác nhận không phải may rủi, ghi cho L4 trở đi):** kill API dev server đúng PID trước `prisma generate` (giữ query-engine.dll) · `next build` production đè `.next` của `next dev` đang chạy ⇒ dev server vỡ (500), restart phải kill đúng PID đang **LISTEN** cổng bằng `Get-NetTCPConnection -LocalPort 3001` — PID nhớ từ lần khởi động trước có thể đã đổi qua nhiều lần restart, kill nhầm PID để lại tiến trình cũ (chưa biết route mới) vẫn âm thầm trả 404.
+
+**Còn lại của trục B:** L4 Impersonation (chỉ-đọc, J11–J13) · L5 User Settings (menu avatar) · L6 Cấu hình đơn vị + nav role-gated toàn hệ (đóng lỗ B-b — hiện `Sidebar.tsx` đã có nhóm "Quản trị đơn vị" nhưng CHƯA gate theo quyền, đúng nhịp đã hoãn từ L2/L3) · L7 Verify + Reviewer đối kháng. Theo kế hoạch, L4→L7 chạy liền không dừng báo cáo trừ khi có bất thường.
