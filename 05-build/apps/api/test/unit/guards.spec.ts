@@ -67,10 +67,11 @@ describe('TenantGuard', () => {
 });
 
 describe('PermissionGuard (fail-closed)', () => {
-  const prismaMock = (perms: string[]) =>
+  const prismaMock = (perms: string[], status: string | null = 'active') =>
     ({
       withTenant: async (_t: string, fn: any) =>
         fn({
+          appUser: { findFirst: async () => (status === null ? null : { status }) },
           userRole: { findMany: async () => (perms.length ? [{ roleId: 'r1' }] : []) },
           rolePermission: {
             findMany: async () => perms.map((code) => ({ permission: { code } })),
@@ -95,5 +96,23 @@ describe('PermissionGuard (fail-closed)', () => {
     const req: any = baseReq();
     await expect(guard.canActivate(ctxWith(req))).resolves.toBe(true);
     expect(req.ipmsUser.permissions.has('org:read')).toBe(true);
+  });
+
+  // [Trục B L1 — J8] Token còn hạn (8h) nhưng tài khoản bị khoá SAU khi phát token —
+  // guard đọc lại status mỗi request, không tin claim trong JWT (JWT không có status).
+  it('[J8] rejects khi app_user.status khác active — dù đủ quyền', async () => {
+    const guard = new PermissionGuard(
+      reflectorReturning({ 'ipms:permission': 'org:read' }),
+      prismaMock(['org:read'], 'disabled'),
+    );
+    await expect(guard.canActivate(ctxWith(baseReq()))).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('[J8] rejects khi app_user đã bị xoá (không còn row) — fail-closed', async () => {
+    const guard = new PermissionGuard(
+      reflectorReturning({ 'ipms:permission': 'org:read' }),
+      prismaMock(['org:read'], null),
+    );
+    await expect(guard.canActivate(ctxWith(baseReq()))).rejects.toThrow(UnauthorizedException);
   });
 });

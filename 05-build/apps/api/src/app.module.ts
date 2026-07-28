@@ -79,6 +79,15 @@ import { AuditController } from './modules/audit/audit.controller';
 import { AuditService } from './modules/audit/audit.service';
 import { OverviewController } from './modules/strategy/overview.controller';
 import { OverviewService } from './modules/strategy/overview.service';
+// [Trục B — L1] Quản trị tenant/org — đập god-account, onboard người thật từ UI
+import { AdminUsersController } from './modules/admin/admin-users.controller';
+import { AdminUsersService } from './modules/admin/admin-users.service';
+import { AdminRolesController } from './modules/admin/admin-roles.controller';
+import { AdminRolesService } from './modules/admin/admin-roles.service';
+import { TenantConfigController } from './modules/admin/tenant-config.controller';
+import { TenantConfigService } from './modules/admin/tenant-config.service';
+import { MeController } from './modules/me/me.controller';
+import { MeService } from './modules/me/me.service';
 
 @Module({
   controllers: [
@@ -93,6 +102,8 @@ import { OverviewService } from './modules/strategy/overview.service';
     AuthoringController, DictionaryController, TaskLoopController,
     // [Trục A — L1] read-model cho 18 màn persona
     AuditController, OverviewController,
+    // [Trục B — L1] quản trị tenant/org
+    AdminUsersController, AdminRolesController, TenantConfigController, MeController,
   ],
   providers: [
     PrismaService,
@@ -131,6 +142,7 @@ import { OverviewService } from './modules/strategy/overview.service';
     AuthoringService,
     DictionaryService,
     TaskLoopService,
+    AdminUsersService, AdminRolesService, TenantConfigService, MeService,
     // Guard pipeline Spec Config Studio §7: Jwt → Tenant → Permission (RBAC) → Policy (ABAC #2)
     { provide: APP_GUARD, useClass: JwtGuard },
     { provide: APP_GUARD, useClass: TenantGuard },

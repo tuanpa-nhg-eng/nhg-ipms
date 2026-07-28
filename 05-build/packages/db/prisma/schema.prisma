@@ -148,6 +148,9 @@ model AppUser {
   email            String
   isServiceAccount Boolean @default(false) @map("is_service_account")
   status           String  @default("active")
+  // [Trục B L1] Tuỳ chọn cá nhân (VI/EN · sáng/tối · mật độ) — cột rẻ hơn một bảng mới,
+  // whitelist key ở tầng service (giữ nguyên khuôn tenant.settings jsonb).
+  preferences      Json    @default("{}")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   createdBy String?  @map("created_by") @db.Uuid
@@ -161,6 +164,22 @@ model AppUser {
 
   @@unique([tenantId, email])
   @@map("app_user")
+}
+
+// [Trục B L1] Thông báo cá nhân — bảng MỚI DUY NHẤT của lát này (event × channel × enabled).
+// Không có row = coi như TẤT CẢ đều bật (mặc định an toàn cho người mới); PATCH chỉ upsert
+// các dòng người dùng chủ động tắt/bật, không cần seed sẵn ma trận đầy đủ.
+model NotificationSetting {
+  tenantId  String   @map("tenant_id") @db.Uuid
+  appUserId String   @map("app_user_id") @db.Uuid
+  eventKey  String   @map("event_key")  // vd 'review.finalized' | 'checkin.due' | 'task.feedback'
+  channel   String                       // 'in_app' | 'email'
+  enabled   Boolean  @default(true)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@id([appUserId, eventKey, channel])
+  @@index([tenantId, appUserId])
+  @@map("notification_setting")
 }
 
 model Role {
@@ -211,6 +230,12 @@ model UserRole {
   scopeId   String? @map("scope_id") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  // [Trục B L1] "ai cấp" — GET /admin/users/:id/effective-access phải trả được nguồn của
+  // từng quyền. Trước lát này UserRole không có createdBy/revokedBy → không truy được ai
+  // đã gán một vai cho ai (chỉ biết KHI nào qua createdAt). NULL hợp lệ cho grant do seed
+  // dựng sẵn (không có actor thật).
+  createdBy String?   @map("created_by") @db.Uuid
+  revokedBy String?   @map("revoked_by") @db.Uuid
   version   Int      @default(1)
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
 
