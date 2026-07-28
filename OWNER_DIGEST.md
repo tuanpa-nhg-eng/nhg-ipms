@@ -514,3 +514,19 @@ Nhân viên **chuyển phòng** (đổi `person.orgUnitId` qua `PATCH /admin/use
 **Gotcha môi trường gặp lại lần 2 (xác nhận không phải may rủi, ghi cho L4 trở đi):** kill API dev server đúng PID trước `prisma generate` (giữ query-engine.dll) · `next build` production đè `.next` của `next dev` đang chạy ⇒ dev server vỡ (500), restart phải kill đúng PID đang **LISTEN** cổng bằng `Get-NetTCPConnection -LocalPort 3001` — PID nhớ từ lần khởi động trước có thể đã đổi qua nhiều lần restart, kill nhầm PID để lại tiến trình cũ (chưa biết route mới) vẫn âm thầm trả 404.
 
 **Còn lại của trục B:** L4 Impersonation (chỉ-đọc, J11–J13) · L5 User Settings (menu avatar) · L6 Cấu hình đơn vị + nav role-gated toàn hệ (đóng lỗ B-b — hiện `Sidebar.tsx` đã có nhóm "Quản trị đơn vị" nhưng CHƯA gate theo quyền, đúng nhịp đã hoãn từ L2/L3) · L7 Verify + Reviewer đối kháng. Theo kế hoạch, L4→L7 chạy liền không dừng báo cáo trừ khi có bất thường.
+
+---
+
+## Trục B — Quản trị 3 tầng · **L7 (trước Reviewer): driver sống + render toàn hệ** · 28/07/2026
+
+> Commit chuỗi L4→L6: `c43ebf5` (Impersonation) → `aa9d450` (User Settings) → `c9733d0` (nav gating + Cấu hình đơn vị). Chuẩn bị xong trước khi mời Reviewer đối kháng — đúng nhịp đã dùng cho mọi trục trước.
+
+**Driver sống `verify-admin.mjs`** (đánh API :4000 THẬT, không phải jest transaction cô lập) — **29/29, chạy 2 vòng liên tiếp đều xanh**: J2 (finalize/export 403 sau L0) · J1③/J12③ (không tự nâng quyền, không tự đóng vai chính mình) · J1①/J3 (không có đường cấp `audit:read` cho tenant_admin) · J1② (org_admin không gán vai được cho người phòng khác) · J8 (token phát trước khi khoá → 401 ngay) · nhân viên thường bị 403 ở `/admin/users`, `/me/access` chỉ thấy của mình · F121 (chuyển phòng, hiệu ứng phụ xác nhận) · J9 (Từ điển đọc được, không đụng) · **trọn vòng đóng vai**: đọc 200 → ghi 403 (dù target thật giữ quyền) → Thoát 200 → token cũ dùng lại 401 ngay · cô lập tenant T2.
+
+**Web render 200 cho toàn bộ 34 route** dưới `next dev` (33 route persona + `/admin/config` mới), kể cả các route mới của trục B (`/admin/users`, `/admin/org`, `/admin/config`, `/settings`).
+
+**FULL SUITE 596/596 runInBand** (50 suite) — không đổi từ L4, xác nhận L5/L6 (thuần FE) không gây hồi quy. Typecheck api+web PASS.
+
+**Đã gửi Reviewer đối kháng** (fresh-context, worktree cô lập, vé từ F184) — review toàn bộ 6 commit `ab2d215..HEAD`, trọng tâm theo đúng gợi ý của kế hoạch gốc: leo thang quyền qua API gán vai · rò PII `/admin/users` · whitelist `tenant.settings`/`preferences` · token sống sau khoá/thoát phiên · mồ côi scope khi đổi cha org unit · nav gating có bỏ sót màn nào · **ca đối chứng bắt buộc** cho việc hạ quyền tenant_admin (chứng minh không chặn oan) · đường vòng có thể né `PermissionGuard` trong phiên đóng vai (J11).
+
+**Chờ verdict trước khi chốt sổ toàn trục.**
