@@ -5,6 +5,7 @@ import { SidebarProvider } from "@/components/providers/SidebarProvider";
 import { LangProvider } from "@/lib/i18n";
 import { CopilotMount } from "@/components/copilot/CopilotMount";
 import { ImpersonationBanner } from "@/components/impersonation/ImpersonationBanner";
+import { DensityInit } from "@/components/providers/DensityInit";
 
 export const metadata: Metadata = {
   title: "NHG iPMS — Performance & Growth Operating System",
@@ -26,6 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <ThemeProvider>
           <LangProvider>
+            <DensityInit />
             <ImpersonationBanner />
             <SidebarProvider>{children}</SidebarProvider>
             <CopilotMount />

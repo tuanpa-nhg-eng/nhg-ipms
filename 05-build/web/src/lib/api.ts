@@ -691,3 +691,34 @@ export interface OrgTreeNode extends OrgUnit {
   managerName?: string | null;
   children: OrgTreeNode[];
 }
+
+// ===== Trục B L5 — User Settings =====
+// [Tách khỏi EffectiveAccessResponse] GET /me/access trả CHÍNH MÌNH — shape khác
+// GET /admin/users/:id/effective-access (không có appUserId/email ở top, CÓ impersonatedBy).
+
+export interface MeAccessRole {
+  roleCode: string;
+  scopeType: string;
+  scopeId?: string | null;
+  grantedAt: string;
+  grantedBy?: { id: string; email: string | null } | null;
+}
+
+export interface ImpersonatedByEntry {
+  actorEmail: string | null;
+  reason: string;
+  startedAt: string;
+  endedAt?: string | null;
+}
+
+export interface MeAccessResponse {
+  permissions: string[];
+  roles: MeAccessRole[];
+  impersonatedBy: ImpersonatedByEntry[];
+}
+
+export interface NotificationSettingRow {
+  eventKey: string;
+  channel: string;
+  enabled: boolean;
+}

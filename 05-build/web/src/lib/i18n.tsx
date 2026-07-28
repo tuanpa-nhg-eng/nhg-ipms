@@ -100,28 +100,28 @@ const dict = {
 } as const;
 
 type Key = keyof (typeof dict)["vi"];
-const Ctx = createContext<{ lang: Lang; t: (k: Key) => string; toggle: () => void }>({
+const Ctx = createContext<{ lang: Lang; t: (k: Key) => string; toggle: () => void; setLang: (l: Lang) => void }>({
   lang: "vi",
   t: (k) => k,
   toggle: () => {},
+  setLang: () => {},
 });
 
 export function LangProvider({ children }: { children: ReactNode }) {
-  const [lang, setLang] = useState<Lang>("vi");
+  const [lang, setLangState] = useState<Lang>("vi");
   useEffect(() => {
     const saved = (localStorage.getItem("nhg-lang") as Lang) || "vi";
-    setLang(saved);
+    setLangState(saved);
   }, []);
-  const toggle = () => {
-    setLang((p) => {
-      const n = p === "vi" ? "en" : "vi";
-      localStorage.setItem("nhg-lang", n);
-      document.documentElement.lang = n;
-      return n;
-    });
+  const apply = (n: Lang) => {
+    localStorage.setItem("nhg-lang", n);
+    document.documentElement.lang = n;
+    setLangState(n);
   };
+  const toggle = () => apply(lang === "vi" ? "en" : "vi");
   const t = (k: Key) => dict[lang][k] ?? k;
-  return <Ctx.Provider value={{ lang, t, toggle }}>{children}</Ctx.Provider>;
+  // [Trục B L5] setLang đặt trực tiếp — Settings/Tuỳ chọn cần chọn VI/EN tường minh
+  return <Ctx.Provider value={{ lang, t, toggle, setLang: apply }}>{children}</Ctx.Provider>;
 }
 
 export const useI18n = () => useContext(Ctx);
