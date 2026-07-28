@@ -19,6 +19,10 @@ describe('Phase 3 lát 3 — Process Designer + Integration Hub CSV', () => {
   let owner: PrismaClient;
   let admin: Ctx;
   let designer: Ctx;
+  let hr: Ctx;      // [Trục B L0] hrbp — vai giữ integration:run sau khi hạ tenant_admin
+  let runIdH01: string;
+  let t2designer: Ctx;
+  let t2hr: Ctx;
   let emp: Ctx;
   let t2admin: Ctx;
   const uniq = Date.now();
@@ -38,8 +42,11 @@ describe('Phase 3 lát 3 — Process Designer + Integration Hub CSV', () => {
     }
     admin = await ctxFor('H.01', 'admin@');
     designer = await ctxFor('H.01', 'designer@');
+    hr = await ctxFor('H.01', 'hr@');
     emp = await ctxFor('H.01', 'emp1@');
     t2admin = await ctxFor('T2.TEST', 'admin@');
+    t2designer = await ctxFor('T2.TEST', 'designer@');
+    t2hr = await ctxFor('T2.TEST', 'hr@');
 
     const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = mod.createNestApplication();
@@ -126,11 +133,11 @@ describe('Phase 3 lát 3 — Process Designer + Integration Hub CSV', () => {
   });
 
   // ===== ⑥ INTEGRATION HUB CSV =====
-  it('data_contract: tạo contract CSV (integration:bind — admin); schema rỗng → 422', async () => {
-    expect((await api().post('/api/v1/integrations/contracts').set(as(admin))
+  it('data_contract: tạo contract CSV (integration:bind — designer); schema rỗng → 422', async () => {
+    expect((await api().post('/api/v1/integrations/contracts').set(as(designer))
       .send({ provider: 'csv', schema: {} })).status).toBe(422);
 
-    const res = await api().post('/api/v1/integrations/contracts').set(as(admin)).send({
+    const res = await api().post('/api/v1/integrations/contracts').set(as(designer)).send({
       provider: 'csv', direction: 'in',
       schema: { required: ['externalId', 'type', 'ownerEmployeeCode'], fields: { value: { type: 'number' } } },
     });
@@ -138,7 +145,7 @@ describe('Phase 3 lát 3 — Process Designer + Integration Hub CSV', () => {
   });
 
   it('import CSV: validate contract (row thiếu field → failed, không chặn row khác) + run stats + outbox', async () => {
-    const res = await api().post('/api/v1/integrations/import/csv').set(as(admin)).send({
+    const res = await api().post('/api/v1/integrations/import/csv').set(as(hr)).send({
       sourceSystem: `csv-${uniq}`,
       rows: [
         { externalId: 'CSV-1', type: 'metric', ownerEmployeeCode: 'H.01-EMP1', value: 42 },
@@ -153,7 +160,8 @@ describe('Phase 3 lát 3 — Process Designer + Integration Hub CSV', () => {
     expect(res.body.contractFailed).toHaveLength(2);
 
     // run ghi lại
-    const runs = await api().get('/api/v1/integrations/runs').set(as(admin));
+    runIdH01 = res.body.runId;
+    const runs = await api().get('/api/v1/integrations/runs').set(as(hr));
     const run = runs.body.find((r: any) => r.id === res.body.runId);
     expect(run.status).toBe('partial');
     expect(run.stats.rows).toBe(3);
@@ -174,7 +182,7 @@ describe('Phase 3 lát 3 — Process Designer + Integration Hub CSV', () => {
   });
 
   it('import CSV chạy lại → idempotent (updated, không nhân bản)', async () => {
-    const res = await api().post('/api/v1/integrations/import/csv').set(as(admin)).send({
+    const res = await api().post('/api/v1/integrations/import/csv').set(as(hr)).send({
       sourceSystem: `csv-${uniq}`,
       rows: [{ externalId: 'CSV-1', type: 'metric', ownerEmployeeCode: 'H.01-EMP1', value: 99 }],
     });
@@ -186,22 +194,39 @@ describe('Phase 3 lát 3 — Process Designer + Integration Hub CSV', () => {
     expect(count).toBe(1);
   });
 
-  it('permission: employee không import (403); connection cần integration:connect (admin OK, designer 403)', async () => {
+  it('permission: employee không import (403); connection cần integration:connect (designer OK, tenant_admin 403)', async () => {
     expect((await api().post('/api/v1/integrations/import/csv').set(as(emp))
       .send({ sourceSystem: 'x', rows: [{ externalId: '1', type: 'metric' }] })).status).toBe(403);
 
-    expect((await api().post('/api/v1/integrations/connections').set(as(designer))
+    // [Trục B L0] integration:connect chuyển từ tenant_admin (god-account) sang config_designer
+    // — đấu nối hệ ngoài là việc CẤU HÌNH, không phải việc quản trị người dùng.
+    expect((await api().post('/api/v1/integrations/connections').set(as(admin))
       .send({ provider: 'csv' })).status).toBe(403);
-    const conn = await api().post('/api/v1/integrations/connections').set(as(admin))
+    const conn = await api().post('/api/v1/integrations/connections').set(as(designer))
       .send({ provider: 'csv', displayName: 'CSV nội bộ' });
     expect(conn.status).toBe(201);
     expect(conn.body.authRef).toBeNull(); // không nhận token thô
   });
 
   it('CÔ LẬP: T2 không thấy process/run/cells của H.01', async () => {
-    const procs = await api().get('/api/v1/processes').set(as(t2admin));
+    // [Trục B L0] đọc bằng ĐÚNG vai của T2: processes cần process:design (designer),
+    // runs cần integration:run (hrbp) — tenant_admin không còn giữ cả hai.
+    const procs = await api().get('/api/v1/processes').set(as(t2designer));
+    expect(procs.status).toBe(200);
     expect(procs.body.map((p: any) => p.id)).not.toContain(processId);
-    const runs = await api().get('/api/v1/integrations/runs').set(as(t2admin));
-    expect(runs.body.every((r: any) => r.tenantId === t2admin.id)).toBe(true);
+
+    // Tạo sẵn một run THUỘC T2 để vòng assert bên dưới không chạy 0 lần — mảng rỗng
+    // cũng làm `every` trả true, tức test xanh mà chẳng chứng minh gì (bài học trục A).
+    const seeded = await api().post('/api/v1/integrations/import/csv').set(as(t2hr)).send({
+      sourceSystem: `csv-t2-${uniq}`,
+      rows: [{ externalId: 'T2-1', type: 'metric', ownerEmployeeCode: 'T2.TEST-EMP1', value: 7 }],
+    });
+    expect(seeded.status).toBe(201);
+
+    const runs = await api().get('/api/v1/integrations/runs').set(as(t2hr));
+    expect(runs.status).toBe(200);
+    expect(runs.body.length).toBeGreaterThan(0);
+    expect(runs.body.every((r: any) => r.tenantId === t2hr.id)).toBe(true);
+    expect(runs.body.map((r: any) => r.id)).not.toContain(runIdH01);
   });
 });

@@ -47,6 +47,17 @@ export const PERMISSIONS = [
   // và ai:assist (tạo tín hiệu): SoD trên THƯỚC ĐO — người chấp nhận gợi ý không tự
   // nạp case của mình vào golden set (bài học E2 red-team KPI Designer).
   'ai:eval:curate',
+  // [Trục B L0] Quản trị tenant (tầng ②) — tách hành động PHÁ HUỶ khỏi quyền ghi thường:
+  // mời/khoá người dùng và thu hồi vai là ba việc không nên đi kèm 'user:write'.
+  'user:invite', 'user:deactivate',
+  'role:read', 'role:revoke',
+  'orgunit:update', 'orgunit:archive',
+  'tenant.config:read', 'tenant.config:update',
+  // [Trục B L0] Tuỳ chọn cá nhân (tầng ③) — cấp cho MỌI role. 'access.self:read'
+  // ("Quyền của tôi") là cam kết trust-by-design: ai cũng xem được quyền của chính mình.
+  'settings.self:read', 'settings.self:update',
+  'access.self:read',
+  'notify.self:read', 'notify.self:update',
 ] as const;
 export type PermissionCode = (typeof PERMISSIONS)[number];
 

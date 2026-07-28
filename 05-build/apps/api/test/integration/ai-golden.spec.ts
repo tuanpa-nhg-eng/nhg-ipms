@@ -11,6 +11,7 @@ import request from 'supertest';
 import { createPrismaClient, PrismaClient, uuidv7 } from '@ipms/db';
 import { AppModule } from '../../src/app.module';
 import { getJwtSecret } from '../../src/common/auth/jwt.guard';
+import { ensureMultiRoleUser } from '../helpers/sod-mix-user';
 import { seedGoldenFin, BASELINE_SUITE_NAME } from '../../src/scripts/seed-golden-fin';
 
 jest.setTimeout(120_000);
@@ -23,6 +24,9 @@ describe('Learning Loop L1 — Golden Set có SoD', () => {
   let author: Ctx;
   let curator: Ctx;
   let admin: Ctx;
+  // [Trục B L0] ai:assist + ai:eval:curate không còn cùng nằm ở tenant_admin —
+  // dựng đúng người bị cấp nhầm cả hai để giữ nguyên ý nghĩa ca SoD trên THƯỚC ĐO.
+  let assistCurator: Ctx;
   let designer: Ctx;
   let emp: Ctx;
   const uniq = Date.now();
@@ -43,6 +47,9 @@ describe('Learning Loop L1 — Golden Set có SoD', () => {
     author = await ctxFor('H.01', 'author@');
     curator = await ctxFor('H.01', 'curator@');
     admin = await ctxFor('H.01', 'admin@');
+    assistCurator = (await ensureMultiRoleUser(
+      owner, admin.id, ['bu_author', 'library_curator'], 'assistcur',
+    )) as unknown as Ctx;
     designer = await ctxFor('H.01', 'designer@');
     emp = await ctxFor('H.01', 'emp1@');
 
@@ -134,21 +141,21 @@ describe('Learning Loop L1 — Golden Set có SoD', () => {
       .set(as(curator)).send({})).status).toBe(409);
   });
 
-  it('SoD trên thước đo: người tạo tín hiệu KHÔNG tự duyệt candidate của mình (kể cả admin) + incident audit', async () => {
-    // admin tự tạo tín hiệu draft (admin có ai:assist qua tenant_admin) rồi tự duyệt → phải 409
-    const s = await api().post('/api/v1/ai/inline/taskcell.draft').set(as(admin))
+  it('SoD trên thước đo: người tạo tín hiệu KHÔNG tự duyệt candidate của mình (kể cả khi giữ quyền curate) + incident audit', async () => {
+    // người giữ CẢ ai:assist lẫn ai:eval:curate tự tạo tín hiệu rồi tự duyệt → phải 409
+    const s = await api().post('/api/v1/ai/inline/taskcell.draft').set(as(assistCurator))
       .send({ input: { payload: { nameVi: `SoD golden ${uniq}`, code: 'TS-G01-C01-T002' } } });
     expect(s.status).toBe(201);
     await api().post(`/api/v1/ai/inline/suggestions/${s.body.suggestion.id}/apply`)
-      .set(as(admin)).send({ edited: false });
-    await api().post('/api/v1/ai/golden/harvest').set(as(admin)).send({});
+      .set(as(assistCurator)).send({ edited: false });
+    await api().post('/api/v1/ai/golden/harvest').set(as(curator)).send({});
     const cand = await owner.aiGoldenCandidate.findFirst({
       where: { tenantId: admin.id, suggestionId: s.body.suggestion.id },
     });
     expect(cand).not.toBeNull();
 
     const denied = await api().post(`/api/v1/ai/golden/candidates/${cand!.id}/approve`)
-      .set(as(admin)).send({});
+      .set(as(assistCurator)).send({});
     expect(denied.status).toBe(409);
     const incident = await owner.auditLog.findFirst({
       where: { tenantId: admin.id, action: 'ai_golden.sod_denied', entityId: cand!.id },

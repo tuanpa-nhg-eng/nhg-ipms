@@ -13,6 +13,7 @@ import request from 'supertest';
 import { createPrismaClient, PrismaClient } from '@ipms/db';
 import { AppModule } from '../../src/app.module';
 import { getJwtSecret } from '../../src/common/auth/jwt.guard';
+import { ensureMultiRoleUser } from '../helpers/sod-mix-user';
 
 jest.setTimeout(120_000);
 
@@ -25,6 +26,8 @@ describe('Phase 3 lát 4j — Ủy quyền phân cấp (authoring_grant)', () =>
   let emp: Ctx;       // nhân viên H.01 (employee, scope self) — người NHẬN grant
   let author: Ctx;    // bu_author (đã có taskcell:author sẵn — không liên quan grant)
   let admin: Ctx;
+  // [Trục B L0] taskcell:delegate không còn ở tenant_admin — người cấp quyền là trưởng phòng.
+  let delegator: Ctx;
   let t2dept: Ctx;
   let deptId: string;
   let rootId: string;
@@ -48,6 +51,9 @@ describe('Phase 3 lát 4j — Ủy quyền phân cấp (authoring_grant)', () =>
     emp = await ctxFor('H.01', 'emp1@');
     author = await ctxFor('H.01', 'author@');
     admin = await ctxFor('H.01', 'admin@');
+    delegator = (await ensureMultiRoleUser(
+      owner, admin.id, ['dept_head'], 'delegator',
+    )) as unknown as Ctx;
     t2dept = await ctxFor('T2.TEST', 'dept@');
     const d = await owner.orgUnit.findFirst({ where: { tenantId: dept.id, code: 'ADMISSIONS' } });
     const r = await owner.orgUnit.findFirst({ where: { tenantId: dept.id, code: 'ROOT' } });
@@ -152,8 +158,8 @@ describe('Phase 3 lát 4j — Ủy quyền phân cấp (authoring_grant)', () =>
   });
 
   it('[F116] SoD tại nguồn: không cấp taskcell:author cho người đang giữ taskcell:approve → 409', async () => {
-    // admin (tenant scope) cấp cho dept@ (person ở ROOT, đang giữ taskcell:approve qua role dept_head)
-    const r = await api().post('/api/v1/authoring/grants').set(as(admin)).send({
+    // trưởng phòng khác cấp cho dept@ (đang giữ taskcell:approve qua role dept_head)
+    const r = await api().post('/api/v1/authoring/grants').set(as(delegator)).send({
       granteeId: dept.userId, orgUnitId: rootId,
     });
     expect(r.status).toBe(409);

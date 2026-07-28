@@ -93,7 +93,10 @@ describe('Phase 3 lát 4a — ai-gateway + MCP + eval harness', () => {
   });
 
   it('lớp 2 fail-closed: tool cần scope_permission caller không giữ → 403 + log blocked', async () => {
-    // tenant_admin có mọi quyền TRỪ audit:read — tạo tool test scope audit:read
+    // [Trục B L0] Ca này kiểm LỚP 2 (scope_permission), nên caller phải qua được lớp 1:
+    // designer giữ ai:invoke nhưng KHÔNG giữ audit:read. Trước đây dùng admin@ vì god-account
+    // có mọi quyền trừ audit:read — sau L0 admin@ mất luôn ai:invoke nên bị chặn ngay lớp 1,
+    // ca kiểm sẽ không bao giờ chạm tới thứ nó định kiểm.
     await owner.mcpTool.create({
       data: {
         id: uuidv7(), tenantId: admin.id, name: `test.blocked_${uniq}`,
@@ -101,7 +104,7 @@ describe('Phase 3 lát 4a — ai-gateway + MCP + eval harness', () => {
         readOnly: true, enabled: true,
       },
     });
-    const res = await api().post(`/api/v1/mcp/tools/test.blocked_${uniq}/invoke`).set(as(admin)).send({});
+    const res = await api().post(`/api/v1/mcp/tools/test.blocked_${uniq}/invoke`).set(as(designer)).send({});
     expect(res.status).toBe(403);
     const log = await owner.aiInteraction.findFirst({
       where: { tenantId: admin.id, toolName: `test.blocked_${uniq}` },

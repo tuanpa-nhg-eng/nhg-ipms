@@ -11,6 +11,7 @@ import request from 'supertest';
 import { createPrismaClient, PrismaClient, uuidv7 } from '@ipms/db';
 import { AppModule } from '../../src/app.module';
 import { getJwtSecret } from '../../src/common/auth/jwt.guard';
+import { ensureSodMixUser } from '../helpers/sod-mix-user';
 
 jest.setTimeout(120_000);
 
@@ -19,7 +20,8 @@ interface Ctx { id: string; token: string; personId: string; userId: string }
 describe('Phase 3 — Configuration Studio E2E', () => {
   let app: INestApplication;
   let owner: PrismaClient;
-  let admin: Ctx;      // tenant_admin (giữ cả write + publish — dùng test SoD block)
+  let admin: Ctx;      // tenant_admin — sau trục B L0 CHỈ còn config:read (không write/publish)
+  let sodMix: Ctx;     // user bị cấp NHẦM cả designer + approver — ca SoD runtime phải chặn
   let designer: Ctx;   // config_designer (write, KHÔNG publish)
   let approver: Ctx;   // config_approver (publish, KHÔNG write)
   let t2admin: Ctx;
@@ -43,6 +45,10 @@ describe('Phase 3 — Configuration Studio E2E', () => {
     designer = await ctxFor('H.01', 'designer@');
     approver = await ctxFor('H.01', 'approver@');
     t2admin = await ctxFor('T2.TEST', 'admin@');
+
+    // [Trục B L0] Ca SoD runtime trước đây mượn tenant_admin vì god-account tình cờ giữ CẢ
+    // config:write lẫn config:publish. Nay dựng đúng tình huống mà sod_rule sinh ra để chặn.
+    sodMix = (await ensureSodMixUser(owner, admin.id)) as unknown as Ctx;
 
     // cleanup rerun: scorecard/cascade_link do engine sinh ở run trước (owner — chỉ test)
     const rfClean = await owner.roleFamily.findFirst({ where: { tenantId: admin.id, code: 'TS-STAFF' } });
@@ -267,7 +273,7 @@ describe('Phase 3 — Configuration Studio E2E', () => {
     expect(kept.reason).toContain('manual_override');
   });
 
-  it('⑦ SoD: tenant_admin (giữ CẢ write + publish) bị block khi bật sod_rule; approver publish OK', async () => {
+  it('⑦ SoD: người bị cấp NHẦM cả write + publish bị block khi bật sod_rule; approver publish OK', async () => {
     // bật SoD rule cho H.01 (upsert — idempotent khi rerun)
     await owner.sodRule.upsert({
       where: {
@@ -288,8 +294,8 @@ describe('Phase 3 — Configuration Studio E2E', () => {
       .send({ version: cv0!.version });
     expect(noPerm.status).toBe(403);
 
-    // tenant_admin có cả 2 → SoD runtime block 409 + audit incident
-    const sodBlock = await api().post(`/api/v1/config-versions/${draftId}/publish`).set(as(admin))
+    // user giữ cả 2 quyền → SoD runtime block 409 + audit incident
+    const sodBlock = await api().post(`/api/v1/config-versions/${draftId}/publish`).set(as(sodMix))
       .send({ version: cv0!.version });
     expect(sodBlock.status).toBe(409);
     const incidents = await owner.auditLog.findMany({

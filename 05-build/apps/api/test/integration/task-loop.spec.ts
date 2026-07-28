@@ -14,6 +14,7 @@ import request from 'supertest';
 import { createPrismaClient, PrismaClient, uuidv7 } from '@ipms/db';
 import { AppModule } from '../../src/app.module';
 import { getJwtSecret } from '../../src/common/auth/jwt.guard';
+import { ensureMultiRoleUser } from '../helpers/sod-mix-user';
 
 jest.setTimeout(180_000);
 
@@ -25,6 +26,8 @@ describe('Phase 3 lát 4k — vòng lặp tối ưu liên tục', () => {
   let dept: Ctx;
   let emp: Ctx;
   let admin: Ctx;
+  // [Trục B L0] người bị cấp NHẦM cả soạn (staff_author) lẫn duyệt (dept_head)
+  let authorApprover: Ctx;
   let designer: Ctx;
   let approver: Ctx;
   let t2dept: Ctx;
@@ -51,6 +54,9 @@ describe('Phase 3 lát 4k — vòng lặp tối ưu liên tục', () => {
     dept = await ctxFor('H.01', 'dept@');
     emp = await ctxFor('H.01', 'emp1@');
     admin = await ctxFor('H.01', 'admin@');
+    authorApprover = (await ensureMultiRoleUser(
+      owner, admin.id, ['staff_author', 'dept_head'], 'authappr',
+    )) as unknown as Ctx;
     designer = await ctxFor('H.01', 'designer@');
     approver = await ctxFor('H.01', 'approver@');
     t2dept = await ctxFor('T2.TEST', 'dept@');
@@ -244,17 +250,17 @@ describe('Phase 3 lát 4k — vòng lặp tối ưu liên tục', () => {
     expect(r.body.error.message).toContain('KPI-TREO-999');
   });
 
-  it('SoD: admin (giữ cả taskcell:author + taskcell:approve) approve-active → 409 sod_rule + audit incident; emp tự duyệt → 403 RBAC', async () => {
+  it('SoD: người giữ cả taskcell:author + taskcell:approve approve-active → 409 sod_rule + audit incident; emp tự duyệt → 403 RBAC', async () => {
     expect((await api().post(`/api/v1/library/contributions/${contributionId}/approve-active`)
       .set(as(emp)).send({})).status).toBe(403);
 
     const r = await api().post(`/api/v1/library/contributions/${contributionId}/approve-active`)
-      .set(as(admin)).send({});
+      .set(as(authorApprover)).send({});
     expect(r.status).toBe(409);
     const incident = await owner.auditLog.findFirst({
       where: {
         tenantId: dept.id, action: 'sod.violation_blocked',
-        entityId: contributionId, actorUserId: admin.userId,
+        entityId: contributionId, actorUserId: authorApprover.userId,
       },
     });
     expect(incident).toBeTruthy();

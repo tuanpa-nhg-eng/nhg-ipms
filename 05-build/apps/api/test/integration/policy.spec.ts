@@ -12,6 +12,7 @@ import request from 'supertest';
 import { createPrismaClient, PrismaClient, uuidv7 } from '@ipms/db';
 import { AppModule } from '../../src/app.module';
 import { getJwtSecret } from '../../src/common/auth/jwt.guard';
+import { ensureSodMixUser } from '../helpers/sod-mix-user';
 
 jest.setTimeout(120_000);
 
@@ -21,6 +22,7 @@ describe('Phase 3 lát 4c — access_policy Cedar + PolicyGuard', () => {
   let app: INestApplication;
   let owner: PrismaClient;
   let admin: Ctx;
+  let sodMix: Ctx;   // [Trục B L0] bị cấp NHẦM cả config:write + config:publish
   let designer: Ctx;
   let approver: Ctx;
   let emp: Ctx;
@@ -46,6 +48,7 @@ describe('Phase 3 lát 4c — access_policy Cedar + PolicyGuard', () => {
     approver = await ctxFor('H.01', 'approver@');
     emp = await ctxFor('H.01', 'emp1@');
     t2emp = await ctxFor('T2.TEST', 'emp1@');
+    sodMix = (await ensureSodMixUser(owner, admin.id)) as unknown as Ctx;
 
     // [F66-chuẩn] dọn policy sót của CHÍNH spec này từ lần chạy trước (kể cả active)
     await owner.accessPolicy.deleteMany({ where: { name: { startsWith: 'spec4c-' } } });
@@ -149,8 +152,9 @@ describe('Phase 3 lát 4c — access_policy Cedar + PolicyGuard', () => {
     expect((await api().post(`/api/v1/policies/${policyId}/activate`).set(as(designer))
       .send({ expectedVersion: policyVersion })).status).toBe(403);
 
-    // tenant_admin giữ CẢ write + publish → SoD chặn 409 + audit incident
-    expect((await api().post(`/api/v1/policies/${policyId}/activate`).set(as(admin))
+    // [Trục B L0] người bị cấp NHẦM cả write + publish → SoD chặn 409 + audit incident
+    // (trước đây ca này mượn tenant_admin — god-account đã bị hạ ở L0)
+    expect((await api().post(`/api/v1/policies/${policyId}/activate`).set(as(sodMix))
       .send({ expectedVersion: policyVersion })).status).toBe(409);
     const incident = await owner.auditLog.findFirst({
       where: {
@@ -192,8 +196,8 @@ describe('Phase 3 lát 4c — access_policy Cedar + PolicyGuard', () => {
     expect((await api().patch(`/api/v1/policies/${policyId}`).set(as(designer))
       .send({ note: 'sửa khi đang active' })).status).toBe(409);
 
-    // admin disable → SoD 409; approver disable → OK
-    expect((await api().post(`/api/v1/policies/${policyId}/disable`).set(as(admin))
+    // người giữ cả 2 quyền disable → SoD 409; approver disable → OK
+    expect((await api().post(`/api/v1/policies/${policyId}/disable`).set(as(sodMix))
       .send({ expectedVersion: policyVersion })).status).toBe(409);
     const dis = await api().post(`/api/v1/policies/${policyId}/disable`).set(as(approver))
       .send({ expectedVersion: policyVersion });

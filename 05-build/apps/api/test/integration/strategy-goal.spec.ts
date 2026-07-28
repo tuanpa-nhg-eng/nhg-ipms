@@ -20,9 +20,13 @@ describe('Strategy cascade + Goal health (integration)', () => {
   beforeAll(async () => {
     owner = createPrismaClient(process.env.OWNER_DATABASE_URL);
 
-    async function ctxFor(code: string) {
+    // [Trục B L0] Trước đây `findFirst` không lọc → rơi vào admin@ (god-account).
+    // Nay chỉ đích danh hr@ — vai giữ strategy:write/goal:write.
+    async function ctxFor(code: string, emailPrefix = 'hr@') {
       const tenant = await owner.tenant.findUnique({ where: { code } });
-      const user = await owner.appUser.findFirst({ where: { tenantId: tenant!.id } });
+      const user = await owner.appUser.findFirst({
+        where: { tenantId: tenant!.id, email: { startsWith: emailPrefix } },
+      });
       const token = jwt.sign(
         { sub: user!.id, tid: tenant!.id, email: user!.email, person_id: user!.personId ?? undefined },
         getJwtSecret(), { expiresIn: '1h' },

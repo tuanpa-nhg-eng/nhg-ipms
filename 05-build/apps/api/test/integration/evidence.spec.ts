@@ -22,9 +22,14 @@ describe('Evidence Hub (integration)', () => {
 
   beforeAll(async () => {
     owner = createPrismaClient(process.env.OWNER_DATABASE_URL);
-    async function ctxFor(code: string) {
+    // [Trục B L0] Trước đây `findFirst` không lọc → lấy user đầu tiên bất kỳ, thực tế là
+    // admin@ (god-account). Nay chỉ đích danh hr@ — vai THẬT SỰ giữ evidence:write/verify
+    // + integration:run trong nghiệp vụ.
+    async function ctxFor(code: string, emailPrefix = 'hr@') {
       const tenant = await owner.tenant.findUnique({ where: { code } });
-      const user = await owner.appUser.findFirst({ where: { tenantId: tenant!.id } });
+      const user = await owner.appUser.findFirst({
+        where: { tenantId: tenant!.id, email: { startsWith: emailPrefix } },
+      });
       const token = jwt.sign(
         { sub: user!.id, tid: tenant!.id, email: user!.email, person_id: user!.personId ?? undefined },
         getJwtSecret(), { expiresIn: '1h' },

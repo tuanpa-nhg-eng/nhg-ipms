@@ -11,6 +11,7 @@ import request from 'supertest';
 import { createPrismaClient, PrismaClient } from '@ipms/db';
 import { AppModule } from '../../src/app.module';
 import { getJwtSecret } from '../../src/common/auth/jwt.guard';
+import { ensureMultiRoleUser } from '../helpers/sod-mix-user';
 
 jest.setTimeout(120_000);
 
@@ -32,6 +33,9 @@ describe('Phase 3 lát 4f — BU Authoring Gate', () => {
   let curator: Ctx;
   let emp: Ctx;
   let admin: Ctx;
+  // [Trục B L0] Ca SoD từng mượn admin@ vì god-account giữ CẢ soạn lẫn duyệt.
+  // Nay dựng đúng tình huống bị cấp nhầm hai vai: bu_author + library_curator.
+  let authorCurator: Ctx;
   let t2curator: Ctx;
   let deptId: string;
   const uniq = Date.now();
@@ -54,6 +58,9 @@ describe('Phase 3 lát 4f — BU Authoring Gate', () => {
     curator = await ctxFor('H.01', 'curator@');
     emp = await ctxFor('H.01', 'emp1@');
     admin = await ctxFor('H.01', 'admin@');
+    authorCurator = (await ensureMultiRoleUser(
+      owner, admin.id, ['bu_author', 'library_curator'], 'authcur',
+    )) as unknown as Ctx;
     t2curator = await ctxFor('T2.TEST', 'curator@');
     const dept = await owner.orgUnit.findFirst({
       where: { tenantId: author.id, code: 'ADMISSIONS' },
@@ -140,18 +147,18 @@ describe('Phase 3 lát 4f — BU Authoring Gate', () => {
     expect(Number(fixed.body.qualityScore)).toBe(100);
   });
 
-  it('SoD: author submit → curator duyệt OK; author KHÔNG tự review (kể cả có curate qua admin) — 409 + incident', async () => {
+  it('SoD: author submit → curator duyệt OK; người giữ CẢ soạn+duyệt KHÔNG tự review — 409 + incident', async () => {
     const sub = await api().post(`/api/v1/library/contributions/${contribId}/submit`).set(as(author));
     expect(sub.status).toBe(201);
     expect(sub.body.status).toBe('submitted');
 
-    // admin (giữ mọi permission) tạo contribution của CHÍNH MÌNH rồi tự approve → 409 bất biến
-    const own = await api().post('/api/v1/library/contributions').set(as(admin)).send({
+    // người giữ CẢ hai vai tạo contribution của CHÍNH MÌNH rồi tự approve → 409 bất biến
+    const own = await api().post('/api/v1/library/contributions').set(as(authorCurator)).send({
       type: 'task_cell', payload: cellPayload(code('SELF')),
     });
-    await api().post(`/api/v1/library/contributions/${own.body.id}/submit`).set(as(admin));
+    await api().post(`/api/v1/library/contributions/${own.body.id}/submit`).set(as(authorCurator));
     const selfReview = await api().post(`/api/v1/library/contributions/${own.body.id}/review`)
-      .set(as(admin)).send({ action: 'approve' });
+      .set(as(authorCurator)).send({ action: 'approve' });
     expect(selfReview.status).toBe(409);
     const incident = await owner.auditLog.findFirst({
       where: {
@@ -337,8 +344,8 @@ describe('Phase 3 lát 4f — BU Authoring Gate', () => {
     expect(s2.dedupCandidates.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('[F91] SoD: admin (giữ taskcell:author) import as_canonical → 409 + audit incident', async () => {
-    const r = await api().post('/api/v1/library/import').set(as(admin)).send({
+  it('[F91] SoD: người giữ taskcell:author import as_canonical → 409 + audit incident', async () => {
+    const r = await api().post('/api/v1/library/import').set(as(authorCurator)).send({
       mode: 'as_canonical', rows: [cellPayload(code('EVIL'))],
     });
     expect(r.status).toBe(409);

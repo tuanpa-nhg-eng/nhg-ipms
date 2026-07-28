@@ -18,6 +18,11 @@ describe('Phase 3 lát 4b — outbox dispatcher + mock connectors + morning-todo
   let app: INestApplication;
   let owner: PrismaClient;
   let admin: Ctx;
+  // [Trục B L0] integration:connect/bind → config_designer · integration:run → hrbp.
+  // tenant_admin không còn giữ nhóm quyền này (không phải việc quản trị người dùng).
+  let designerCtx: Ctx;
+  let hr: Ctx;
+  let t2hr: Ctx;
   let emp: Ctx;
   let t2admin: Ctx;
   const uniq = Date.now();
@@ -38,6 +43,9 @@ describe('Phase 3 lát 4b — outbox dispatcher + mock connectors + morning-todo
     admin = await ctxFor('H.01', 'admin@');
     emp = await ctxFor('H.01', 'emp1@');
     t2admin = await ctxFor('T2.TEST', 'admin@');
+    designerCtx = await ctxFor('H.01', 'designer@');
+    hr = await ctxFor('H.01', 'hr@');
+    t2hr = await ctxFor('T2.TEST', 'hr@');
 
     const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = mod.createNestApplication();
@@ -83,7 +91,7 @@ describe('Phase 3 lát 4b — outbox dispatcher + mock connectors + morning-todo
   let bindingId: string;
 
   it('binding: cần integration:bind (emp 403), connection lạ → 422', async () => {
-    const conn = await api().post('/api/v1/integrations/connections').set(as(admin))
+    const conn = await api().post('/api/v1/integrations/connections').set(as(designerCtx))
       .send({ provider: 'notion', displayName: 'Notion mock' });
     expect(conn.status).toBe(201);
     connectionId = conn.body.id;
@@ -92,12 +100,12 @@ describe('Phase 3 lát 4b — outbox dispatcher + mock connectors + morning-todo
       connectionId, localType: 'evidence', direction: 'out', fieldMap: {},
     })).status).toBe(403);
 
-    expect((await api().post('/api/v1/integrations/bindings').set(as(admin)).send({
+    expect((await api().post('/api/v1/integrations/bindings').set(as(designerCtx)).send({
       connectionId: '018f0000-0000-7000-8000-00000000dead',
       localType: 'evidence', direction: 'out', fieldMap: {},
     })).status).toBe(422);
 
-    const b = await api().post('/api/v1/integrations/bindings').set(as(admin)).send({
+    const b = await api().post('/api/v1/integrations/bindings').set(as(designerCtx)).send({
       connectionId, localType: 'evidence', direction: 'out',
       externalTarget: { workspace: `ws-${uniq}` },
       fieldMap: { title: 'payload.source' },
@@ -108,13 +116,13 @@ describe('Phase 3 lát 4b — outbox dispatcher + mock connectors + morning-todo
   });
 
   it('outbox flow: import CSV → event pending → dispatch → dispatched + sync_record; chạy lại không quét lại', async () => {
-    const imp = await api().post('/api/v1/integrations/import/csv').set(as(admin)).send({
+    const imp = await api().post('/api/v1/integrations/import/csv').set(as(hr)).send({
       sourceSystem: `obx-${uniq}`,
       rows: [{ externalId: 'OBX-1', type: 'metric', ownerEmployeeCode: 'H.01-EMP1', value: 7 }],
     });
     expect(imp.status).toBe(201);
 
-    const d1 = await api().post('/api/v1/integrations/outbox/dispatch').set(as(admin));
+    const d1 = await api().post('/api/v1/integrations/outbox/dispatch').set(as(hr));
     expect(d1.status).toBe(201);
     expect(d1.body.dispatched).toBe(1);
     expect(d1.body.dead).toBe(0);
@@ -132,7 +140,7 @@ describe('Phase 3 lát 4b — outbox dispatcher + mock connectors + morning-todo
     expect(sync!.externalEtag).toMatch(/^W\//);
 
     // idempotent: không còn pending → scanned 0
-    const d2 = await api().post('/api/v1/integrations/outbox/dispatch').set(as(admin));
+    const d2 = await api().post('/api/v1/integrations/outbox/dispatch').set(as(hr));
     expect(d2.body.scanned).toBe(0);
   });
 
@@ -143,13 +151,13 @@ describe('Phase 3 lát 4b — outbox dispatcher + mock connectors + morning-todo
         eventType: `other.event_${uniq}`, payload: { x: 1 } as any,
       },
     });
-    const d = await api().post('/api/v1/integrations/outbox/dispatch').set(as(admin));
+    const d = await api().post('/api/v1/integrations/outbox/dispatch').set(as(hr));
     expect(d.body.skipped).toBe(1);
     expect(d.body.dispatched).toBe(0);
   });
 
   it('retry → dead-letter: binding failMode làm event lỗi 5 lần → status dead', async () => {
-    await api().post('/api/v1/integrations/bindings').set(as(admin)).send({
+    await api().post('/api/v1/integrations/bindings').set(as(designerCtx)).send({
       connectionId, localType: 'evidence', direction: 'out',
       externalTarget: { workspace: `ws-${uniq}`, failMode: true },
       fieldMap: {}, syncPolicy: { events: [`fail.event_${uniq}`] },
@@ -162,10 +170,10 @@ describe('Phase 3 lát 4b — outbox dispatcher + mock connectors + morning-todo
     });
 
     for (let i = 1; i <= 4; i++) {
-      const d = await api().post('/api/v1/integrations/outbox/dispatch').set(as(admin));
+      const d = await api().post('/api/v1/integrations/outbox/dispatch').set(as(hr));
       expect(d.body.retried).toBe(1);
     }
-    const d5 = await api().post('/api/v1/integrations/outbox/dispatch').set(as(admin));
+    const d5 = await api().post('/api/v1/integrations/outbox/dispatch').set(as(hr));
     expect(d5.body.dead).toBe(1);
 
     const dead = await owner.outboxEvent.findUnique({ where: { id: ev.id } });
@@ -180,21 +188,21 @@ describe('Phase 3 lát 4b — outbox dispatcher + mock connectors + morning-todo
         eventType: `replay.event_${uniq}`, payload: { r: 1 } as any,
       },
     });
-    const d1 = await api().post('/api/v1/integrations/outbox/dispatch').set(as(admin));
+    const d1 = await api().post('/api/v1/integrations/outbox/dispatch').set(as(hr));
     expect(d1.body.skipped).toBe(1);
 
     // giờ mới có binding khớp — replay đích danh event (không kéo skipped cũ dậy)
-    await api().post('/api/v1/integrations/bindings').set(as(admin)).send({
+    await api().post('/api/v1/integrations/bindings').set(as(designerCtx)).send({
       connectionId, localType: 'evidence', direction: 'out',
       externalTarget: { workspace: `ws-${uniq}` },
       fieldMap: {}, syncPolicy: { events: [`replay.event_${uniq}`] },
     });
-    const rep = await api().post('/api/v1/integrations/outbox/replay').set(as(admin))
+    const rep = await api().post('/api/v1/integrations/outbox/replay').set(as(hr))
       .send({ status: 'skipped', eventIds: [String(ev.id)] });
     expect(rep.status).toBe(201);
     expect(rep.body.replayed).toBe(1);
 
-    const d2 = await api().post('/api/v1/integrations/outbox/dispatch').set(as(admin));
+    const d2 = await api().post('/api/v1/integrations/outbox/dispatch').set(as(hr));
     expect(d2.body.dispatched).toBe(1);
 
     // emp không có integration:run → 403
@@ -203,7 +211,7 @@ describe('Phase 3 lát 4b — outbox dispatcher + mock connectors + morning-todo
   });
 
   it('morning-todos: chưa có binding → 422; có binding → push goal active, chạy lại idempotent', async () => {
-    expect((await api().post('/api/v1/integrations/jobs/morning-todos/run').set(as(admin))
+    expect((await api().post('/api/v1/integrations/jobs/morning-todos/run').set(as(hr))
       .send({})).status).toBe(422); // localType morning_todos chưa có
 
     // goal active cho emp (insert owner — goal API đã test ở spec khác)
@@ -218,13 +226,13 @@ describe('Phase 3 lát 4b — outbox dispatcher + mock connectors + morning-todo
       },
     });
 
-    await api().post('/api/v1/integrations/bindings').set(as(admin)).send({
+    await api().post('/api/v1/integrations/bindings').set(as(designerCtx)).send({
       connectionId, localType: 'morning_todos', direction: 'out',
       externalTarget: { workspace: `todos-${uniq}` }, fieldMap: {},
     });
 
     const date = '2026-07-08';
-    const r1 = await api().post('/api/v1/integrations/jobs/morning-todos/run').set(as(admin))
+    const r1 = await api().post('/api/v1/integrations/jobs/morning-todos/run').set(as(hr))
       .send({ date });
     expect(r1.status).toBe(201);
     expect(r1.body.pushed).toBeGreaterThanOrEqual(1);
@@ -237,7 +245,7 @@ describe('Phase 3 lát 4b — outbox dispatcher + mock connectors + morning-todo
     expect(sync!.localType).toBe('goal');
 
     // idempotent cùng ngày
-    const r2 = await api().post('/api/v1/integrations/jobs/morning-todos/run').set(as(admin))
+    const r2 = await api().post('/api/v1/integrations/jobs/morning-todos/run').set(as(hr))
       .send({ date });
     expect(r2.body.pushed).toBe(0);
     expect(r2.body.skipped).toBe(r1.body.pushed);
@@ -260,7 +268,7 @@ describe('Phase 3 lát 4b — outbox dispatcher + mock connectors + morning-todo
         eventType: `iso.event_${uniq}`, payload: {} as any,
       },
     });
-    const d = await api().post('/api/v1/integrations/outbox/dispatch').set(as(t2admin));
+    const d = await api().post('/api/v1/integrations/outbox/dispatch').set(as(t2hr));
     expect(d.status).toBe(201);
     const still = await owner.outboxEvent.findUnique({ where: { id: ev.id } });
     expect(still!.status).toBe('pending');

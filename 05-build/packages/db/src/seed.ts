@@ -55,6 +55,22 @@ const PERMISSIONS = [
   'ai:assist',
   // [Learning Loop L1] duyệt golden case từ tín hiệu học — SoD trên thước đo
   'ai:eval:curate',
+  // [Trục B L0] Quản trị tenant (tầng ②) + tuỳ chọn cá nhân (tầng ③).
+  // Đồng bộ với packages/shared/src/index.ts — rbac-matrix.spec đóng đinh hai catalog khớp nhau.
+  'user:invite', 'user:deactivate',
+  'role:read', 'role:revoke',
+  'orgunit:update', 'orgunit:archive',
+  'tenant.config:read', 'tenant.config:update',
+  'settings.self:read', 'settings.self:update',
+  'access.self:read',
+  'notify.self:read', 'notify.self:update',
+];
+
+// [Trục B L0] Quyền cá nhân — MỌI role đều có (đúng khuôn taskdict:read đã dùng ở Go-live Từ điển).
+const SELF_PERMISSIONS = [
+  'settings.self:read', 'settings.self:update',
+  'access.self:read',
+  'notify.self:read', 'notify.self:update',
 ];
 
 // Role toàn cục (tenant_id = null) + permission mặc định
@@ -82,7 +98,41 @@ const GLOBAL_ROLES: Record<string, string[]> = {
     'checkin:read', 'checkin:review', 'review:read', 'review:write', 'review:manage',
     'calibration:run', 'payroll:export',
   ],
-  tenant_admin: PERMISSIONS.filter((p) => p !== 'audit:read'),
+  // [Trục B L0 — J2] tenant_admin LIỆT KÊ TƯỜNG MINH. Trước đây là
+  // `PERMISSIONS.filter((p) => p !== 'audit:read')` — tức god-account trừ đúng một quyền:
+  // admin@ finalize được đánh giá, xuất được bảng lương, publish được config, xác minh được
+  // bằng chứng ⇒ toàn bộ SoD dựng từ Phase 0 (F26/F30/F41/F91/F116) đi vòng qua được bằng
+  // MỘT tài khoản. Nay tenant_admin = người quản trị NGƯỜI DÙNG + CƠ CẤU + CẤU HÌNH ĐƠN VỊ,
+  // cộng quyền ĐỌC rộng để hỗ trợ. Không một quyền ghi nghiệp vụ nào.
+  // "Ai giữ thay" từng quyền bị tước: xem OWNER_DIGEST mục trục B L0.
+  tenant_admin: [
+    'tenant:read',
+    // quản trị người dùng & vai trò
+    'user:read', 'user:write', 'user:invite', 'user:deactivate',
+    'role:read', 'role:assign', 'role:revoke',
+    'person:read', 'person:write',
+    // quản trị cơ cấu tổ chức
+    'org:read', 'org:write', 'orgunit:update', 'orgunit:archive',
+    // cấu hình đơn vị
+    'tenant.config:read', 'tenant.config:update',
+    // đọc rộng để hỗ trợ — KHÔNG kèm quyền ghi tương ứng
+    'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read', 'evidence:read',
+    'checkin:read', 'review:read', 'config:read', 'taskcell:read', 'flag:read',
+    // là người dùng như mọi người: góp ý tác vụ active
+    'task:feedback',
+    // KHÔNG có 'audit:read' (J3 — người quản trị không đọc vết của chính mình)
+    // KHÔNG có 'flag:write' (tầng ① Platform Admin — lộ trình B1)
+  ],
+  // [Trục B L0] org_admin — như tenant_admin nhưng SCOPE org_unit và hẹp hơn:
+  // KHÔNG tạo được tài khoản mới (chạm app_user/email đăng nhập = việc tenant-level),
+  // KHÔNG đụng cơ cấu tổ chức lẫn cấu hình đơn vị.
+  org_admin: [
+    'tenant:read', 'org:read', 'person:read', 'person:write',
+    'user:read', 'user:write',
+    'role:read', 'role:assign', 'role:revoke',
+    'kpi:read', 'scorecard:read', 'goal:read', 'checkin:read', 'review:read',
+    'task:feedback',
+  ],
   // Config Studio §12 — SoD Designer (sửa) ⟂ Approver (duyệt)
   config_designer: [
     'tenant:read', 'org:read', 'person:read',
@@ -92,6 +142,10 @@ const GLOBAL_ROLES: Record<string, string[]> = {
     // lát 4a: designer dùng MCP tools + chạy eval (mock) — approver KHÔNG có (SoD giữ nguyên)
     'ai:invoke', 'ai:eval',
     'ai:assist', // AI inline (gợi ý PENDING) trong Studio
+    // [Trục B L0] "AI GIỮ THAY" cho tenant_admin: đấu nối/ràng buộc integration là việc
+    // CẤU HÌNH, không phải việc quản trị người dùng. Trước đây chỉ tenant_admin có
+    // (qua filter god-account) nên tước đi mà không giao lại sẽ làm chết tính năng.
+    'integration:connect', 'integration:bind',
   ],
   config_approver: ['tenant:read', 'org:read', 'config:read', 'config:publish', 'scorecard:read', 'kpi:read'],
   // BU Authoring Gate §4 — SoD: soạn (bu_author) ⟂ duyệt/publish (library_curator)
@@ -132,6 +186,12 @@ for (const perms of Object.values(GLOBAL_ROLES)) {
   if (!perms.includes('taskdict:read')) perms.push('taskdict:read');
 }
 
+// [Trục B L0] Quyền cá nhân (tuỳ chọn, thông báo, "Quyền của tôi") — cấp cho MỌI role,
+// cùng khuôn taskdict:read ở trên. Không role nào phải xin để xem quyền của chính mình.
+for (const perms of Object.values(GLOBAL_ROLES)) {
+  for (const p of SELF_PERMISSIONS) if (!perms.includes(p)) perms.push(p);
+}
+
 async function main() {
   // 1. Permission catalog
   const permIds: Record<string, string> = {};
@@ -163,11 +223,16 @@ async function main() {
     }
   }
 
-  // 2b. [4k] Thu hồi cấp nhầm (seed upsert chỉ THÊM — thu hồi phải tường minh):
-  // taskcell:read là API Config Studio version-scoped, KHÔNG thuộc employee/manager
-  for (const rc of ['employee', 'manager']) {
+  // 2b. [Trục B L0] RECONCILE role toàn cục: xoá mọi role_permission KHÔNG còn được khai
+  // báo trong GLOBAL_ROLES. Trước đây phải liệt kê tay từng quyền cấp nhầm (khối [4k]
+  // taskcell:read cho employee/manager — nay reconcile bao trùm). Cần thiết vì L0 hạ
+  // tenant_admin từ ~70 quyền xuống 25: upsert chỉ THÊM, không có bước này thì DB đã seed
+  // trước đó vẫn giữ nguyên god-account và cả trục B chỉ đúng trên máy chạy DB sạch.
+  // CHỈ đụng role toàn cục (tenantId = null) — role riêng của tenant không bị chạm.
+  for (const [code, perms] of Object.entries(GLOBAL_ROLES)) {
+    const keepIds = perms.map((p) => permIds[p]);
     await prisma.rolePermission.deleteMany({
-      where: { roleId: roleIds[rc], permissionId: permIds['taskcell:read'] },
+      where: { roleId: roleIds[code], permissionId: { notIn: keepIds } },
     });
   }
 
@@ -319,6 +384,10 @@ async function main() {
     await seedStudioUser('exec', 'exec_viewer');
     // auditor@: giữ đúng SoD — auditor CÓ audit:read, tenant_admin KHÔNG (xem GLOBAL_ROLES).
     await seedStudioUser('auditor', 'auditor');
+    // [Trục B — L0] orgadmin@ — quản trị NGƯỜI trong phạm vi MỘT phòng (scope org_unit).
+    // Cần từ L0 để test ma trận chứng minh được bất biến J1② (scope cấp ⊆ scope người cấp)
+    // ngay khi API quản trị lên ở L1, thay vì chỉ chứng minh trên tenant_admin scope tenant.
+    await seedStudioUser('orgadmin', 'org_admin', { scopeType: 'org_unit', scopeId: dept.id }, dept.id);
 
     // [F53] SoD mặc định fail-closed: config:write ⟂ config:publish
     // (tenant muốn tắt → soft-delete rule; mặc định KHÔNG ai vừa sửa vừa publish)
