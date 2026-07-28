@@ -470,3 +470,25 @@ Tất cả đã chuyển sang **đúng vai**, không trả quyền lại cho `ad
 **VERIFY:** FULL SUITE **516/516** runInBand (47 suite), **chạy 2 lần đều xanh, seed lại giữa hai lần** · số test **không giảm** (495 → 516; giảm là dấu hiệu xoá nhầm) · typecheck api + shared + db + web PASS · **J9 nguyên vẹn**: Từ điển Tác vụ **419 cell canonical không đổi** (135 active + 284 legacy đã deprecated từ lát chốt sổ G1–G7 trước đây), tổng cost AI H.01 = `0`, cờ `ai_gateway_live` TẮT.
 
 **Cần biết cho lát sau:** `admin@` giờ vào khu `/studio` sẽ bị 403 ở phần lớn thao tác (đúng thiết kế). Quick-login `admin@` trong StudioGate của web vì thế không còn là "tài khoản xem được mọi thứ" — nav role-gated ở **L6** sẽ xử lý tử tế; trước đó FE có thể hiện nút mà API từ chối, đúng lỗ **B-b** trục này đang đi đóng.
+
+---
+
+## Trục B — Quản trị 3 tầng · **Lát 1: Hợp đồng API quản trị** · **28/07/2026 · XONG — 📍 DỪNG BÁO CÁO theo kế hoạch**
+
+> Lát backend lớn nhất của trục, chốt sổ hợp đồng API trước khi sang FE (đúng nhịp trục A). Commit `ceabc43`.
+
+**15 endpoint dựng đủ theo bảng §4 Lát 1** — mỗi endpoint: scope fail-closed · whitelist select · cap phân trang · audit khi ghi · optimistic lock khi update. `GET/POST/PATCH /admin/users` + disable/enable · `GET /admin/roles` + `POST/DELETE .../roles` + `GET .../effective-access` · `PATCH/DELETE /org-units/:id` · `GET/PATCH /admin/tenant-config` · `GET/PATCH /me/access` + `/settings` + `/notifications`.
+
+**[J8] Điểm rủi ro số 1 của lát — đã xác minh và vá:** `PermissionGuard` trước lát này chỉ lọc `user_role` đã soft-delete, **không đọc `app_user.status`**. Nghĩa là "khoá tài khoản" chỉ đổi một cột trong DB mà không ai đọc lại — JWT ký sống 8 giờ nên token phát TRƯỚC khi khoá vẫn dùng nguyên vẹn tới khi hết hạn. Đã sửa: guard đọc `status` **cùng một query** với role/permission (không tốn round-trip DB thêm), 401 ngay nếu khác `active`. Test chứng minh bằng token phát TRƯỚC lệnh khoá — 401 ngay sau khoá, sống lại ngay sau mở khoá, không cần token mới.
+
+**2 lỗ tự vá TRƯỚC KHI CHẠM TEST — không đợi Reviewer:**
+1. **J1② thiếu vế "người NHẬN".** Bản đầu chỉ kiểm scope khi `scopeType='org_unit'` — một `org_admin` chỉ cần chọn `scopeType='self'` là né sạch mọi kiểm scope, gán vai cho bất kỳ ai ở bất kỳ phòng nào. Đã vá: **luôn** đòi `grantee.person.orgUnitId ⊆ scope người cấp`, bất kể scopeType nào được yêu cầu. `revoke()` cũng được vá đối xứng (bản đầu chỉ cho thu hồi vai `scopeType='org_unit'`, không đối xứng với `assign()` — cấp được mà không thu hồi lại được).
+2. **Mâu thuẫn thiết kế J1① × mục tiêu §1 của trục.** Áp J1① tuyệt đối ("không cấp quyền mình không có"), `tenant_admin` (đã tước sạch quyền ghi nghiệp vụ ở L0) **không gán được vai sàn `employee`** cho chính người nó vừa tạo tài khoản — nghĩa là mốc demo "hết L3 onboard được người thật, đăng nhập, thấy đúng khu vực" **không đạt được**. Không sửa bằng cách nới quyền cho tenant_admin (J3 cấm rõ). Sửa đúng khuôn đã có ở `authoring.service.ts` (`CAPABILITY_ALLOWLIST`): thêm `BASE_ROLE_ALLOWLIST=['employee']` — ngoại lệ hẹp, tường minh trong code, **không áp cho `auditor`** (J3 vẫn nguyên vẹn: không ai thiếu `audit:read` cấp được `audit:read`). `GET /admin/roles` và `POST .../roles` dùng chung allowlist — không liệt kê một lựa chọn rồi bấm vào ăn 403 (J4).
+
+**1 bug tự bắt khi viết code (trước khi chạy test):** `updateNotifications()` bản đầu gọi lại `getNotifications()` sau khi upsert — nhưng đó là một **transaction MỚI**, đọc dữ liệu trước khi transaction ngoài commit ⇒ trả về dữ liệu **cũ** ngay sau khi vừa ghi. Sửa: đọc lại trong CÙNG transaction.
+
+**Migration (2):** `app_user.preferences` jsonb + bảng `notification_setting` (RLS tenant-bound, bảng mới DUY NHẤT của lát — không có row = mặc định BẬT) · `user_role.created_by/revoked_by` (trước đây KHÔNG có cột này ⇒ `effective-access` không thể trả "ai cấp" — một phần của yêu cầu §4 Lát 1).
+
+**VERIFY:** `admin-api.spec.ts` 46/46 (chạy 2 lần đều xanh) · **FULL SUITE 564/564 runInBand** (48 suite, +48 so với L0, chạy 2 lần đều xanh, seed lại giữa 2 lần) · typecheck api PASS · `next build` 32 route PASS (không đổi baseline) · J9 nguyên vẹn (419 cell, cost H.01 = 0, `ai_gateway_live` TẮT).
+
+**Tiếp theo:** L2 màn "Người dùng & Vai trò" (`/admin/users`) — hợp đồng API đã chốt ở đây, an toàn để dựng FE trên nền này.
