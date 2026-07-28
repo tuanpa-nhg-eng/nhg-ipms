@@ -417,3 +417,56 @@ Reviewer **xác nhận an toàn** (có script chứng minh): F175 an toàn ở c
 **Giả định tự chốt (theo ủy quyền):** ① TTL qualification 90 ngày — B1/anh hiệu chỉnh qua env ② thinking_delta/signature_delta của Claude CHƯA forward ra FE (backlog — cần bề mặt tách reasoning trace) ③ `type:'suggestion'` streaming CHƯA làm cho Anthropic thật (mock vẫn demo được — cần thiết kế tool-schema riêng cho "đề xuất thay đổi", ngoài phạm vi hạ tầng last-mile) ④ scrub PII theo tên nhân sự dựa `person.fullName` — CHƯA scrub các dạng định danh khác (mã nhân viên, biệt danh).
 
 **Ticket nợ:** F42/F43/F55/F70/F76/F79/F82/F85/F86/F97–F102/F105/F121/F138/F152 (tồn từ trước) · re-verdict Reviewer 4k (Từ điển Tác vụ, nợ dài hạn) · **F173** (tách permission `ai:eval` cho hành động có sức nặng tài chính — khuyến nghị Reviewer, ghi backlog).
+
+---
+
+## Trục B — Quản trị 3 tầng · **Lát 0: đập bỏ god-account** · **28/07/2026 · XONG — FULL SUITE 516/516**
+
+> Chủ dự án duyệt kế hoạch `02-dac-ta/NHG_iPMS_Ke_Hoach_Truc_B_Quan_Tri_3_Tang.md` ngày 28/07, chốt 4 điểm: chạy đủ L0→L7 · **CÓ làm Impersonation** (lát L4 mới, J11–J13) · **chưa push** (tích luỹ tiếp) · danh sách hạ quyền **áp rồi báo cáo** — đây là bản báo cáo đó. Commit `ab2d215`.
+
+**Vấn đề:** `packages/db/src/seed.ts` khai `tenant_admin: PERMISSIONS.filter((p) => p !== 'audit:read')` — god-account trừ đúng một quyền. `admin@` finalize được đánh giá, xuất được bảng lương, publish được config, duyệt KPI/tác vụ, xác minh bằng chứng. Toàn bộ hệ SoD dựng công phu từ Phase 0 (F26/F30/F41/F91/F116) đi vòng qua được bằng **một** tài khoản.
+
+**Sau L0, `tenant_admin` giữ đúng 25 quyền** = quản trị người dùng + cơ cấu tổ chức + cấu hình đơn vị + đọc rộng để hỗ trợ. Không một quyền ghi nghiệp vụ nào. Vẫn **không có `audit:read`** (J3).
+
+### Danh sách quyền TƯỚC khỏi `tenant_admin` — kèm ai giữ thay
+
+| Quyền bị tước | Ai giữ thay |
+|---|---|
+| `rating:approve` | manager / hrbp |
+| `payroll:export` · `calibration:run` · `review:manage` · `integration:run` | hrbp |
+| `review:write` · `goal:write` | employee / manager |
+| `checkin:review` · `evidence:verify` | manager / hrbp |
+| `checkin:write` · `evidence:write` | employee |
+| `kpi:write` · `kpi:approve` · `scorecard:write` · `strategy:write` | hrbp |
+| `config:write` · `brand:write` · `org:design` · `derivation:run` · `process:design` · `taskcell:write` | config_designer |
+| `config:publish` | config_approver |
+| **`integration:connect` · `integration:bind`** | **config_designer (MỚI nhận)** — đấu nối hệ ngoài là việc *cấu hình*, không phải việc quản trị người dùng; trước đây chỉ god-account có nên tước mà không giao lại sẽ làm chết tính năng |
+| `taskcell:author` · `kpi:propose` · `library:submit` | bu_author / staff_author |
+| `library:curate` · `library:publish` · `library:deprecate` · `library:import:canonical` · `ai:eval:curate` | library_curator |
+| `taskcell:delegate` · `taskcell:approve` · `task:reopen` | dept_head |
+| `ai:invoke` · `ai:eval` · `ai:assist` | config_designer / bu_author / library_curator / dept_head |
+| `flag:write` | **KHÔNG AI** — thuộc tầng ① Platform Admin, lộ trình B1 (ghi nhận để không quên) |
+| `audit:read` | auditor (giữ nguyên từ trước — J3) |
+
+### Thêm vào
+- **13 permission tầng ②③:** `user:invite` `user:deactivate` `role:read` `role:revoke` `orgunit:update` `orgunit:archive` `tenant.config:read` `tenant.config:update` `settings.self:read/update` `access.self:read` `notify.self:read/update`.
+- **Role MỚI `org_admin`** (scope `org_unit`) + seed `orgadmin@`: quản trị người trong **một phòng**; KHÔNG tạo được tài khoản (việc tenant-level), KHÔNG đụng cơ cấu/cấu hình đơn vị.
+- **Quyền cá nhân cấp cho MỌI role** — không ai phải xin để xem quyền của chính mình.
+- **Seed RECONCILE:** xoá `role_permission` không còn được khai báo. Không có bước này thì `upsert` chỉ THÊM ⇒ DB đã seed trước đó **vẫn giữ nguyên god-account** và cả trục B chỉ đúng trên máy chạy DB sạch.
+
+### Test đóng đinh mới — `rbac-matrix.spec` (21 test)
+Đọc ma trận **từ DB thật**, không từ khai báo trong mã: cái có hiệu lực lúc chạy là hàng trong `role_permission`. Kiểm: snapshot chính xác từng role (thừa/thiếu đều đỏ) · mọi quyền tước đều có vai giữ thay · chỉ `auditor` giữ `audit:read` · SoD cấp role · không role nào giữ `audit:read` cùng quyền ghi · hai catalog (`@ipms/shared` ↔ DB) khớp nhau.
+
+**Phân biệt quan trọng rút ra khi viết test:** hệ có **hai loại SoD**. ① *cấp role* — giữ cả hai vế là đã sai (config:write ⟂ config:publish). ② *cấp bản ghi* — giữ cả hai vế là **bình thường và cần thiết** (trưởng phòng phải vừa viết đánh giá vừa duyệt hạng, cho cấp dưới), cái bị cấm là làm cả hai trên **cùng một đối tượng**; thực thi ở service (`review.service.ts` F26/F30, `golden.service.ts` F166). Trộn hai loại vào một test là cách chắc chắn để người sau "sửa cho xanh" bằng cách tước một quyền hoàn toàn hợp lệ.
+
+### 13 suite gãy — mỗi chỗ là bằng chứng đang dựa vào god-account
+Tất cả đã chuyển sang **đúng vai**, không trả quyền lại cho `admin@` (J3):
+- **3 suite dùng `findFirst` KHÔNG lọc** (evidence/kpi-scorecard/strategy-goal) → rơi vào `admin@` mà không hề khai báo. Đây là "tài khoản tiện tay" ẩn, tệ hơn cả dùng admin công khai. Nay chỉ đích danh `hr@`.
+- **review-loop:** cả vòng đánh giá chạy bằng một tài khoản → tách `hrbp` (quản trị vòng: kpi/scorecard/cycle/review/calibration/export) và `manager` (chốt hạng — vai **duy nhất** giữ `rating:approve`). Đúng SoD nghiệp vụ, không phải mẹo cho test xanh.
+- **5 ca SoD runtime mượn god-account** (config-studio/policy/library/task-loop/ai-golden) → helper `test/helpers/sod-mix-user.ts` dựng đúng tình huống mà `sod_rule` sinh ra để chặn: **tenant tự cấu hình sai, cấp cho một người hai vai lẽ ra phải tách**. Ý nghĩa ca kiểm được giữ nguyên, và còn đúng hơn trước.
+- **ai-gateway:** ca kiểm **lớp 2** (scope_permission) không còn chạm tới thứ nó định kiểm, vì `admin@` bị chặn ngay **lớp 1** (mất `ai:invoke`) → chuyển sang `designer` (có `ai:invoke`, không có `audit:read`).
+- **process-integration:** nhân tiện vá điểm yếu *"assert chạy 0 lần"* ở ca cô lập tenant — mảng rỗng cũng làm `every` trả `true` (bài học ② trục A).
+
+**VERIFY:** FULL SUITE **516/516** runInBand (47 suite), **chạy 2 lần đều xanh, seed lại giữa hai lần** · số test **không giảm** (495 → 516; giảm là dấu hiệu xoá nhầm) · typecheck api + shared + db + web PASS · **J9 nguyên vẹn**: Từ điển Tác vụ **419 cell canonical không đổi** (135 active + 284 legacy đã deprecated từ lát chốt sổ G1–G7 trước đây), tổng cost AI H.01 = `0`, cờ `ai_gateway_live` TẮT.
+
+**Cần biết cho lát sau:** `admin@` giờ vào khu `/studio` sẽ bị 403 ở phần lớn thao tác (đúng thiết kế). Quick-login `admin@` trong StudioGate của web vì thế không còn là "tài khoản xem được mọi thứ" — nav role-gated ở **L6** sẽ xử lý tử tế; trước đó FE có thể hiện nút mà API từ chối, đúng lỗ **B-b** trục này đang đi đóng.
