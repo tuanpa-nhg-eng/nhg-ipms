@@ -14,6 +14,7 @@ export interface UpdateOrgUnitInput {
   nameVi?: string;
   nameEn?: string;
   parentId?: string | null;
+  managerId?: string | null;
   version: number;
 }
 
@@ -27,9 +28,24 @@ export class OrgService {
     );
   }
 
+  /**
+   * [Trục B L3] Cây tổ chức + "Đếm người theo từng đơn vị" (kế hoạch §4 Lát 3) + tên
+   * người quản lý mỗi đơn vị. Đếm bằng `groupBy` MỘT lượt trên toàn tenant — không N+1
+   * theo số node của cây.
+   */
   async tree(tenantId: string, rootId: string) {
     return this.prisma.withTenant(tenantId, async (tx) => {
       const all = await tx.orgUnit.findMany({ where: { deletedAt: null } });
+      const counts = await tx.person.groupBy({
+        by: ['orgUnitId'], where: { deletedAt: null, orgUnitId: { not: null } }, _count: { _all: true },
+      });
+      const countByOrg = new Map(counts.map((c) => [c.orgUnitId as string, c._count._all]));
+      const managerIds = [...new Set(all.map((u) => u.managerId).filter(Boolean))] as string[];
+      const managers = managerIds.length
+        ? await tx.person.findMany({ where: { id: { in: managerIds } }, select: { id: true, fullName: true } })
+        : [];
+      const managerName = new Map(managers.map((m) => [m.id, m.fullName]));
+
       const byParent = new Map<string | null, typeof all>();
       for (const u of all) {
         const k = u.parentId ?? null;
@@ -38,6 +54,8 @@ export class OrgService {
       }
       const build = (node: (typeof all)[number]): any => ({
         ...node,
+        personCount: countByOrg.get(node.id) ?? 0,
+        managerName: node.managerId ? managerName.get(node.managerId) ?? null : null,
         children: (byParent.get(node.id) ?? []).map(build),
       });
       const root = all.find((u) => u.id === rootId);
@@ -109,12 +127,18 @@ export class OrgService {
         }
       }
 
+      if (input.managerId) {
+        const manager = await tx.person.findFirst({ where: { id: input.managerId, deletedAt: null } });
+        if (!manager) throw new UnprocessableEntityException('Người quản lý không tồn tại');
+      }
+
       const count = await tx.orgUnit.updateMany({
         where: { id, version: input.version },
         data: {
           nameVi: input.nameVi ?? undefined,
           nameEn: input.nameEn ?? undefined,
           parentId: input.parentId === undefined ? undefined : input.parentId,
+          managerId: input.managerId === undefined ? undefined : input.managerId,
           updatedBy: actorId,
           version: { increment: 1 },
         },

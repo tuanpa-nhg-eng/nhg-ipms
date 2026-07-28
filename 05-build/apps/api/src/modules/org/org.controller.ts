@@ -16,6 +16,8 @@ class UpdateOrgUnitDto {
   @IsOptional() @IsString() @Length(1, 255) nameVi?: string;
   @IsOptional() @IsString() nameEn?: string;
   @IsOptional() @IsUUID() parentId?: string | null;
+  // [Trục B L3] Gán người quản lý đơn vị
+  @IsOptional() @IsUUID() managerId?: string | null;
   @IsInt() version!: number;
 }
 

@@ -215,6 +215,39 @@ export class AdminUsersService {
       });
       if (count.count !== 1) throw new ConflictException('Version lệch — tải lại và thử lại');
 
+      // [F121 TRẢ NỢ — Trục B L3] Chuyển phòng phải tự thu hồi `authoring_grant` của
+      // PHÒNG CŨ. Trước lát này: hôm nay vẫn active, trưởng phòng cũ phải NHỚ mà gỡ tay —
+      // nhân viên chuyển phòng vẫn giữ quyền soạn tác vụ ở phòng đã rời đi. Hook đặt ĐÚNG
+      // tại đường đổi person.orgUnitId, CÙNG transaction với chính lần đổi phòng — đây là
+      // lần đầu tiên (và duy nhất trong app) luồng chuyển phòng có UI, nên đây là chỗ RẺ
+      // NHẤT để trả nợ (F121 §5 lát 4l ghi nhận, chưa có UI trước trục B để trả).
+      if (input.orgUnitId && person.orgUnitId && input.orgUnitId !== person.orgUnitId) {
+        const staleGrants = await tx.authoringGrant.findMany({
+          where: { granteeId: appUser.id, orgUnitId: person.orgUnitId, status: 'active' },
+        });
+        for (const g of staleGrants) {
+          await tx.authoringGrant.update({
+            where: { id: g.id },
+            data: { status: 'revoked', revokedAt: new Date(), revokedBy: user.claims.sub, version: { increment: 1 } },
+          });
+          if (g.userRoleId) {
+            await tx.userRole.updateMany({
+              where: { id: g.userRoleId, deletedAt: null },
+              data: { deletedAt: new Date(), revokedBy: user.claims.sub },
+            });
+          }
+          await tx.auditLog.create({
+            data: {
+              tenantId: user.tenantId, actorUserId: user.claims.sub,
+              action: 'authoring.revoke_on_transfer', entityType: 'authoring_grant', entityId: g.id,
+              after: {
+                grantee_id: appUser.id, old_org_unit_id: person.orgUnitId, new_org_unit_id: input.orgUnitId,
+              } as object,
+            },
+          });
+        }
+      }
+
       await tx.auditLog.create({
         data: {
           tenantId: user.tenantId, actorUserId: user.claims.sub,

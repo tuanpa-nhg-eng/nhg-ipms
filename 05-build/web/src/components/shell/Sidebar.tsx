@@ -81,6 +81,7 @@ export function Sidebar() {
     // Đặt trước "Tra cứu" — bất biến "Tra cứu đặt CUỐI sidebar" (mọi persona) giữ nguyên.
     { id: "admin", group: t("nav.groupadmin"), links: [
       { href: "/admin/users", label: t("nav.adminusers"), icon: <Shield size={ICON} /> },
+      { href: "/admin/org", label: t("nav.adminorg"), icon: <Building2 size={ICON} /> },
     ]},
     // Tra cứu — tài nguyên tham chiếu toàn hàng, mọi persona (đặt cuối sidebar)
     { id: "reference", group: t("nav.reference"), links: [

@@ -207,6 +207,9 @@ export interface OrgUnit {
   nameEn?: string | null;
   level: string;
   parentId?: string | null;
+  /** [Trục B L3] người quản lý đơn vị — cột thô, không FK Prisma (xem schema). */
+  managerId?: string | null;
+  version?: number;
 }
 
 export interface TaskCellRow {
@@ -680,4 +683,11 @@ export interface EffectiveAccessResponse {
   email: string;
   permissions: string[];
   roles: EffectiveAccessRole[];
+}
+
+/** [Trục B L3] GET /org-units/:id/tree — cây tổ chức + đếm người + tên quản lý mỗi node. */
+export interface OrgTreeNode extends OrgUnit {
+  personCount: number;
+  managerName?: string | null;
+  children: OrgTreeNode[];
 }

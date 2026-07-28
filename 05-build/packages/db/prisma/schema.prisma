@@ -46,6 +46,11 @@ model OrgUnit {
   level     String // group|bu|department|team
   configVersionId String? @map("config_version_id") @db.Uuid // Config Studio §4.3
   grade           String? // cấp bậc đơn vị (tuỳ chọn)
+  // [Trục B L3] Người quản lý đơn vị — cột thô (như createdBy/updatedBy), KHÔNG khai
+  // Prisma relation object: person.manager đã là self-relation "Reports" (quản lý TRỰC
+  // TIẾP một người khác) — đây là khái niệm KHÁC (một người đứng đầu một ĐƠN VỊ), validate
+  // ở tầng service, không ràng buộc FK cứng để tránh xung đột tên quan hệ.
+  managerId       String? @map("manager_id") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   createdBy String?  @map("created_by") @db.Uuid

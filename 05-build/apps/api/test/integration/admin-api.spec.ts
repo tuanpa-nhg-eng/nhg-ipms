@@ -131,6 +131,9 @@ describe('[Trục B L1] Hợp đồng API quản trị', () => {
     // row còn sót của chính spec này (đúng khuôn "dọn checkin cũ EMP1" ở review-loop.spec).
     await owner.notificationSetting.deleteMany({ where: { tenantId: admin.id, appUserId: emp.userId } });
 
+    // [Rerun-safety][L3] "chưa gán quản lý" là tiền đề của ca đầu ở khối personCount+manager.
+    await owner.orgUnit.updateMany({ where: { id: deptId }, data: { managerId: null } });
+
     const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = mod.createNestApplication();
     app.setGlobalPrefix('api/v1');
@@ -582,6 +585,158 @@ describe('[Trục B L1] Hợp đồng API quản trị', () => {
         items: [{ eventKey: 'made.up', channel: 'sms', enabled: true }],
       });
       expect(r.status).toBe(422);
+    });
+  });
+
+  // ========== [Trục B L3] GET /org-units/:id/tree — personCount + manager ==========
+  describe('GET /org-units/:id/tree — personCount + manager (L3)', () => {
+    it('đếm người đúng theo đơn vị + gán/đọc được tên người quản lý', async () => {
+      const root = await owner.orgUnit.findFirst({ where: { tenantId: admin.id, code: 'ROOT' } });
+      const dept = await owner.orgUnit.findFirst({ where: { id: deptId } });
+
+      const before = await api().get(`/api/v1/org-units/${root!.id}/tree`).set(as(admin));
+      expect(before.status).toBe(200);
+      const admissions = before.body.children.find((c: any) => c.id === deptId);
+      expect(admissions).toBeDefined();
+      expect(admissions.personCount).toBeGreaterThan(0); // ADMISSIONS đã có emp1/mgr/author/dept/orgadmin
+      expect(admissions.managerName).toBeNull(); // chưa gán
+
+      const set = await api().patch(`/api/v1/org-units/${deptId}`).set(as(admin)).send({
+        managerId: mgr.personId, version: dept!.version,
+      });
+      expect(set.status).toBe(200);
+
+      const after = await api().get(`/api/v1/org-units/${root!.id}/tree`).set(as(admin));
+      const admissions2 = after.body.children.find((c: any) => c.id === deptId);
+      expect(admissions2.managerName).toBeTruthy();
+    });
+
+    it('employee → 403 (không có org:read? — có; kiểm org:write bị chặn khi PATCH quản lý)', async () => {
+      const dept = await owner.orgUnit.findFirst({ where: { id: deptId } });
+      const r = await api().patch(`/api/v1/org-units/${deptId}`).set(as(emp)).send({
+        managerId: mgr.personId, version: dept!.version,
+      });
+      expect(r.status).toBe(403);
+    });
+
+    it('gán managerId không tồn tại → 422', async () => {
+      const dept = await owner.orgUnit.findFirst({ where: { id: deptId } });
+      const r = await api().patch(`/api/v1/org-units/${deptId}`).set(as(admin)).send({
+        managerId: '00000000-0000-7000-8000-000000000000', version: dept!.version,
+      });
+      expect(r.status).toBe(422);
+    });
+  });
+
+  // ========== [F121 TRẢ NỢ] chuyển phòng → authoring_grant phòng cũ tự thu hồi ==========
+  describe('[F121] PATCH /admin/users/:id đổi orgUnitId → authoring_grant phòng cũ tự thu hồi', () => {
+    it('grant active ở phòng CŨ bị revoke NGAY khi chuyển sang phòng MỚI — cùng transaction, có audit', async () => {
+      // Fixture độc lập: 2 phòng mới + 1 người trong phòng A, được dept@ cấp quyền soạn.
+      const orgA = await owner.orgUnit.create({
+        data: { id: uuidv7(), tenantId: admin.id, code: `F121-A-${uniq}`, nameVi: 'F121 Phòng A', level: 'department', parentId: deptId },
+      });
+      const orgB = await owner.orgUnit.create({
+        data: { id: uuidv7(), tenantId: admin.id, code: `F121-B-${uniq}`, nameVi: 'F121 Phòng B', level: 'department', parentId: deptId },
+      });
+      const person = await owner.person.create({
+        data: {
+          id: uuidv7(), tenantId: admin.id, employeeCode: `H.01-F121-${uniq}`,
+          fullName: 'Người chuyển phòng (F121)', email: `f121-${uniq}@h01.nhg.local`,
+          status: 'active', orgUnitId: orgA.id,
+        },
+      });
+      const appUser = await owner.appUser.create({
+        data: { id: uuidv7(), tenantId: admin.id, personId: person.id, email: person.email!, status: 'active' },
+      });
+
+      // dept@ cấp quyền soạn TRONG orgA — nhưng dept@ scope=deptId (ADMISSIONS), không phải
+      // orgA (con của ADMISSIONS) → dùng admin@ tự thay materialize trực tiếp (owner) để
+      // fixture không phụ thuộc việc dept_head có scope subtree hay không (chưa hỗ trợ,
+      // xem scope.util.ts — so khớp trực tiếp, subtree phase sau). Test này nhắm vào HÀNH VI
+      // THU HỒI khi chuyển phòng, không nhắm lại luồng cấp quyền (đã có authoring-grant.spec).
+      const staffRole = await owner.role.findFirst({ where: { code: 'staff_author', tenantId: null } });
+      const userRole = await owner.userRole.create({
+        data: {
+          id: uuidv7(), tenantId: admin.id, appUserId: appUser.id,
+          roleId: staffRole!.id, scopeType: 'org_unit', scopeId: orgA.id, createdBy: admin.userId,
+        },
+      });
+      const grant = await owner.authoringGrant.create({
+        data: {
+          id: uuidv7(), tenantId: admin.id, granterId: admin.userId, granteeId: appUser.id,
+          orgUnitId: orgA.id, capability: 'taskcell:author', status: 'active', userRoleId: userRole.id,
+        },
+      });
+
+      const fresh = await owner.person.findFirst({ where: { id: person.id } });
+      const move = await api().patch(`/api/v1/admin/users/${appUser.id}`).set(as(admin)).send({
+        orgUnitId: orgB.id, version: fresh!.version,
+      });
+      expect(move.status).toBe(200);
+      expect(move.body.orgUnitId).toBe(orgB.id);
+
+      const grantAfter = await owner.authoringGrant.findFirst({ where: { id: grant.id } });
+      expect(grantAfter!.status).toBe('revoked');
+      expect(grantAfter!.revokedAt).not.toBeNull();
+
+      const userRoleAfter = await owner.userRole.findFirst({ where: { id: userRole.id } });
+      expect(userRoleAfter!.deletedAt).not.toBeNull();
+
+      const incident = await owner.auditLog.findFirst({
+        where: { tenantId: admin.id, action: 'authoring.revoke_on_transfer', entityId: grant.id },
+      });
+      expect(incident).not.toBeNull();
+      expect((incident!.after as any).old_org_unit_id).toBe(orgA.id);
+      expect((incident!.after as any).new_org_unit_id).toBe(orgB.id);
+    });
+
+    it('KHÔNG có grant nào ở phòng khác/đã revoked bị đụng vào — chỉ đúng grant phòng CŨ + status active', async () => {
+      const orgA = await owner.orgUnit.create({
+        data: { id: uuidv7(), tenantId: admin.id, code: `F121-C-${uniq}`, nameVi: 'F121 Phòng C', level: 'department', parentId: deptId },
+      });
+      const orgB = await owner.orgUnit.create({
+        data: { id: uuidv7(), tenantId: admin.id, code: `F121-D-${uniq}`, nameVi: 'F121 Phòng D', level: 'department', parentId: deptId },
+      });
+      const orgOther = await owner.orgUnit.create({
+        data: { id: uuidv7(), tenantId: admin.id, code: `F121-E-${uniq}`, nameVi: 'F121 Phòng E', level: 'department', parentId: deptId },
+      });
+      const person = await owner.person.create({
+        data: {
+          id: uuidv7(), tenantId: admin.id, employeeCode: `H.01-F121B-${uniq}`,
+          fullName: 'Người chuyển phòng B (F121)', email: `f121b-${uniq}@h01.nhg.local`,
+          status: 'active', orgUnitId: orgA.id,
+        },
+      });
+      const appUser = await owner.appUser.create({
+        data: { id: uuidv7(), tenantId: admin.id, personId: person.id, email: person.email!, status: 'active' },
+      });
+      // grant ở phòng KHÁC (orgOther) — KHÔNG được đụng vào khi người này rời orgA
+      const otherGrant = await owner.authoringGrant.create({
+        data: {
+          id: uuidv7(), tenantId: admin.id, granterId: admin.userId, granteeId: appUser.id,
+          orgUnitId: orgOther.id, capability: 'taskcell:author', status: 'active',
+        },
+      });
+      // grant CŨ ở orgA nhưng ĐÃ revoked từ trước — không được "revoke lại" (revokedAt giữ nguyên)
+      const alreadyRevoked = await owner.authoringGrant.create({
+        data: {
+          id: uuidv7(), tenantId: admin.id, granterId: admin.userId, granteeId: appUser.id,
+          orgUnitId: orgA.id, capability: 'taskcell:author', status: 'revoked',
+          revokedAt: new Date('2026-01-01T00:00:00Z'),
+        },
+      });
+
+      const fresh = await owner.person.findFirst({ where: { id: person.id } });
+      const move = await api().patch(`/api/v1/admin/users/${appUser.id}`).set(as(admin)).send({
+        orgUnitId: orgB.id, version: fresh!.version,
+      });
+      expect(move.status).toBe(200);
+
+      const otherAfter = await owner.authoringGrant.findFirst({ where: { id: otherGrant.id } });
+      expect(otherAfter!.status).toBe('active'); // không bị đụng — khác orgUnitId
+
+      const revokedAfter = await owner.authoringGrant.findFirst({ where: { id: alreadyRevoked.id } });
+      expect(revokedAfter!.revokedAt?.toISOString()).toBe('2026-01-01T00:00:00.000Z'); // giữ nguyên, không ghi đè
     });
   });
 
