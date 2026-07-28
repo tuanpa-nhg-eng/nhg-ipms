@@ -82,6 +82,10 @@ export class AdminUsersService {
           id: true, employeeCode: true, fullName: true, email: true,
           orgUnitId: true, managerId: true, positionId: true, status: true,
           hireDate: true, seniorityMonths: true,
+          // [Tự bắt] version PHẢI có trong list — PATCH đòi optimistic lock (J7); thiếu
+          // trường này thì FE không patch được gì ngoài cách gọi GET riêng lấy version
+          // trước mỗi lần sửa (round-trip thừa, và vẫn hở TOCTOU giữa 2 lần gọi).
+          version: true,
           appUsers: { where: { deletedAt: null }, select: { id: true, status: true, email: true } },
         },
         orderBy: { employeeCode: 'asc' },
@@ -118,6 +122,7 @@ export class AdminUsersService {
           managerId: p.managerId,
           positionId: p.positionId,
           status: p.appUsers[0]?.status ?? p.status,
+          version: p.version,
           // [J5][Q4] chỉ scope TENANT thấy — org_admin không thấy dù cùng response shape
           ...(canSeeSensitive ? { hireDate: p.hireDate, seniorityMonths: p.seniorityMonths } : {}),
         })),
@@ -218,7 +223,29 @@ export class AdminUsersService {
           after: input as object,
         },
       });
-      return tx.person.findFirst({ where: { id: person.id } });
+      // [Tự bắt] Bản đầu trả THẲNG row Prisma của Person — khác shape với list() (FE dùng
+      // chung type AdminUserRow) và LẪN `person.status` (HR: active/leave/terminated) vào
+      // chỗ FE mong đợi `appUser.status` (tài khoản: active/disabled) — hai vocabulary khác
+      // hẳn nhau, gán nhầm sẽ hiện sai badge trạng thái ngay trên UI. Trả cùng shape với
+      // list(), whitelist đúng khuôn J5.
+      const fresh = await tx.person.findFirst({ where: { id: person.id } });
+      const freshAppUser = await tx.appUser.findFirst({
+        where: { personId: person.id, deletedAt: null }, select: { id: true, status: true, email: true },
+      });
+      const canSeeSensitive = effectiveScope(user).mode === 'tenant';
+      return {
+        personId: fresh!.id,
+        appUserId: freshAppUser?.id ?? null,
+        employeeCode: fresh!.employeeCode,
+        fullName: fresh!.fullName,
+        email: freshAppUser?.email ?? fresh!.email,
+        orgUnitId: fresh!.orgUnitId,
+        managerId: fresh!.managerId,
+        positionId: fresh!.positionId,
+        status: freshAppUser?.status ?? fresh!.status,
+        version: fresh!.version,
+        ...(canSeeSensitive ? { hireDate: fresh!.hireDate, seniorityMonths: fresh!.seniorityMonths } : {}),
+      };
     });
   }
 

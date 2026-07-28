@@ -152,3 +152,7 @@
 .aigov-footnote { font-size: 11px; color: var(--nhg-text-secondary); margin-top: 8px; }
 /* [Last-mile Lát 5] Model-Qualification Gate — hành động trên card readiness */
 .aigov-card-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 2px; }
+
+/* [Trục B L2] Hàng đang chọn trong bảng danh sách (Người dùng & Vai trò) */
+.table tr.row-selected { background: var(--nhg-primary-subtle); }
+.table tr.row-selected td { color: var(--nhg-primary); }

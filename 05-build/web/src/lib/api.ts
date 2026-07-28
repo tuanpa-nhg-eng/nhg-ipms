@@ -632,3 +632,52 @@ export interface ReviewItemScoreRow {
   weight?: string | number | null;
   formulaVersion?: number | null;
 }
+
+// ===== Trục B — Quản trị 3 tầng (Người dùng & Vai trò) =====
+// Kiểu SUBSET những trường BE thực sự trả (whitelist select, J5) — thêm trường ở
+// đây mà BE không trả sẽ lộ ngay lúc render, không âm thầm nhận dữ liệu thừa.
+
+export interface AdminUserRow {
+  personId: string;
+  appUserId: string | null;
+  employeeCode: string;
+  fullName: string;
+  email?: string | null;
+  orgUnitId?: string | null;
+  managerId?: string | null;
+  positionId?: string | null;
+  status: string;
+  version: number;
+  /** [J5/Q4] CHỈ có khi caller giữ scope TENANT — org_admin không nhận trường này. */
+  hireDate?: string | null;
+  seniorityMonths?: number | null;
+}
+
+export interface AdminUserListResponse {
+  entries: AdminUserRow[];
+  nextCursor: string | null;
+  capped: boolean;
+}
+
+export interface AdminRoleOption {
+  code: string;
+  nameVi?: string | null;
+  nameEn?: string | null;
+  permissions: string[];
+}
+
+export interface EffectiveAccessRole {
+  userRoleId: string;
+  roleCode: string;
+  scopeType: string;
+  scopeId?: string | null;
+  grantedAt: string;
+  grantedBy?: { id: string; email: string | null } | null;
+}
+
+export interface EffectiveAccessResponse {
+  appUserId: string;
+  email: string;
+  permissions: string[];
+  roles: EffectiveAccessRole[];
+}

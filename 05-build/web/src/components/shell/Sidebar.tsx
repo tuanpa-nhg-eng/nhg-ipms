@@ -7,7 +7,7 @@ import {
   Network, Users, Scale, ScrollText, FileCheck, Rocket,
   Bot, UserCog, CalendarCog, Grid3x3, ShieldCheck, MessageSquareText, CalendarCheck,
   ChevronDown, SlidersHorizontal, Workflow, Building2, GitFork, Palette, BookPlus, Inbox,
-  BookOpenText, ClipboardList, Gauge, Activity, LayoutList,
+  BookOpenText, ClipboardList, Gauge, Activity, LayoutList, Shield,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
@@ -76,6 +76,11 @@ export function Sidebar() {
     { id: "audit", group: t("nav.audit"), links: [
       { href: "/audit/logs", label: t("nav.auditlog"), icon: <ScrollText size={ICON} /> },
       { href: "/audit/compliance", label: t("nav.compliance"), icon: <ShieldCheck size={ICON} /> },
+    ]},
+    // [Trục B] Quản trị đơn vị — role-gated ở BE; nav TOÀN HỆ được gác ở L6 (chốt sổ trục).
+    // Đặt trước "Tra cứu" — bất biến "Tra cứu đặt CUỐI sidebar" (mọi persona) giữ nguyên.
+    { id: "admin", group: t("nav.groupadmin"), links: [
+      { href: "/admin/users", label: t("nav.adminusers"), icon: <Shield size={ICON} /> },
     ]},
     // Tra cứu — tài nguyên tham chiếu toàn hàng, mọi persona (đặt cuối sidebar)
     { id: "reference", group: t("nav.reference"), links: [
