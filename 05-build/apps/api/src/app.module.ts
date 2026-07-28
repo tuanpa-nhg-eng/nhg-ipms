@@ -88,6 +88,8 @@ import { TenantConfigController } from './modules/admin/tenant-config.controller
 import { TenantConfigService } from './modules/admin/tenant-config.service';
 import { MeController } from './modules/me/me.controller';
 import { MeService } from './modules/me/me.service';
+import { ImpersonationController } from './modules/admin/impersonation.controller';
+import { ImpersonationService } from './modules/admin/impersonation.service';
 
 @Module({
   controllers: [
@@ -104,6 +106,7 @@ import { MeService } from './modules/me/me.service';
     AuditController, OverviewController,
     // [Trục B — L1] quản trị tenant/org
     AdminUsersController, AdminRolesController, TenantConfigController, MeController,
+    ImpersonationController,
   ],
   providers: [
     PrismaService,
@@ -142,7 +145,7 @@ import { MeService } from './modules/me/me.service';
     AuthoringService,
     DictionaryService,
     TaskLoopService,
-    AdminUsersService, AdminRolesService, TenantConfigService, MeService,
+    AdminUsersService, AdminRolesService, TenantConfigService, MeService, ImpersonationService,
     // Guard pipeline Spec Config Studio §7: Jwt → Tenant → Permission (RBAC) → Policy (ABAC #2)
     { provide: APP_GUARD, useClass: JwtGuard },
     { provide: APP_GUARD, useClass: TenantGuard },

@@ -64,6 +64,8 @@ const PERMISSIONS = [
   'settings.self:read', 'settings.self:update',
   'access.self:read',
   'notify.self:read', 'notify.self:update',
+  // [Trục B L4] Impersonation chỉ-đọc — cấp cho tenant_admin, KHÔNG org_admin.
+  'user:impersonate',
 ];
 
 // [Trục B L0] Quyền cá nhân — MỌI role đều có (đúng khuôn taskdict:read đã dùng ở Go-live Từ điển).
@@ -120,6 +122,8 @@ const GLOBAL_ROLES: Record<string, string[]> = {
     'checkin:read', 'review:read', 'config:read', 'taskcell:read', 'flag:read',
     // là người dùng như mọi người: góp ý tác vụ active
     'task:feedback',
+    // [Trục B L4] Impersonation CHỈ ĐỌC có kiểm soát — không cần Entra, đã kéo vào phạm vi
+    'user:impersonate',
     // KHÔNG có 'audit:read' (J3 — người quản trị không đọc vết của chính mình)
     // KHÔNG có 'flag:write' (tầng ① Platform Admin — lộ trình B1)
   ],

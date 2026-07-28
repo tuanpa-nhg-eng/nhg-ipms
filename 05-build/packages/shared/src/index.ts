@@ -58,18 +58,43 @@ export const PERMISSIONS = [
   'settings.self:read', 'settings.self:update',
   'access.self:read',
   'notify.self:read', 'notify.self:update',
+  // [Trục B L4] Impersonation chỉ-đọc có kiểm soát — cấp cho tenant_admin, KHÔNG org_admin.
+  'user:impersonate',
 ] as const;
 export type PermissionCode = (typeof PERMISSIONS)[number];
 
 export type ScopeType = 'tenant' | 'org_unit' | 'self';
 
+/**
+ * [Trục B L4 — J11] Danh sách TƯỜNG MINH quyền được giữ khi đang đóng vai (chỉ đọc
+ * tuyệt đối). ĐÂY LÀ WHITELIST, KHÔNG PHẢI BLACKLIST theo suy diễn hậu tố (":write",
+ * ":approve"…): một số quyền GHI không theo quy ước hậu tố đó (`task:feedback` là nộp góp
+ * ý — mutation; `ai:invoke`/`ai:assist`/`ai:eval` gọi LLM thật — có phí + tác dụng phụ dù
+ * tên không có hậu tố ghi). Danh sách này PHẢI khai TƯỜNG MINH từng permission — permission
+ * MỚI thêm vào catalog ở trên mặc định KHÔNG có ở đây cho tới khi ai đó chủ động thêm vào
+ * (đối lập blacklist theo pattern: blacklist hở ngay lần thêm permission tiếp theo không
+ * khớp pattern cũ — đã là bài học từ chính rbac-matrix.spec.ts của trục này).
+ * Test đóng đinh: `impersonation-whitelist.spec.ts`.
+ */
+export const IMPERSONATION_READ_WHITELIST: readonly PermissionCode[] = [
+  'tenant:read', 'audit:read', 'org:read', 'person:read', 'user:read', 'role:read',
+  'flag:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read', 'evidence:read',
+  'checkin:read', 'review:read', 'config:read', 'taskcell:read', 'taskdict:read',
+  'tenant.config:read', 'settings.self:read', 'access.self:read', 'notify.self:read',
+];
+
 /** JWT claims chuẩn nội bộ — map sẵn theo Entra ID để cắm SSO sau. */
 export interface IpmsJwtClaims {
-  sub: string;          // app_user.id
+  sub: string;          // app_user.id — TRONG phiên đóng vai: là TARGET (quyền tính theo người này)
   tid: string;          // tenant.id (Entra: tenant id — ở đây là iPMS tenant)
   oid?: string;         // Entra object id (khi có SSO)
   email: string;
   person_id?: string;
+  // [Trục B L4 — J13] Danh tính kép khi đang đóng vai: `act` = actor THẬT (app_user.id),
+  // tách khỏi `sub` = người đang bị đóng vai. `imp_sid` = impersonation_session.id — khoá
+  // để endpoint thoát phiên định danh ĐÚNG phiên cần kết thúc mà không cần targetUserId.
+  act?: string;
+  imp_sid?: string;
   iat?: number;
   exp?: number;
 }

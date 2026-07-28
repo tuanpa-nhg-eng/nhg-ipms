@@ -24,6 +24,18 @@ export const POLICY_EXEMPT_KEY = 'ipms:policy-exempt';
  */
 export const PolicyExempt = () => SetMetadata(POLICY_EXEMPT_KEY, true);
 
+export const IMPERSONATION_EXIT_EXEMPT_KEY = 'ipms:impersonation-exit-exempt';
+
+/**
+ * [Trục B L4] VAN AN TOÀN — cùng tinh thần F68/PolicyExempt: kết thúc phiên đóng vai PHẢI
+ * luôn gọi được, kể cả khi mọi quyền khác đã bị J11 tước sạch (token đóng vai chỉ còn
+ * quyền đọc). Endpoint đánh dấu bằng decorator này bỏ qua HOÀN TOÀN bước kiểm permission
+ * trong PermissionGuard — chỉ cần JWT hợp lệ + claim `imp_sid` (đang trong một phiên) —
+ * và PHẢI đi kèm `@PolicyExempt()` (PolicyGuard fail-closed nếu thiếu ngữ cảnh RBAC).
+ * KHÔNG dùng cho endpoint nào khác ngoài DELETE /admin/impersonation/current.
+ */
+export const ImpersonationExitExempt = () => SetMetadata(IMPERSONATION_EXIT_EXEMPT_KEY, true);
+
 /** Scope mà user có cho permission đang yêu cầu (từ các role cấp permission đó). */
 export interface PermissionScope {
   scopeType: 'tenant' | 'org_unit' | 'self' | null; // null = coi như tenant (role cũ)

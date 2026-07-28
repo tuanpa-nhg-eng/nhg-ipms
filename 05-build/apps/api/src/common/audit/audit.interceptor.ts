@@ -27,17 +27,24 @@ export class AuditInterceptor implements NestInterceptor {
         const tenantId: string | undefined = req.ipmsTenantId;
         if (!tenantId) return result;
         const entityId: string | undefined = result?.id ?? req.params?.id ?? undefined;
+        // [Trục B L4 — J13] Danh tính kép: nếu token đang đóng vai (`act` có mặt), vết audit
+        // phải ghi ACTOR THẬT — không phải người bị đóng vai (`sub`) — và giữ lại AI đang bị
+        // đóng vai trong payload để không mất dấu vết. Trong thực tế, J11 làm mọi endpoint
+        // @Audited (đều là mutation) không thể chạm tới dưới một phiên chỉ-đọc — đây là
+        // phòng tuyến thứ hai, không phải đường vận hành chính.
+        const actingAs: string | undefined = req.ipmsClaims?.act ? req.ipmsClaims?.sub : undefined;
+        const actorUserId: string | null = req.ipmsClaims?.act ?? req.ipmsClaims?.sub ?? null;
         try {
           await this.prisma.withTenant(tenantId, (tx) =>
             tx.auditLog.create({
               data: {
                 tenantId,
-                actorUserId: req.ipmsClaims?.sub ?? null,
+                actorUserId,
                 action,
                 entityType: action.split('.')[0],
                 entityId: entityId ?? null,
                 before: req.ipmsAuditBefore ?? undefined,
-                after: result ?? undefined,
+                after: actingAs ? ({ ...(result ?? {}), _impersonating: actingAs } as object) : (result ?? undefined),
                 ip: req.ip,
               },
             }),

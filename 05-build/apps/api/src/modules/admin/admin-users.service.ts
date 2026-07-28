@@ -314,6 +314,18 @@ export class AdminUsersService {
           after: { status } as object, ip,
         },
       });
+
+      // [Trục B L4] Khoá tài khoản đang bị đóng vai → tự kết thúc mọi phiên impersonation
+      // CÒN SỐNG mà người này là TARGET, ended_reason='target_disabled'. Không cần job nền
+      // riêng để enforce (PermissionGuard J8 đã chặn 401 ngay ở request kế tiếp — status đọc
+      // lại theo `sub`=target mỗi request) — đây chỉ là dọn dẹp SỔ SÁCH cho đúng, để
+      // `GET /admin/impersonation` không hiện một phiên "còn active" mà thực ra đã chết.
+      if (status === 'disabled') {
+        await tx.impersonationSession.updateMany({
+          where: { targetUserId: appUserId, endedAt: null },
+          data: { endedAt: new Date(), endedReason: 'target_disabled' },
+        });
+      }
       return updated;
     });
   }

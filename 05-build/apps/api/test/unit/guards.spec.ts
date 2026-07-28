@@ -67,11 +67,12 @@ describe('TenantGuard', () => {
 });
 
 describe('PermissionGuard (fail-closed)', () => {
-  const prismaMock = (perms: string[], status: string | null = 'active') =>
+  const prismaMock = (perms: string[], status: string | null = 'active', sessionEnded = false) =>
     ({
       withTenant: async (_t: string, fn: any) =>
         fn({
           appUser: { findFirst: async () => (status === null ? null : { status }) },
+          impersonationSession: { findFirst: async () => (sessionEnded ? null : { id: 'sid' }) },
           userRole: { findMany: async () => (perms.length ? [{ roleId: 'r1' }] : []) },
           rolePermission: {
             findMany: async () => perms.map((code) => ({ permission: { code } })),
@@ -114,5 +115,51 @@ describe('PermissionGuard (fail-closed)', () => {
       prismaMock(['org:read'], null),
     );
     await expect(guard.canActivate(ctxWith(baseReq()))).rejects.toThrow(UnauthorizedException);
+  });
+
+  // [Trục B L4 — J11] Đang đóng vai (`act` có mặt) → giao đúng GIAO của quyền target với
+  // whitelist chỉ-đọc, dù target THẬT SỰ giữ quyền ghi được yêu cầu.
+  describe('[J11] Impersonation — whitelist chỉ-đọc', () => {
+    const impReq = () => ({ ipmsTenantId: T1, ipmsClaims: { sub: U1, act: 'actor-1', imp_sid: 'sid' } });
+
+    it('chặn quyền GHI dù target thật sự giữ (org:write không nằm trong whitelist)', async () => {
+      const guard = new PermissionGuard(
+        reflectorReturning({ 'ipms:permission': 'org:write' }),
+        prismaMock(['org:write']),
+      );
+      await expect(guard.canActivate(ctxWith(impReq()))).rejects.toThrow(ForbiddenException);
+    });
+
+    it('cho qua quyền ĐỌC target giữ (org:read nằm trong whitelist)', async () => {
+      const guard = new PermissionGuard(
+        reflectorReturning({ 'ipms:permission': 'org:read' }),
+        prismaMock(['org:read', 'org:write']),
+      );
+      const req: any = impReq();
+      await expect(guard.canActivate(ctxWith(req))).resolves.toBe(true);
+      // [Tự bắt — J4] permissions gắn vào RequestUser phải là bộ ĐÃ LỌC, không phải bộ thật
+      // của target — nếu không, /me/access sẽ báo sai (hiện org:write trong khi mọi request
+      // ghi thực tế đều bị chặn), FE hiện nút rồi ăn 403.
+      expect(req.ipmsUser.permissions.has('org:read')).toBe(true);
+      expect(req.ipmsUser.permissions.has('org:write')).toBe(false);
+    });
+
+    it('không ảnh hưởng khi KHÔNG đóng vai — permissions giữ nguyên đầy đủ', async () => {
+      const guard = new PermissionGuard(
+        reflectorReturning({ 'ipms:permission': 'org:write' }),
+        prismaMock(['org:write']),
+      );
+      const req: any = baseReq(); // không có claim `act`
+      await expect(guard.canActivate(ctxWith(req))).resolves.toBe(true);
+      expect(req.ipmsUser.permissions.has('org:write')).toBe(true);
+    });
+
+    it('[Tự bắt] "Thoát" phải có hiệu lực NGAY — token cũ dùng lại sau khi phiên đã kết thúc → 401', async () => {
+      const guard = new PermissionGuard(
+        reflectorReturning({ 'ipms:permission': 'org:read' }),
+        prismaMock(['org:read'], 'active', /* sessionEnded */ true),
+      );
+      await expect(guard.canActivate(ctxWith(impReq()))).rejects.toThrow(UnauthorizedException);
+    });
   });
 });

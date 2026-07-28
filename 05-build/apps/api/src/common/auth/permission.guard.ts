@@ -2,8 +2,11 @@ import {
   CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { IMPERSONATION_READ_WHITELIST } from '@ipms/shared';
 import { PrismaService } from '../../prisma.service';
-import { PERMISSION_KEY, PUBLIC_KEY, RequestUser } from './decorators';
+import { IMPERSONATION_EXIT_EXEMPT_KEY, PERMISSION_KEY, PUBLIC_KEY, RequestUser } from './decorators';
+
+const READ_WHITELIST = new Set<string>(IMPERSONATION_READ_WHITELIST);
 
 /**
  * PermissionGuard — RBAC fail-closed:
@@ -25,17 +28,35 @@ export class PermissionGuard implements CanActivate {
     if (this.reflector.getAllAndOverride<boolean>(PUBLIC_KEY, [ctx.getHandler(), ctx.getClass()])) {
       return true;
     }
+    const req = ctx.switchToHttp().getRequest();
+
+    // [Trục B L4] Van an toàn kết thúc phiên đóng vai — PHẢI luôn gọi được kể cả khi J11
+    // đã tước sạch quyền ghi. Bỏ qua HOÀN TOÀN bước kiểm permission bên dưới; chỉ đòi JWT
+    // hợp lệ (JwtGuard đã chạy trước) + đang thực sự trong một phiên (`imp_sid`) — không
+    // phụ thuộc còn giữ quyền gì. Không tốn round-trip DB (không cần biết permissions/scopes
+    // để kết thúc phiên của chính mình).
+    if (this.reflector.getAllAndOverride<boolean>(IMPERSONATION_EXIT_EXEMPT_KEY, [ctx.getHandler(), ctx.getClass()])) {
+      if (!req.ipmsClaims?.imp_sid) {
+        throw new ForbiddenException('Không đang trong phiên đóng vai');
+      }
+      const user: RequestUser = {
+        claims: req.ipmsClaims, tenantId: req.ipmsTenantId, permissions: new Set(), scopes: [],
+      };
+      req.ipmsUser = user;
+      return true;
+    }
+
     const required = this.reflector.getAllAndOverride<string>(PERMISSION_KEY, [
       ctx.getHandler(),
       ctx.getClass(),
     ]);
-    const req = ctx.switchToHttp().getRequest();
     if (!required) throw new ForbiddenException('Endpoint has no permission declared (fail-closed)');
 
     const tenantId: string = req.ipmsTenantId;
     const userId: string = req.ipmsClaims.sub;
+    const impSid: string | undefined = req.ipmsClaims.imp_sid;
 
-    const { status, permissions, scopes } = await this.prisma.withTenant(tenantId, async (tx) => {
+    const { status, sessionLive, permissions, scopes } = await this.prisma.withTenant(tenantId, async (tx) => {
       // [J8] status hiện tại của tài khoản — token có hợp lệ hay không phụ thuộc CÁI NÀY,
       // không phụ thuộc claim trong JWT (JWT không mang status, và không nên mang: đổi
       // status phải có hiệu lực NGAY, không đợi token cũ tự hết hạn rồi phát lại).
@@ -45,12 +66,23 @@ export class PermissionGuard implements CanActivate {
       });
       const status = appUser?.status ?? null;
 
+      // [Trục B L4 — Tự bắt] Kết thúc phiên (DELETE /admin/impersonation/current) chỉ đổi
+      // MỘT DÒNG trong DB — nếu guard không đọc lại, JWT vẫn hợp lệ về mặt chữ ký/exp cho
+      // tới hết 30 phút, tức "Thoát" chỉ là trang trí UI chứ không thực sự chặn được token
+      // cũ. Đọc lại `endedAt` mỗi request (như J8 đọc lại status) để nút Thoát có tác dụng
+      // NGAY, không đợi TTL tự nhiên.
+      const sessionLive = impSid
+        ? (await tx.impersonationSession.findFirst({
+            where: { id: impSid, endedAt: null }, select: { id: true },
+          })) !== null
+        : true;
+
       // [F4] lọc cả role đã soft-delete — thu hồi role phải có hiệu lực ngay
       const roles = await tx.userRole.findMany({
         where: { appUserId: userId, deletedAt: null, role: { deletedAt: null } },
         select: { roleId: true, scopeType: true, scopeId: true },
       });
-      if (roles.length === 0) return { status, permissions: new Set<string>(), scopes: [] as any[] };
+      if (roles.length === 0) return { status, sessionLive, permissions: new Set<string>(), scopes: [] as any[] };
       const rp = await tx.rolePermission.findMany({
         where: { roleId: { in: roles.map((r) => r.roleId) } },
         select: { roleId: true, permission: { select: { code: true } } },
@@ -63,19 +95,33 @@ export class PermissionGuard implements CanActivate {
       const scopes = roles
         .filter((r) => grantingRoleIds.has(r.roleId))
         .map((r) => ({ scopeType: (r.scopeType as any) ?? null, scopeId: r.scopeId ?? null }));
-      return { status, permissions, scopes };
+      return { status, sessionLive, permissions, scopes };
     });
 
     // [J8] Tài khoản không tồn tại (đã xoá) hoặc status khác 'active' (disabled) → 401
-    // NGAY, bất kể token còn hạn bao lâu. Fail-closed: không tìm thấy row cũng chặn.
+    // NGAY, bất kể token còn hạn bao lâu. Fail-closed: không tìm thấy row cũng chặn. Khi
+    // `sub` là TARGET của một phiên đóng vai, đây cũng là nơi tự động vô hiệu hoá phiên nếu
+    // target bị khoá GIỮA CHỪNG — không cần job nền riêng (status luôn đọc lại mỗi request).
     if (status !== 'active') {
       throw new UnauthorizedException('Tài khoản không còn hoạt động — đăng nhập lại');
     }
+    if (!sessionLive) {
+      throw new UnauthorizedException('Phiên đóng vai đã kết thúc — đăng nhập lại');
+    }
 
-    if (!permissions.has(required)) {
+    // [Trục B L4 — J11] Đang đóng vai (`act` có mặt) → giao đúng GIAO CỦA quyền target thật
+    // sự giữ với whitelist chỉ-đọc. KHÔNG dùng blacklist (loại trừ permission có hậu tố ghi)
+    // — dùng whitelist TƯỜNG MINH nghĩa là quyền target giữ mà admin quên liệt kê vào
+    // whitelist thì mặc định BỊ LOẠI, không phải mặc định lọt qua. Đây là chỗ enforce DUY
+    // NHẤT của bất biến J11 — không có đường vòng nào khác chạm được RequestUser.permissions.
+    const effectivePermissions = req.ipmsClaims.act
+      ? new Set([...permissions].filter((p) => READ_WHITELIST.has(p)))
+      : permissions;
+
+    if (!effectivePermissions.has(required)) {
       throw new ForbiddenException(`Missing permission: ${required}`);
     }
-    const user: RequestUser = { claims: req.ipmsClaims, tenantId, permissions, scopes };
+    const user: RequestUser = { claims: req.ipmsClaims, tenantId, permissions: effectivePermissions, scopes };
     req.ipmsUser = user;
     // [Lát 4c] PolicyGuard (tầng ABAC đứng sau) cần biết permission đang yêu cầu
     req.ipmsRequiredPermission = required;

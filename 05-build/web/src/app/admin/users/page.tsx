@@ -15,13 +15,15 @@
  *    chính mình, tự gán vai cho mình) — không để bấm rồi ăn 403 từ máy chủ.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Users, UserPlus, Search, ShieldPlus, ShieldMinus, Lock, LockOpen,
-  RefreshCw, Save, Info, ShieldAlert,
+  RefreshCw, Save, Info, ShieldAlert, Eye,
 } from "lucide-react";
 import { AppShell } from "@/components/shell/AppShell";
 import { Badge, Card } from "@/components/ui";
 import { useStudio } from "@/lib/studio";
+import { startImpersonation } from "@/lib/impersonation";
 import {
   AdminRoleOption, AdminUserListResponse, AdminUserRow, EffectiveAccessResponse,
   MeResponse, OrgUnit,
@@ -30,7 +32,8 @@ import {
 const STATUS_TONE: Record<string, string> = { active: "green", disabled: "red" };
 
 export default function AdminUsersPage() {
-  const { call, session } = useStudio();
+  const { call, session, impersonating } = useStudio();
+  const router = useRouter();
   const [me, setMe] = useState<MeResponse | null>(null);
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [capped, setCapped] = useState(false);
@@ -71,6 +74,10 @@ export default function AdminUsersPage() {
   // xác nhận 2 bước (khuôn I4) — reset khi đổi người đang chọn
   const [disableArmed, setDisableArmed] = useState(false);
   const [revokeArmed, setRevokeArmed] = useState<string | null>(null);
+
+  // [Trục B L4] Đóng vai — lý do bắt buộc ≥20 ký tự (DB CHECK song song), TTL 30 phút cứng
+  const [showImpersonate, setShowImpersonate] = useState(false);
+  const [impReason, setImpReason] = useState("");
 
   const fail = (e: unknown) => setMsg({ kind: "err", text: (e as Error).message });
   const can = (p: string) => !!me?.permissions?.includes(p);
@@ -148,6 +155,7 @@ export default function AdminUsersPage() {
     setEditOrgUnitId(u.orgUnitId ?? "");
     setEditManagerId(u.managerId ?? "");
     setGrantRoleCode(""); setGrantScopeType("self"); setGrantScopeId("");
+    setShowImpersonate(false); setImpReason("");
     setAccess(null);
     if (!u.appUserId) return;
     try {
@@ -258,6 +266,16 @@ export default function AdminUsersPage() {
   };
 
   const isSelf = (u: AdminUserRow) => !!session?.userId && u.appUserId === session.userId;
+
+  const doImpersonate = () => {
+    if (!selected?.appUserId || !session || impReason.trim().length < 20) return;
+    void act(async () => {
+      await startImpersonation({ token: session.token, tenantId: session.tenantId }, selected.appUserId!, impReason.trim());
+      // [Thiết kế] Điều hướng sang trang mọi persona đều mở được — banner đỏ (mount ở root
+      // layout) tự hiện ngay sau khi sessionStorage đổi, không cần tự vẽ lại ở đây.
+      router.push("/employee");
+    }, `Đang xem với tư cách ${selected.fullName}`);
+  };
 
   return (
     <AppShell crumb={{ section: "Quản trị đơn vị", page: "Người dùng & Vai trò" }}>
@@ -525,6 +543,48 @@ export default function AdminUsersPage() {
                   </div>
                 )}
               </Card>
+
+              {/* [Trục B L4] Đóng vai — CHỈ ĐỌC, không hành động thay họ (J11). Không hiện
+                  khi ĐANG đóng vai người khác (J12④ phía UI — BE cũng chặn ở tầng guard). */}
+              {can("user:impersonate") && !impersonating && (
+                <>
+                  <div style={{ height: 12 }} />
+                  <Card title={<><Eye size={15} /> Đóng vai</>}
+                    sub="Xem đúng những gì người này thấy — CHỈ ĐỌC, không sửa/gửi/xoá được gì. Tối đa 30 phút, ghi vết kiểm toán.">
+                    {isSelf(selected) ? (
+                      <span className="row tiny muted" style={{ gap: 6 }}>
+                        <ShieldAlert size={13} /> Không tự đóng vai chính mình
+                      </span>
+                    ) : !showImpersonate ? (
+                      <button className="btn ghost sm" disabled={busy} onClick={() => setShowImpersonate(true)}>
+                        <Eye size={13} /> Đóng vai {selected.fullName}…
+                      </button>
+                    ) : (
+                      <>
+                        <div className="studio-field">
+                          <label>Lý do (bắt buộc, tối thiểu 20 ký tự — ghi vào nhật ký kiểm toán)</label>
+                          <input className="studio-input" value={impReason} onChange={(e) => setImpReason(e.target.value)}
+                            placeholder="vd: Hỗ trợ điều tra sự cố người dùng báo cáo qua kênh hỗ trợ" />
+                        </div>
+                        <div className="row" style={{ gap: 8 }}>
+                          <button className="btn accent sm" disabled={busy || impReason.trim().length < 20}
+                            onClick={() => void doImpersonate()}>
+                            <Eye size={13} /> Xác nhận đóng vai
+                          </button>
+                          <button className="btn ghost sm" onClick={() => { setShowImpersonate(false); setImpReason(""); }}>
+                            Huỷ
+                          </button>
+                        </div>
+                        {impReason.trim().length > 0 && impReason.trim().length < 20 && (
+                          <div style={{ fontSize: 11, color: "var(--nhg-danger)", marginTop: 4 }}>
+                            Còn thiếu {20 - impReason.trim().length} ký tự
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </Card>
+                </>
+              )}
             </>
           )}
         </div>

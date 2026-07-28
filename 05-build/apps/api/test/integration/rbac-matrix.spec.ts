@@ -59,6 +59,7 @@ const EXPECTED: Record<string, string[]> = {
     'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read', 'evidence:read',
     'checkin:read', 'review:read', 'config:read', 'taskcell:read', 'flag:read',
     'task:feedback',
+    'user:impersonate',
   ],
   org_admin: [
     'tenant:read', 'org:read', 'person:read', 'person:write',
@@ -237,7 +238,7 @@ describe('[Trục B L0] Ma trận role→permission — J2 không god-account', 
     // đều có, kể cả auditor. Coi chúng là "quyền ghi" thì bất biến này vô nghĩa.
     const isWrite = (p: string) =>
       !p.includes('.self:')
-      && (/:(write|approve|publish|verify|export|assign|revoke|invite|deactivate|curate|import|reopen|run|bind|connect|delegate|propose|submit|design|update|archive)$/.test(p)
+      && (/:(write|approve|publish|verify|export|assign|revoke|invite|deactivate|curate|import|reopen|run|bind|connect|delegate|propose|submit|design|update|archive|impersonate)$/.test(p)
         || p === 'library:import:canonical');
     const violations: string[] = [];
     for (const [role, ps] of Object.entries(actual)) {

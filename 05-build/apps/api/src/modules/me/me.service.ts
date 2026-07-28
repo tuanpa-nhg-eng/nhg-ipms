@@ -1,6 +1,7 @@
 import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
 import type { RequestUser } from '../../common/auth/decorators';
+import { ImpersonationService } from '../admin/impersonation.service';
 
 /**
  * [Trục B L1] "Quyền của tôi" + tuỳ chọn cá nhân + thông báo — mọi role, luôn CHÍNH MÌNH.
@@ -20,7 +21,7 @@ const CHANNELS = ['in_app', 'email'] as const;
 
 @Injectable()
 export class MeService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private impersonation: ImpersonationService) {}
 
   async access(user: RequestUser) {
     return this.prisma.withTenant(user.tenantId, async (tx) => {
@@ -35,13 +36,20 @@ export class MeService {
         : [];
       const granterEmail = new Map(granters.map((g) => [g.id, g.email]));
 
-      // [J13 — chốt bổ sung 28/07, chuẩn bị sẵn cho L4 impersonation] Ai đã đóng vai tôi.
-      // Bảng impersonation_session CHƯA tồn tại (dựng ở L4) — trả mảng rỗng có chủ đích,
-      // không phải quên: khi L4 thêm bảng, chỉ cần đổi truy vấn ở đây, contract giữ nguyên.
-      const impersonatedBy: Array<{ actorEmail: string; startedAt: Date; reason: string }> = [];
+      // [J13 — L4 TRẢ NỢ chỗ để trống ở L1] Ai đã đóng vai tôi — minh bạch hai chiều.
+      // Dùng biến thể nhận `tx` trực tiếp — tránh mở transaction lồng (cùng bài học đã tự
+      // bắt ở `updateNotifications()`: ở đây không sai logic vì chỉ đọc, nhưng vẫn tốn một
+      // round-trip DB vô ích cho MỌI lượt gọi /me/access nếu mở transaction mới).
+      const impersonatedBy = await this.impersonation.impersonatedByMeTx(tx, user.claims.sub);
 
       return {
-        permissions: [...new Set(roles.flatMap((r) => r.role.rolePermissions.map((rp) => rp.permission.code)))].sort(),
+        // [Tự bắt — J4/J11] Bản đầu tính lại `permissions` TỪ ĐẦU bằng roles.flatMap(...) —
+        // trong một phiên đóng vai, con số đó là bộ quyền THẬT của target (chưa lọc), khác
+        // với những gì PermissionGuard THỰC SỰ cho qua ở mọi endpoint khác. FE dựa vào field
+        // này để ẩn/hiện nút sẽ hiện nút rồi ăn 403 — đúng cái J4 cấm. `user.permissions` đã
+        // là bộ hiệu lực do chính guard tính (giao với whitelist khi đang đóng vai) — dùng
+        // lại, không tính riêng một nguồn thứ hai có thể lệch.
+        permissions: [...user.permissions].sort(),
         roles: roles.map((r) => ({
           roleCode: r.role.code,
           scopeType: r.scopeType,

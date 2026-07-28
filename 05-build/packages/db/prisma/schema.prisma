@@ -1786,3 +1786,23 @@ model AuthoringGrant {
   @@index([tenantId, granteeId, status])
   @@map("authoring_grant")
 }
+
+// [Trục B L4] Impersonation CHỈ ĐỌC có kiểm soát — bảng ghi PHIÊN (bằng chứng), KHÔNG phải
+// cơ chế enforce (enforce ở PermissionGuard J11: whitelist quyền đọc khi claim JWT có `act`).
+// "Chỉ cập nhật đúng MỘT đường: kết thúc phiên" — trigger DB chặn mọi mutation khác.
+model ImpersonationSession {
+  id           String    @id @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  actorUserId  String    @map("actor_user_id") @db.Uuid
+  targetUserId String    @map("target_user_id") @db.Uuid
+  reason       String                                  // ≥20 ký tự — CHECK ở DB, không chỉ validator
+  startedAt    DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(6) // TTL cứng — JWT cũng exp cùng lúc
+  endedAt      DateTime? @map("ended_at") @db.Timestamptz(6)
+  endedReason  String?   @map("ended_reason") // manual|expired|target_disabled
+  tokenJti     String    @unique @map("token_jti")
+
+  @@index([tenantId, actorUserId])
+  @@index([tenantId, targetUserId])
+  @@map("impersonation_session")
+}
