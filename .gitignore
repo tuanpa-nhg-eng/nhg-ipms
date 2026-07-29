@@ -24,3 +24,18 @@ Thumbs.db
 STATUS.md
 /README.md
 memory/
+09-so-tay-nguoi-dung/
+10-trai-nghiem-nen-tang/
+11-khao-sat-yeu-cau/
+/AI-Native-PRD-Template.md.docx
+/PRD-Prompt-System.md.docx
+
+# ===== Nguồn dữ liệu thô & kho lưu — nặng, không thuộc mã nguồn =====
+06-tu-dien-tac-vu/Archive/
+06-tu-dien-tac-vu/Archive.zip
+gg-io-nhg/
+
+# ===== Hồ sơ khách hàng THẬT — mật, không bao giờ vào git =====
+# 12-khach-hang/00-tai-san-ban-hang/ (bản trắng + bản mẫu hư cấu) ĐƯỢC theo dõi.
+# Mọi thư mục theo năm chứa hồ sơ khách hàng thật thì KHÔNG.
+12-khach-hang/[0-9][0-9][0-9][0-9]/
