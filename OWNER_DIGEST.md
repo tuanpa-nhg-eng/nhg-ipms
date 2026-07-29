@@ -557,3 +557,21 @@ Nhân viên **chuyển phòng** (đổi `person.orgUnitId` qua `PATCH /admin/use
 ② **API dev server không watch — dễ kiểm nhầm trên mã cũ.** Probe `GET /admin/tenant-config` trên server :4000 đang chạy trả về **không có** trường `version` ⇒ server đó khởi động từ trước khi vá. Bất kỳ kiểm chứng "live" nào cũng phải kill PID :4000 và start lại trước, nếu không là đo mã cũ mà tưởng đã đo mã mới.
 
 **Trục B ĐÓNG.** Việc kế tiếp: **trục C — "Lớp bảo vệ niềm tin"**, kế hoạch tại `02-dac-ta/NHG_iPMS_Ke_Hoach_Truc_C_Lop_Bao_Ve_Niem_Tin.md` (đã duyệt 29/07; vé Reviewer đánh số tiếp từ **F191**).
+
+### Trả nợ ghi chú ① — driver sống đã vào repo · commit `0ad26c9`
+
+`05-build/scripts/verify/verify-admin.mjs` — **29 check, chạy 3 vòng liên tiếp đều 29/29**, đánh API thật + DB thật. Phủ J1·J2·J3·J8·J9·J11·J12·J13 + toàn bộ vé F184/F185/F187/F189, mỗi nhóm siết quyền đều có **ca đối chứng** chứng minh không chặn oan. Driver tự dọn và đăng ký bước hoàn nguyên **trước** khi thao tác.
+
+> Bản đầu của driver đăng ký hoàn nguyên **sau** thao tác; gặp mã trả `201` không lường trước thì return sớm và **để `emp1` bị khoá vĩnh viễn** — phải sửa tay. Đây chính là lý do thứ tự đăng ký phải đảo lại, ghi ra để không lặp ở trục C.
+
+### ❓ PHÁT HIỆN THIẾT KẾ CẦN CHỦ DỰ ÁN QUYẾT — impersonation gần như không dùng được
+
+Driver đo được một hệ quả không ai chủ ý tạo ra: **J12** (không đóng vai người giữ quyền mình không có) cộng với **L0** (hạ hết quyền nghiệp vụ của `tenant_admin`) khiến `admin@` chỉ còn đóng vai được **tài khoản không có quyền nào**. Mọi persona seed — `emp1`, `mgr`, `hr`, `exec`, `auditor`, `dept`, `designer`… — đều bị từ chối, vì ai cũng giữ ít nhất một quyền mà `tenant_admin` không có.
+
+Nói cách khác: tính năng đóng vai đã build ở L4 **hiện không dùng được cho mục đích nó sinh ra** (hỗ trợ kỹ thuật xem màn hình của người dùng đang gặp sự cố). Ba hướng, cần chọn một:
+
+1. **Giữ nguyên** — coi đóng vai chỉ dành cho tình huống hẹp; chấp nhận nó gần như không dùng tới. Rẻ nhất, nhưng L4 thành công sức bỏ phí.
+2. **Vai hỗ trợ riêng** — tạo vai `support` giữ đúng tập quyền ĐỌC của các persona (không có quyền ghi nào), đóng vai được rộng hơn mà không leo thang. Hợp với hướng trục C.
+3. **Nới J12 cho phiên chỉ-đọc** — vì phiên đóng vai đã bị whitelist chặn ghi rồi, điều kiện "quyền ⊆ của mình" có thể nới thành "chỉ áp cho quyền ghi". Mạnh nhất nhưng động vào bất biến, phải qua Reviewer.
+
+Khuyến nghị **hướng 2** — không phá bất biến nào, và nằm đúng phạm vi trục C (lớp quản trị & kiểm soát).
