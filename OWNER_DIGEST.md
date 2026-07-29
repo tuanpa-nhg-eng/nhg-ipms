@@ -575,3 +575,5 @@ Nói cách khác: tính năng đóng vai đã build ở L4 **hiện không dùng
 3. **Nới J12 cho phiên chỉ-đọc** — vì phiên đóng vai đã bị whitelist chặn ghi rồi, điều kiện "quyền ⊆ của mình" có thể nới thành "chỉ áp cho quyền ghi". Mạnh nhất nhưng động vào bất biến, phải qua Reviewer.
 
 Khuyến nghị **hướng 2** — không phá bất biến nào, và nằm đúng phạm vi trục C (lớp quản trị & kiểm soát).
+
+> ✅ **CHỦ DỰ ÁN CHỐT 29/07/2026: hướng 2.** Đã đưa vào kế hoạch trục C thành **lát 2b — vai `support` chỉ-đọc**, kèm bất biến mới **K11** (`support` không giữ bất kỳ quyền ghi nào, kiểm bằng ca đối chứng quét toàn bộ endpoint mutation) và không giữ `audit:read` (giữ J3). Cổng ra: `support@` đóng vai được `emp1`/`mgr`/`hr`/`exec` với đọc 200 · mọi ghi 403 · `audit-logs` 403.
