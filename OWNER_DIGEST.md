@@ -530,3 +530,30 @@ Nhân viên **chuyển phòng** (đổi `person.orgUnitId` qua `PATCH /admin/use
 **Đã gửi Reviewer đối kháng** (fresh-context, worktree cô lập, vé từ F184) — review toàn bộ 6 commit `ab2d215..HEAD`, trọng tâm theo đúng gợi ý của kế hoạch gốc: leo thang quyền qua API gán vai · rò PII `/admin/users` · whitelist `tenant.settings`/`preferences` · token sống sau khoá/thoát phiên · mồ côi scope khi đổi cha org unit · nav gating có bỏ sót màn nào · **ca đối chứng bắt buộc** cho việc hạ quyền tenant_admin (chứng minh không chặn oan) · đường vòng có thể né `PermissionGuard` trong phiên đóng vai (J11).
 
 **Chờ verdict trước khi chốt sổ toàn trục.**
+
+---
+
+## Trục B — **VERDICT ĐÃ VỀ + CHỐT SỔ TOÀN TRỤC** · 29/07/2026
+
+> Commit `4e5d4dc` — `fix(truc-b): áp verdict Reviewer đối kháng — F184–F190`.
+
+**Verdict Reviewer đối kháng: `PASS-WITH-FIXES`, 0 BLOCKER, 7 vé F184–F190 (4 MAJOR) — đã vá đủ.**
+
+**Bốn vé MAJOR đều là lỗ thật, không phải bắt bẻ hình thức:**
+
+- **F184 — dựng lại god-account bằng đường vòng.** Ngoại lệ "vai sàn" trong `doAssign` không ép `scopeType='self'`. Hệ quả: `tenant_admin` — sau L0 đã không còn giữ **một** quyền ghi nghiệp vụ nào — vẫn gán được vai `employee` **scope=tenant** cho một tài khoản bất kỳ, và `assertScope` cho qua ngay khi thấy scope tenant mà **không xét chủ sở hữu tài nguyên** ⇒ tài khoản đó ghi được `goal/checkin/review/evidence` của **toàn tenant**. Đúng thứ mà cả trục B tồn tại để đập. Vá: `isBaseRole` đòi thêm `scopeType === 'self'`; `GET /admin/roles` trả cờ `selfOnly`; FE khoá cứng select scope (J4 — không hiện lựa chọn mà API sẽ từ chối).
+- **F185 — prototype pollution ở whitelist cấu hình.** `KEY_WHITELIST[key]` trên object literal đọc cả thuộc tính **kế thừa**: `key='constructor'` → trả hàm `Object`, truthy **và gọi được** ⇒ qua cả hai lớp kiểm, ghi thẳng vào `tenant.settings` dù không có trong whitelist; `key='__proto__'` → trả `Object.prototype`, truthy nhưng không gọi được ⇒ TypeError chưa bắt ⇒ **500**. Vá: đổi sang `Map` (không có chuỗi kế thừa để đọc nhầm), bỏ DTO class cho `patch`, tự kiểm shape trước `Object.entries`.
+- **F187 — lách J3 qua đóng vai.** `IMPERSONATION_READ_WHITELIST` dựng trên giả định ngầm *"mọi quyền đuôi `:read` đều an toàn để lộ qua kênh đóng vai"*. Sai: `audit:read` cũng đuôi `:read`, nên `tenant_admin` đóng vai `auditor@` đọc được vết kiểm toán — đúng cái J3 cấm. Vá: whitelist thành **tập con nghiêm ngặt** của tập `:read`, trừ ngoại lệ tường minh; test đổi từ "khớp tuyệt đối" sang "khớp trừ ngoại lệ" + ca đóng đinh `not.toContain('audit:read')`.
+- **F188 — audit ghi nhầm người.** `policy.denied` ghi `actorUserId = claims.sub` (target đang bị đóng vai) thay vì `claims.act` (người thật) — xoá dấu vết actor thật đúng lúc actor thật đang bị Cedar từ chối. Vá theo đúng bất biến J13 mà `audit.interceptor.ts` đã áp cho mọi audit log khác.
+
+**F189** (optimistic lock cho admin mutations: tenant-config PATCH, user disable/enable, org archive, `/me` preferences — GET trả kèm `version`) · **F190 MINOR** (phòng thủ theo chiều sâu ở nhánh kiểm quyền `tenant_admin`).
+
+**VERIFY sau khi vá:** **606/606 runInBand** (50 suite — baseline 596, các vé thêm 10 test) · typecheck `shared`+`db`+`api`+`web` sạch · `next build` PASS · FE khớp hợp đồng mới (`version` trong `api.ts`, `selfOnly` khoá select scope ở `/admin/users`).
+
+**⚠️ HAI GHI CHÚ QUY TRÌNH — quan trọng hơn bản thân các vé:**
+
+① **Driver sống KHÔNG nằm trong repo.** `find . -name "verify-*.mjs"` ra **rỗng**. Toàn bộ driver của trục A (120/120) và trục B (29/29) được viết trong scratchpad của phiên và **mất cùng phiên đó**. Nghĩa là những con số kiểm chứng mạnh nhất trong STATUS **không tái lập được**. Từ trục C trở đi: driver phải nằm ở `05-build/scripts/verify/` và được commit như mã nguồn.
+
+② **API dev server không watch — dễ kiểm nhầm trên mã cũ.** Probe `GET /admin/tenant-config` trên server :4000 đang chạy trả về **không có** trường `version` ⇒ server đó khởi động từ trước khi vá. Bất kỳ kiểm chứng "live" nào cũng phải kill PID :4000 và start lại trước, nếu không là đo mã cũ mà tưởng đã đo mã mới.
+
+**Trục B ĐÓNG.** Việc kế tiếp: **trục C — "Lớp bảo vệ niềm tin"**, kế hoạch tại `02-dac-ta/NHG_iPMS_Ke_Hoach_Truc_C_Lop_Bao_Ve_Niem_Tin.md` (đã duyệt 29/07; vé Reviewer đánh số tiếp từ **F191**).
