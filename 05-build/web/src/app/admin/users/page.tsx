@@ -58,6 +58,12 @@ export default function AdminUsersPage() {
   const [grantRoleCode, setGrantRoleCode] = useState("");
   const [grantScopeType, setGrantScopeType] = useState<"tenant" | "org_unit" | "self">("self");
   const [grantScopeId, setGrantScopeId] = useState("");
+  // [F184] Vai SÀN (selfOnly) chỉ được BE chấp nhận với scopeType='self' — ép lại NGAY khi
+  // đổi lựa chọn vai, hiệu ứng phụ đặt trong effect (không setState trong lúc render).
+  useEffect(() => {
+    const role = roleOptions.find((r) => r.code === grantRoleCode);
+    if (role?.selfOnly) setGrantScopeType("self");
+  }, [grantRoleCode, roleOptions]);
 
   // form tạo mới — "1 bước" theo kế hoạch: hồ sơ + phòng + quản lý + vai trò khởi tạo.
   // Vai trò khởi tạo là LỆNH THỨ HAI dưới mui xe (POST /admin/users/:id/roles ngay sau
@@ -191,21 +197,23 @@ export default function AdminUsersPage() {
   const doDisable = () => {
     if (!selected?.appUserId) return;
     const appUserId = selected.appUserId;
+    const version = selected.appUserVersion;
     if (!disableArmed) { setDisableArmed(true); return; }
     void act(async () => {
-      await call(`/admin/users/${appUserId}/disable`, { method: "POST" });
+      await call(`/admin/users/${appUserId}/disable`, { method: "POST", json: { version } });
       setDisableArmed(false);
-      setSelected((p) => (p ? { ...p, status: "disabled" } : p));
-      await reloadUsers();
+      const entries = await reloadUsers();
+      setSelected(entries.find((u) => u.appUserId === appUserId) ?? null);
     }, "Đã khoá tài khoản");
   };
   const doEnable = () => {
     if (!selected?.appUserId) return;
     const appUserId = selected.appUserId;
+    const version = selected.appUserVersion;
     void act(async () => {
-      await call(`/admin/users/${appUserId}/enable`, { method: "POST" });
-      setSelected((p) => (p ? { ...p, status: "active" } : p));
-      await reloadUsers();
+      await call(`/admin/users/${appUserId}/enable`, { method: "POST", json: { version } });
+      const entries = await reloadUsers();
+      setSelected(entries.find((u) => u.appUserId === appUserId) ?? null);
     }, "Đã mở khoá tài khoản");
   };
 
@@ -497,46 +505,55 @@ export default function AdminUsersPage() {
                   </tbody>
                 </table>
 
-                {can("role:assign") && !isSelf(selected) && (
-                  <div className="dept-reopen" style={{ marginTop: 12 }}>
-                    <div className="dept-reopen-head"><ShieldPlus size={14} /> Gán vai mới</div>
-                    <div className="studio-field">
-                      {/* [J4] CHỈ liệt kê role mà GET /admin/roles trả về — không tự đoán */}
-                      <label>Vai (chỉ hiện vai bạn ĐƯỢC PHÉP cấp)</label>
-                      <select className="studio-select" value={grantRoleCode} onChange={(e) => setGrantRoleCode(e.target.value)}>
-                        <option value="">— chọn vai —</option>
-                        {roleOptions.map((r) => <option key={r.code} value={r.code}>{r.nameVi ?? r.code}</option>)}
-                      </select>
-                    </div>
-                    <div className="studio-field">
-                      <label>Phạm vi</label>
-                      <select className="studio-select" value={grantScopeType}
-                        onChange={(e) => setGrantScopeType(e.target.value as typeof grantScopeType)}>
-                        <option value="self">Chính người nhận</option>
-                        <option value="org_unit">Một phòng</option>
-                        {hasTenantScope && <option value="tenant">Toàn tenant</option>}
-                      </select>
-                    </div>
-                    {grantScopeType === "org_unit" && (
+                {can("role:assign") && !isSelf(selected) && (() => {
+                  // [F184 — Reviewer đối kháng] Vai SÀN (BASE_ROLE_ALLOWLIST, vd `employee`)
+                  // CHỈ được BE chấp nhận với scopeType='self' — trước bản vá, giữ scope
+                  // 'tenant' cho một vai sàn dựng lại được god-account (ai giữ vai sàn scope
+                  // tenant thì ghi được dữ liệu của MỌI người). Khoá cứng ở đây, không chỉ dựa
+                  // vào 403 từ server (J4: không hiện lựa chọn sẽ bị từ chối).
+                  const selectedRole = roleOptions.find((r) => r.code === grantRoleCode);
+                  const selfOnly = !!selectedRole?.selfOnly;
+                  return (
+                    <div className="dept-reopen" style={{ marginTop: 12 }}>
+                      <div className="dept-reopen-head"><ShieldPlus size={14} /> Gán vai mới</div>
                       <div className="studio-field">
-                        <label>Phòng</label>
-                        <select className="studio-select" value={grantScopeId} onChange={(e) => setGrantScopeId(e.target.value)}>
-                          <option value="">— chọn phòng —</option>
-                          {scopeOrgOptions.map((u) => <option key={u.id} value={u.id}>{u.nameVi} ({u.code})</option>)}
+                        {/* [J4] CHỈ liệt kê role mà GET /admin/roles trả về — không tự đoán */}
+                        <label>Vai (chỉ hiện vai bạn ĐƯỢC PHÉP cấp)</label>
+                        <select className="studio-select" value={grantRoleCode} onChange={(e) => setGrantRoleCode(e.target.value)}>
+                          <option value="">— chọn vai —</option>
+                          {roleOptions.map((r) => <option key={r.code} value={r.code}>{r.nameVi ?? r.code}{r.selfOnly ? " (chỉ scope Chính người nhận)" : ""}</option>)}
                         </select>
                       </div>
-                    )}
-                    <button className="btn primary sm" disabled={busy || !grantRoleCode || (grantScopeType === "org_unit" && !grantScopeId)}
-                      onClick={() => void doGrant()}>
-                      <ShieldPlus size={13} /> Gán vai
-                    </button>
-                    {roleOptions.length === 0 && (
-                      <div style={{ fontSize: 11.5, color: "var(--nhg-text-secondary)", marginTop: 6 }}>
-                        Bạn không giữ đủ quyền của bất kỳ vai nào ngoài chính vai của mình — không cấp được vai cho người khác.
+                      <div className="studio-field">
+                        <label>Phạm vi</label>
+                        <select className="studio-select" value={grantScopeType} disabled={selfOnly}
+                          onChange={(e) => setGrantScopeType(e.target.value as typeof grantScopeType)}>
+                          <option value="self">Chính người nhận</option>
+                          {!selfOnly && <option value="org_unit">Một phòng</option>}
+                          {!selfOnly && hasTenantScope && <option value="tenant">Toàn tenant</option>}
+                        </select>
                       </div>
-                    )}
-                  </div>
-                )}
+                      {grantScopeType === "org_unit" && (
+                        <div className="studio-field">
+                          <label>Phòng</label>
+                          <select className="studio-select" value={grantScopeId} onChange={(e) => setGrantScopeId(e.target.value)}>
+                            <option value="">— chọn phòng —</option>
+                            {scopeOrgOptions.map((u) => <option key={u.id} value={u.id}>{u.nameVi} ({u.code})</option>)}
+                          </select>
+                        </div>
+                      )}
+                      <button className="btn primary sm" disabled={busy || !grantRoleCode || (grantScopeType === "org_unit" && !grantScopeId)}
+                        onClick={() => void doGrant()}>
+                        <ShieldPlus size={13} /> Gán vai
+                      </button>
+                      {roleOptions.length === 0 && (
+                        <div style={{ fontSize: 11.5, color: "var(--nhg-text-secondary)", marginTop: 6 }}>
+                          Bạn không giữ đủ quyền của bất kỳ vai nào ngoài chính vai của mình — không cấp được vai cho người khác.
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
                 {isSelf(selected) && (
                   <div style={{ fontSize: 11.5, color: "var(--nhg-text-secondary)", marginTop: 10 }}>
                     Không tự gán/thu hồi vai cho chính mình.

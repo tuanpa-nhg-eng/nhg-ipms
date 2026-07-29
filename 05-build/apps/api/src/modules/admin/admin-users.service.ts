@@ -86,7 +86,11 @@ export class AdminUsersService {
           // trường này thì FE không patch được gì ngoài cách gọi GET riêng lấy version
           // trước mỗi lần sửa (round-trip thừa, và vẫn hở TOCTOU giữa 2 lần gọi).
           version: true,
-          appUsers: { where: { deletedAt: null }, select: { id: true, status: true, email: true } },
+          // [F189 — Reviewer đối kháng] `version` ở trên là của PERSON (dùng cho PATCH
+          // fullName/org/manager/position) — KHÁC cột với appUser.version (dùng cho
+          // disable/enable). Thiếu field riêng này thì setStatus() không có gì để khoá
+          // optimistic, không phát hiện được race "hai admin cùng bấm khoá/mở một người".
+          appUsers: { where: { deletedAt: null }, select: { id: true, status: true, email: true, version: true } },
         },
         orderBy: { employeeCode: 'asc' },
         take: LIST_CAP + 1,
@@ -123,6 +127,7 @@ export class AdminUsersService {
           positionId: p.positionId,
           status: p.appUsers[0]?.status ?? p.status,
           version: p.version,
+          appUserVersion: p.appUsers[0]?.version ?? null,
           // [J5][Q4] chỉ scope TENANT thấy — org_admin không thấy dù cùng response shape
           ...(canSeeSensitive ? { hireDate: p.hireDate, seniorityMonths: p.seniorityMonths } : {}),
         })),
@@ -148,6 +153,12 @@ export class AdminUsersService {
         const org = await tx.orgUnit.findFirst({ where: { id: input.orgUnitId, deletedAt: null } });
         if (!org) throw new UnprocessableEntityException('org_unit không tồn tại');
       }
+      // [F190 — Reviewer đối kháng, MINOR] Phòng thủ theo chiều sâu — hiện chỉ tenant_admin
+      // giữ user:write nên create() thực tế luôn ở scope='tenant' (assertInScope no-op), NHƯNG
+      // update()/setStatus() ĐỀU đã tự kiểm scope orgUnitId (xem trên) — create() bỏ sót là
+      // KHÔNG NHẤT QUÁN với chính khuôn của mình, và sẽ thành lỗ thật ngay khi permission
+      // model đổi (vd giao user:write hẹp hơn cho org_admin trong tương lai).
+      this.assertInScope(user, input.orgUnitId ?? null);
       if (input.managerId) {
         const mgr = await tx.person.findFirst({ where: { id: input.managerId, deletedAt: null } });
         if (!mgr) throw new UnprocessableEntityException('managerId không tồn tại');
@@ -263,7 +274,7 @@ export class AdminUsersService {
       // list(), whitelist đúng khuôn J5.
       const fresh = await tx.person.findFirst({ where: { id: person.id } });
       const freshAppUser = await tx.appUser.findFirst({
-        where: { personId: person.id, deletedAt: null }, select: { id: true, status: true, email: true },
+        where: { personId: person.id, deletedAt: null }, select: { id: true, status: true, email: true, version: true },
       });
       const canSeeSensitive = effectiveScope(user).mode === 'tenant';
       return {
@@ -277,24 +288,25 @@ export class AdminUsersService {
         positionId: fresh!.positionId,
         status: freshAppUser?.status ?? fresh!.status,
         version: fresh!.version,
+        appUserVersion: freshAppUser?.version ?? null,
         ...(canSeeSensitive ? { hireDate: fresh!.hireDate, seniorityMonths: fresh!.seniorityMonths } : {}),
       };
     });
   }
 
   /** [J8] Khoá tài khoản — hiệu lực NGAY qua PermissionGuard (đọc status mỗi request). */
-  async disable(user: RequestUser, appUserId: string, ip?: string) {
+  async disable(user: RequestUser, appUserId: string, version: number, ip?: string) {
     if (appUserId === user.claims.sub) {
       throw new ConflictException('Không tự khoá chính mình — sẽ không ai mở lại được');
     }
-    return this.setStatus(user, appUserId, 'disabled', ip);
+    return this.setStatus(user, appUserId, 'disabled', version, ip);
   }
 
-  enable(user: RequestUser, appUserId: string, ip?: string) {
-    return this.setStatus(user, appUserId, 'active', ip);
+  enable(user: RequestUser, appUserId: string, version: number, ip?: string) {
+    return this.setStatus(user, appUserId, 'active', version, ip);
   }
 
-  private setStatus(user: RequestUser, appUserId: string, status: 'active' | 'disabled', ip?: string) {
+  private setStatus(user: RequestUser, appUserId: string, status: 'active' | 'disabled', version: number, ip?: string) {
     return this.prisma.withTenant(user.tenantId, async (tx) => {
       const target = await tx.appUser.findFirst({ where: { id: appUserId, deletedAt: null } });
       if (!target) throw new NotFoundException('Người dùng không tồn tại');
@@ -302,10 +314,16 @@ export class AdminUsersService {
         const person = await tx.person.findFirst({ where: { id: target.personId } });
         this.assertInScope(user, person?.orgUnitId ?? null);
       }
-      const updated = await tx.appUser.update({
-        where: { id: appUserId },
+      // [F189 — Reviewer đối kháng, MINOR] Trước đây `update` KHÔNG NHẬN version — hai admin
+      // cùng lúc bấm khoá/mở một người (hoặc "khoá" đua với "gia hạn quyền") ghi đè lặng lẽ
+      // lên nhau, mất bản ghi trung gian mà không ai biết. Cùng khuôn optimistic lock J7 mà
+      // Person.update() đã dùng: updateMany điều kiện version + đếm số dòng đổi được.
+      const count = await tx.appUser.updateMany({
+        where: { id: appUserId, version },
         data: { status, updatedBy: user.claims.sub, version: { increment: 1 } },
       });
+      if (count.count !== 1) throw new ConflictException('Version lệch — tải lại và thử lại');
+      const updated = await tx.appUser.findFirstOrThrow({ where: { id: appUserId } });
       await tx.auditLog.create({
         data: {
           tenantId: user.tenantId, actorUserId: user.claims.sub,

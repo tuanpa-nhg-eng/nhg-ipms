@@ -46,6 +46,10 @@ const EXPECTED: Record<string, string[]> = {
     'evidence:read', 'evidence:write', 'evidence:verify', 'integration:run',
     'checkin:read', 'checkin:review', 'review:read', 'review:write', 'review:manage',
     'calibration:run', 'payroll:export',
+    // [F186 — Reviewer đối kháng] `/hr/policy` gọi GET /policies (đòi config:read) — hrbp
+    // trước đây thiếu, bấm vào ăn 403. Thêm ĐỌC, không kèm config:write/config:publish
+    // (SoD designer/approver giữ nguyên) — cùng lý do tenant_admin đã có config:read.
+    'config:read',
   ],
   // [J2] Đây là hàng quan trọng nhất của cả trục B: tenant_admin quản trị NGƯỜI + CƠ CẤU
   // + CẤU HÌNH ĐƠN VỊ, cộng quyền ĐỌC. Không một quyền ghi nghiệp vụ nào.

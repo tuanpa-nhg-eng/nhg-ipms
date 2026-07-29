@@ -33,6 +33,12 @@ class UpdateUserDto {
   @IsInt() version!: number;
 }
 
+// [F189 — Reviewer đối kháng] disable/enable đòi version của app_user (khác cột Person.version
+// mà UpdateUserDto dùng) — xem admin-users.service.ts::setStatus().
+class SetStatusDto {
+  @IsInt() version!: number;
+}
+
 /**
  * [Trục B L1] Quản trị người dùng — permission user:read/write/invite/deactivate.
  * Mọi mutation audited + J7 optimistic lock + J5 whitelist select (xem service).
@@ -67,13 +73,13 @@ export class AdminUsersController {
 
   @Post(':id/disable')
   @RequirePermission('user:deactivate')
-  disable(@CurrentUser() user: RequestUser, @Param('id', ParseUUIDPipe) id: string) {
-    return this.svc.disable(user, id);
+  disable(@CurrentUser() user: RequestUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: SetStatusDto) {
+    return this.svc.disable(user, id, dto.version);
   }
 
   @Post(':id/enable')
   @RequirePermission('user:deactivate')
-  enable(@CurrentUser() user: RequestUser, @Param('id', ParseUUIDPipe) id: string) {
-    return this.svc.enable(user, id);
+  enable(@CurrentUser() user: RequestUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: SetStatusDto) {
+    return this.svc.enable(user, id, dto.version);
   }
 }

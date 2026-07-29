@@ -1,4 +1,4 @@
-import { Injectable, UnprocessableEntityException } from '@nestjs/common';
+import { ConflictException, Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
 import type { RequestUser } from '../../common/auth/decorators';
 import { ImpersonationService } from '../admin/impersonation.service';
@@ -8,11 +8,14 @@ import { ImpersonationService } from '../admin/impersonation.service';
  * Không endpoint nào ở đây nhận `?userId=` — đó là việc của `/admin/users/:id/effective-access`
  * (có gác riêng theo scope người GỌI, không phải người XEM).
  */
-const PREF_WHITELIST: Record<string, (v: unknown) => boolean> = {
-  locale: (v) => v === 'vi' || v === 'en',
-  theme: (v) => v === 'light' || v === 'dark' || v === 'system',
-  density: (v) => v === 'compact' || v === 'comfortable',
-};
+// [F185 — Reviewer đối kháng, MAJOR] Map thay vì object literal — xem giải thích đầy đủ tại
+// tenant-config.service.ts: bracket-access trên object literal đọc trúng thuộc tính kế thừa
+// từ Object.prototype (key='constructor' lọt whitelist, key='__proto__' ném 500 chưa bắt).
+const PREF_WHITELIST = new Map<string, (v: unknown) => boolean>([
+  ['locale', (v) => v === 'vi' || v === 'en'],
+  ['theme', (v) => v === 'light' || v === 'dark' || v === 'system'],
+  ['density', (v) => v === 'compact' || v === 'comfortable'],
+]);
 
 // [Trục B L1] Ma trận sự kiện × kênh mặc định — KHÔNG có row trong notification_setting
 // nghĩa là BẬT (mặc định an toàn cho người mới, không cần seed sẵn toàn ma trận).
@@ -65,16 +68,22 @@ export class MeService {
   async getSettings(user: RequestUser) {
     return this.prisma.withTenant(user.tenantId, async (tx) => {
       const appUser = await tx.appUser.findFirst({ where: { id: user.claims.sub } });
-      return (appUser?.preferences ?? {}) as Record<string, unknown>;
+      // [F189 — Reviewer đối kháng] `version` PHẢI có trong GET — PATCH đòi optimistic lock.
+      return { ...(appUser?.preferences ?? {}) as Record<string, unknown>, version: appUser?.version ?? 1 };
     });
   }
 
-  updateSettings(user: RequestUser, patch: Record<string, unknown>) {
+  updateSettings(user: RequestUser, patch: Record<string, unknown>, version: number) {
+    // [F185] `@IsObject()` không còn chạy qua ValidationPipe (bỏ DTO class — xem controller);
+    // tự kiểm ở đây trước khi Object.entries.
+    if (typeof patch !== 'object' || patch === null || Array.isArray(patch)) {
+      throw new UnprocessableEntityException('patch phải là object');
+    }
     for (const [key, value] of Object.entries(patch)) {
-      const validator = PREF_WHITELIST[key];
+      const validator = PREF_WHITELIST.get(key);
       if (!validator) {
         throw new UnprocessableEntityException(
-          `Key '${key}' không nằm trong whitelist: ${Object.keys(PREF_WHITELIST).join(', ')}`,
+          `Key '${key}' không nằm trong whitelist: ${[...PREF_WHITELIST.keys()].join(', ')}`,
         );
       }
       if (!validator(value)) throw new UnprocessableEntityException(`Key '${key}': giá trị không hợp lệ`);
@@ -83,11 +92,15 @@ export class MeService {
       const appUser = await tx.appUser.findFirst({ where: { id: user.claims.sub } });
       const before = (appUser?.preferences ?? {}) as Record<string, unknown>;
       const merged = { ...before, ...patch };
-      const updated = await tx.appUser.update({
-        where: { id: user.claims.sub },
+      // [F189 — Reviewer đối kháng, MINOR] Hai tab cùng sửa tuỳ chọn cá nhân (vd một tab đổi
+      // theme, tab kia đổi density) trước đây ghi đè lặng lẽ lên nhau — cùng khuôn J7.
+      const count = await tx.appUser.updateMany({
+        where: { id: user.claims.sub, version },
         data: { preferences: merged as any, version: { increment: 1 } },
       });
-      return updated.preferences as Record<string, unknown>;
+      if (count.count !== 1) throw new ConflictException('Version lệch — tải lại và thử lại');
+      const updated = await tx.appUser.findFirstOrThrow({ where: { id: user.claims.sub } });
+      return { ...(updated.preferences as Record<string, unknown>), version: updated.version };
     });
   }
 

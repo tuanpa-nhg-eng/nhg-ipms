@@ -32,17 +32,23 @@ describe('[Trục B L4 — J11] IMPERSONATION_READ_WHITELIST', () => {
   });
 
   /**
-   * [Bất biến cốt lõi] Hiện tại, TOÀN BỘ quyền an toàn-để-đọc trong catalog đều có hậu tố
-   * ":read" — và TOÀN BỘ quyền có hậu tố ":read" đều an toàn. Whitelist vì vậy PHẢI khớp
-   * chính xác tập này — không thừa (một quyền ":read" nào đó bị bỏ sót là completeness bug,
-   * ít nghiêm trọng nhưng làm impersonation vô dụng) và không thiếu (một quyền không phải
-   * ":read" lọt vào là lỗ bảo mật thật). Permission MỚI thêm vào catalog mà không theo quy
-   * ước ":read" (như `task:feedback`) mặc định KHÔNG lọt vào — đúng tinh thần "không liệt
-   * kê tường minh thì không có trong whitelist".
+   * [F187 — Reviewer đối kháng, MAJOR — sửa bất biến cũ] Bản đầu đòi khớp CHÍNH XÁC toàn bộ
+   * quyền hậu tố ":read" của catalog — ngầm giả định "mọi :read đều an toàn để lộ qua kênh
+   * đóng vai". Sai: `audit:read` có hậu tố ":read" nhưng KHÔNG được lọt whitelist — J3 cấm
+   * tenant_admin đọc audit (kể cả gián tiếp qua đóng vai auditor@). Whitelist giờ PHẢI là
+   * tập con NGHIÊM NGẶT của "mọi :read" — đúng bằng phần còn lại sau khi trừ đi các ngoại lệ
+   * tường minh (hiện chỉ có `audit:read`), không khớp tuyệt đối.
    */
-  it('khớp CHÍNH XÁC tập quyền hậu tố ":read" của catalog — không thừa, không thiếu', () => {
-    const allReadPerms = (PERMISSIONS as readonly string[]).filter((p) => p.endsWith(':read')).sort();
-    expect([...IMPERSONATION_READ_WHITELIST].sort()).toEqual(allReadPerms);
+  const READ_EXCLUDED_FROM_IMPERSONATION = ['audit:read'] as const;
+
+  it('[F187] "audit:read" KHÔNG nằm trong whitelist — J3 không lách được qua đóng vai', () => {
+    expect(IMPERSONATION_READ_WHITELIST as readonly string[]).not.toContain('audit:read');
+  });
+
+  it('khớp CHÍNH XÁC tập quyền hậu tố ":read" của catalog TRỪ các ngoại lệ tường minh — không thừa, không thiếu', () => {
+    const allReadPerms = (PERMISSIONS as readonly string[]).filter((p) => p.endsWith(':read'));
+    const expected = allReadPerms.filter((p) => !(READ_EXCLUDED_FROM_IMPERSONATION as readonly string[]).includes(p)).sort();
+    expect([...IMPERSONATION_READ_WHITELIST].sort()).toEqual(expected);
   });
 
   it('không rỗng (bằng chứng chống "assert chạy 0 lần" — bài học trục A)', () => {

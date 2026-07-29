@@ -75,20 +75,22 @@ export default function SettingsPage() {
     })();
   }, [call]);
 
+  // [F189 — Reviewer đối kháng] Khoá optimistic — version đọc từ `prefs` gần nhất (mỗi PATCH
+  // trả về version mới, setPrefs cập nhật lại — click kế tiếp đọc đúng version hiện hành).
   const saveLocale = (v: "vi" | "en") => {
     setLang(v);
-    void call("/me/settings", { method: "PATCH", json: { patch: { locale: v } } })
+    void call("/me/settings", { method: "PATCH", json: { patch: { locale: v }, version: prefs.version } })
       .then((r: any) => setPrefs(r)).catch(fail);
   };
   const saveTheme = (v: "light" | "dark") => {
     setTheme(v);
-    void call("/me/settings", { method: "PATCH", json: { patch: { theme: v } } })
+    void call("/me/settings", { method: "PATCH", json: { patch: { theme: v }, version: prefs.version } })
       .then((r: any) => setPrefs(r)).catch(fail);
   };
   const saveDensity = (v: Density) => {
     setDensityState(v);
     applyDensity(v);
-    void call("/me/settings", { method: "PATCH", json: { patch: { density: v } } })
+    void call("/me/settings", { method: "PATCH", json: { patch: { density: v }, version: prefs.version } })
       .then((r: any) => setPrefs(r)).catch(fail);
   };
 

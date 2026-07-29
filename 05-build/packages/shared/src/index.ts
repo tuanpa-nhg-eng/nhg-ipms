@@ -76,8 +76,13 @@ export type ScopeType = 'tenant' | 'org_unit' | 'self';
  * khớp pattern cũ — đã là bài học từ chính rbac-matrix.spec.ts của trục này).
  * Test đóng đinh: `impersonation-whitelist.spec.ts`.
  */
+// [F187 — Reviewer đối kháng, MAJOR] KHÔNG có 'audit:read' ở đây dù nó kết thúc bằng ':read'.
+// J3 cấm tenant_admin đọc vết kiểm toán CỦA CHÍNH MÌNH — nếu whitelist này giữ audit:read,
+// tenant_admin đóng vai auditor@ (người CÓ audit:read) sẽ lách được đúng cái cấm đó qua
+// impersonation, biến J11 (đọc-thôi khi đóng vai) thành đường vòng phá J3. Whitelist đọc-thôi
+// không có nghĩa "mọi quyền :read" — vẫn phải xét TỪNG quyền có nên lộ qua kênh này không.
 export const IMPERSONATION_READ_WHITELIST: readonly PermissionCode[] = [
-  'tenant:read', 'audit:read', 'org:read', 'person:read', 'user:read', 'role:read',
+  'tenant:read', 'org:read', 'person:read', 'user:read', 'role:read',
   'flag:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read', 'evidence:read',
   'checkin:read', 'review:read', 'config:read', 'taskcell:read', 'taskdict:read',
   'tenant.config:read', 'settings.self:read', 'access.self:read', 'notify.self:read',

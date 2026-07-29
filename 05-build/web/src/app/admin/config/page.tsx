@@ -61,6 +61,9 @@ export default function AdminConfigPage() {
           defaultLocale: locale, checkinCadence: cadence, reminderThresholdDays: threshold,
           notifyOnCheckinDue: notifyCheckin, notifyOnReviewFinalized: notifyReview,
         },
+        // [F189] Khoá optimistic — version đọc từ GET gần nhất (cfg), tránh ghi đè lặng lẽ
+        // khi hai tab admin cùng sửa cấu hình tenant.
+        version: cfg.version,
       },
     })
       .then((r) => { setCfg(r); setMsg({ kind: "ok", text: "Đã lưu cấu hình đơn vị" }); })

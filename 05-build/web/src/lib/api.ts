@@ -651,6 +651,9 @@ export interface AdminUserRow {
   positionId?: string | null;
   status: string;
   version: number;
+  /** [F189] Version RIÊNG của app_user (khoá optimistic cho disable/enable) — null nếu
+   * người này chưa có tài khoản đăng nhập (person chưa provisioning app_user). */
+  appUserVersion: number | null;
   /** [J5/Q4] CHỈ có khi caller giữ scope TENANT — org_admin không nhận trường này. */
   hireDate?: string | null;
   seniorityMonths?: number | null;
@@ -667,6 +670,8 @@ export interface AdminRoleOption {
   nameVi?: string | null;
   nameEn?: string | null;
   permissions: string[];
+  /** [F184] true = vai SÀN (BASE_ROLE_ALLOWLIST) — CHỈ gán được với scopeType='self'. */
+  selfOnly?: boolean;
 }
 
 export interface EffectiveAccessRole {

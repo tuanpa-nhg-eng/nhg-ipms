@@ -1,12 +1,8 @@
-import { Body, Controller, Get, Patch } from '@nestjs/common';
-import { IsArray, IsBoolean, IsObject, IsString, ValidateNested } from 'class-validator';
+import { Body, Controller, Get, ParseIntPipe, Patch } from '@nestjs/common';
+import { IsArray, IsBoolean, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CurrentUser, RequirePermission, RequestUser } from '../../common/auth/decorators';
 import { MeService } from './me.service';
-
-class PatchSettingsDto {
-  @IsObject() patch!: Record<string, unknown>;
-}
 
 class NotificationItemDto {
   @IsString() eventKey!: string;
@@ -38,10 +34,19 @@ export class MeController {
     return this.svc.getSettings(user);
   }
 
+  // [F185 — Reviewer đối kháng] Không dùng DTO class cho `patch` — lý do đầy đủ tại
+  // tenant-config.controller.ts (class-transformer đệ quy vào object lồng nhau, đoán kiểu
+  // qua `value.constructor` bị đầu độc bởi key 'constructor' do client gửi → 500 chưa bắt).
+  // [F189 — Reviewer đối kháng] `version` qua ParseIntPipe áp trực tiếp lên tham số trích ra —
+  // không đi qua class-transformer's plainToClass nên không dính lại lỗ đệ quy F185.
   @Patch('settings')
   @RequirePermission('settings.self:update')
-  updateSettings(@CurrentUser() user: RequestUser, @Body() dto: PatchSettingsDto) {
-    return this.svc.updateSettings(user, dto.patch);
+  updateSettings(
+    @CurrentUser() user: RequestUser,
+    @Body('patch') patch: Record<string, unknown>,
+    @Body('version', ParseIntPipe) version: number,
+  ) {
+    return this.svc.updateSettings(user, patch, version);
   }
 
   @Get('notifications')

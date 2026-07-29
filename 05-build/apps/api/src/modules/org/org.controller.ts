@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { IsIn, IsInt, IsOptional, IsString, IsUUID, Length } from 'class-validator';
 import { ORG_LEVELS } from '@ipms/shared';
 import { Audited, CurrentUser, RequirePermission, RequestUser } from '../../common/auth/decorators';
@@ -55,10 +55,16 @@ export class OrgController {
     return this.org.update(user.tenantId, user.claims.sub, id, dto);
   }
 
+  // [F189 — Reviewer đối kháng, MINOR] `version` qua query — DELETE thường không mang body
+  // (nhiều client/proxy bỏ qua), ParseIntPipe validate trực tiếp trên tham số trích ra.
   @Delete(':id')
   @RequirePermission('orgunit:archive')
   @Audited('admin.orgunit_archive')
-  archive(@CurrentUser() user: RequestUser, @Param('id', ParseUUIDPipe) id: string) {
-    return this.org.archive(user.tenantId, user.claims.sub, id);
+  archive(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('version', ParseIntPipe) version: number,
+  ) {
+    return this.org.archive(user.tenantId, user.claims.sub, id, version);
   }
 }

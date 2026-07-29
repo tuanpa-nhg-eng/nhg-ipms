@@ -134,7 +134,8 @@ export default function AdminOrgPage() {
     if (!selected) return;
     if (!archiveArmed) { setArchiveArmed(true); return; }
     void act(async () => {
-      await call(`/org-units/${selected.id}`, { method: "DELETE" });
+      // [F189] Khoá optimistic qua query (DELETE thường không mang body).
+      await call(`/org-units/${selected.id}?version=${selected.version}`, { method: "DELETE" });
       setArchiveArmed(false);
       setSelected(null);
       await reload();

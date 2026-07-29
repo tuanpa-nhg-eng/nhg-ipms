@@ -268,7 +268,9 @@ describe('[Trục B L4] Impersonation chỉ-đọc có kiểm soát', () => {
       expect(start.status).toBe(201);
       const sid = start.body.sessionId;
 
-      const dis = await api().post(`/api/v1/admin/users/${orgadmin.userId}/disable`).set(as(admin));
+      // [F189 — Reviewer đối kháng] disable/enable giờ đòi optimistic lock (version app_user)
+      const v1 = (await owner.appUser.findUniqueOrThrow({ where: { id: orgadmin.userId } })).version;
+      const dis = await api().post(`/api/v1/admin/users/${orgadmin.userId}/disable`).set(as(admin)).send({ version: v1 });
       expect(dis.status).toBe(201);
 
       const session = await owner.impersonationSession.findFirst({ where: { id: sid } });
@@ -276,7 +278,8 @@ describe('[Trục B L4] Impersonation chỉ-đọc có kiểm soát', () => {
       expect(session!.endedReason).toBe('target_disabled');
 
       // dọn lại — mở khoá để không ảnh hưởng test khác chạy sau trong cùng tiến trình
-      await api().post(`/api/v1/admin/users/${orgadmin.userId}/enable`).set(as(admin));
+      const v2 = (await owner.appUser.findUniqueOrThrow({ where: { id: orgadmin.userId } })).version;
+      await api().post(`/api/v1/admin/users/${orgadmin.userId}/enable`).set(as(admin)).send({ version: v2 });
     });
   });
 });

@@ -237,6 +237,25 @@ describe('[Trục B L1] Hợp đồng API quản trị', () => {
       expect(access.status).toBe(200);
       expect(access.body.permissions).toContain('goal:write');
     });
+
+    it('[F184 — Reviewer đối kháng] vai SÀN với scopeType KHÁC self → 403 (không dựng lại god-account qua vai employee scope tenant)', async () => {
+      const r = await api().post(`/api/v1/admin/users/${hr.userId}/roles`).set(as(admin)).send({
+        roleCode: 'employee', scopeType: 'tenant',
+      });
+      expect(r.status).toBe(403);
+      const r2 = await api().post(`/api/v1/admin/users/${hr.userId}/roles`).set(as(admin)).send({
+        roleCode: 'employee', scopeType: 'org_unit', scopeId: deptId,
+      });
+      expect(r2.status).toBe(403);
+    });
+
+    it('[F184] GET /admin/roles đánh dấu selfOnly cho vai employee', async () => {
+      const r = await api().get('/api/v1/admin/roles').set(as(admin));
+      expect(r.status).toBe(200);
+      const employee = r.body.find((x) => x.code === 'employee');
+      expect(employee).toBeDefined();
+      expect(employee.selfOnly).toBe(true);
+    });
   });
 
   // ========== PATCH /admin/users/:id ==========
@@ -295,14 +314,30 @@ describe('[Trục B L1] Hợp đồng API quản trị', () => {
 
   // ========== disable/enable + J8 ==========
   describe('POST /admin/users/:id/disable · /enable — [J8]', () => {
+    // [F189 — Reviewer đối kháng] disable/enable giờ đòi optimistic lock — đọc version
+    // THẬT của app_user trước mỗi lần gọi, tránh 409 giả do version cứng trong test.
+    const appUserVersion = async (appUserId: string) =>
+      (await owner.appUser.findUniqueOrThrow({ where: { id: appUserId } })).version;
+
     it('admin không tự khoá chính mình → 409', async () => {
-      const r = await api().post(`/api/v1/admin/users/${admin.userId}/disable`).set(as(admin));
+      const version = await appUserVersion(admin.userId);
+      const r = await api().post(`/api/v1/admin/users/${admin.userId}/disable`).set(as(admin)).send({ version });
       expect(r.status).toBe(409);
     });
 
     it('org_admin khoá người NGOÀI phòng → 403', async () => {
-      const r = await api().post(`/api/v1/admin/users/${outsidePersonAppUserId}/disable`).set(as(orgadmin));
+      const version = await appUserVersion(outsidePersonAppUserId);
+      const r = await api().post(`/api/v1/admin/users/${outsidePersonAppUserId}/disable`).set(as(orgadmin)).send({ version });
       expect(r.status).toBe(403);
+    });
+
+    it('[F189] version lệch → 409, KHÔNG khoá được', async () => {
+      const version = await appUserVersion(outsidePersonAppUserId);
+      const r = await api().post(`/api/v1/admin/users/${outsidePersonAppUserId}/disable`).set(as(admin)).send({ version: version + 1 });
+      expect(r.status).toBe(409);
+      const still = await owner.appUser.findUniqueOrThrow({ where: { id: outsidePersonAppUserId } });
+      expect(still.status).toBe('active');
+      // dọn lại đúng version cho các test disable/enable sau (mỗi test độc lập với DB đã seed)
     });
 
     it('[J8] token phát TRƯỚC khi khoá KHÔNG dùng được ngay sau khi khoá; enable lại → dùng được', async () => {
@@ -316,14 +351,16 @@ describe('[Trục B L1] Hợp đồng API quản trị', () => {
       const before = await api().get('/api/v1/me/access').set(preAs);
       expect(before.status).toBe(200);
 
-      const dis = await api().post(`/api/v1/admin/users/${outsidePersonAppUserId}/disable`).set(as(admin));
+      const v1 = await appUserVersion(outsidePersonAppUserId);
+      const dis = await api().post(`/api/v1/admin/users/${outsidePersonAppUserId}/disable`).set(as(admin)).send({ version: v1 });
       expect(dis.status).toBe(201);
 
       // CÙNG token, phát trước đó, chưa hết hạn — phải bị chặn NGAY
       const after = await api().get('/api/v1/me/access').set(preAs);
       expect(after.status).toBe(401);
 
-      const en = await api().post(`/api/v1/admin/users/${outsidePersonAppUserId}/enable`).set(as(admin));
+      const v2 = await appUserVersion(outsidePersonAppUserId);
+      const en = await api().post(`/api/v1/admin/users/${outsidePersonAppUserId}/enable`).set(as(admin)).send({ version: v2 });
       expect(en.status).toBe(201);
 
       const afterEnable = await api().get('/api/v1/me/access').set(preAs);
@@ -491,46 +528,95 @@ describe('[Trục B L1] Hợp đồng API quản trị', () => {
     });
 
     it('archive khi còn đơn vị con → 409', async () => {
-      const r = await api().delete(`/api/v1/org-units/${outsideDeptId}`).set(as(admin));
+      // [F189 — Reviewer đối kháng] archive() giờ đòi optimistic lock (version qua query).
+      const unit = await owner.orgUnit.findFirst({ where: { id: outsideDeptId } });
+      const r = await api().delete(`/api/v1/org-units/${outsideDeptId}?version=${unit!.version}`).set(as(admin));
       expect(r.status).toBe(409);
     });
 
     it('archive leaf rỗng → 200; archive lại lần 2 → 404', async () => {
-      const ok = await api().delete(`/api/v1/org-units/${leafId}`).set(as(admin));
+      const leaf = await owner.orgUnit.findFirst({ where: { id: leafId } });
+      const ok = await api().delete(`/api/v1/org-units/${leafId}?version=${leaf!.version}`).set(as(admin));
       expect(ok.status).toBe(200);
-      const again = await api().delete(`/api/v1/org-units/${leafId}`).set(as(admin));
+      const again = await api().delete(`/api/v1/org-units/${leafId}?version=${leaf!.version + 1}`).set(as(admin));
       expect(again.status).toBe(404);
+    });
+
+    it('[F189] archive: version lệch → 409, KHÔNG lưu trữ', async () => {
+      const leaf2Id = uuidv7();
+      await owner.orgUnit.create({
+        data: { id: leaf2Id, tenantId: admin.id, code: `LEAF2-${uniq}`, nameVi: 'Leaf 2', level: 'team', parentId: outsideDeptId },
+      });
+      const r = await api().delete(`/api/v1/org-units/${leaf2Id}?version=99`).set(as(admin));
+      expect(r.status).toBe(409);
+      const still = await owner.orgUnit.findFirst({ where: { id: leaf2Id } });
+      expect(still!.deletedAt).toBeNull();
     });
 
     it('employee → 403 cả PATCH lẫn DELETE', async () => {
       expect((await api().patch(`/api/v1/org-units/${deptId}`).set(as(emp)).send({ version: 1 })).status).toBe(403);
-      expect((await api().delete(`/api/v1/org-units/${deptId}`).set(as(emp))).status).toBe(403);
+      expect((await api().delete(`/api/v1/org-units/${deptId}?version=1`).set(as(emp))).status).toBe(403);
     });
   });
 
   // ========== /admin/tenant-config ==========
   describe('GET/PATCH /admin/tenant-config', () => {
+    // [F189 — Reviewer đối kháng] PATCH giờ đòi optimistic lock — ParseIntPipe kiểm `version`
+    // TRƯỚC KHI vào service, nên MỌI ca chạm được whitelist/service (kể cả ca 422 do lý do
+    // khác) đều cần version THẬT hợp lệ, đọc lại bằng GET ngay trước mỗi lần PATCH.
+    const tenantVersion = async () => (await api().get('/api/v1/admin/tenant-config').set(as(admin))).body.version;
+
     it('admin đọc + ghi key whitelist → 200', async () => {
+      const version = await tenantVersion();
       const r = await api().patch('/api/v1/admin/tenant-config').set(as(admin)).send({
-        patch: { defaultLocale: 'vi', reminderThresholdDays: 3 },
+        patch: { defaultLocale: 'vi', reminderThresholdDays: 3 }, version,
       });
       expect(r.status).toBe(200);
       expect(r.body.defaultLocale).toBe('vi');
+      expect(r.body.version).toBe(version + 1);
 
       const get = await api().get('/api/v1/admin/tenant-config').set(as(admin));
       expect(get.body.reminderThresholdDays).toBe(3);
     });
 
-    it('key ngoài whitelist → 422', async () => {
+    it('[F189] version lệch → 409, KHÔNG ghi', async () => {
+      const version = await tenantVersion();
       const r = await api().patch('/api/v1/admin/tenant-config').set(as(admin)).send({
-        patch: { arbitraryJunk: 'x' },
+        patch: { defaultLocale: 'en' }, version: version + 1,
+      });
+      expect(r.status).toBe(409);
+    });
+
+    it('key ngoài whitelist → 422', async () => {
+      const version = await tenantVersion();
+      const r = await api().patch('/api/v1/admin/tenant-config').set(as(admin)).send({
+        patch: { arbitraryJunk: 'x' }, version,
       });
       expect(r.status).toBe(422);
     });
 
-    it('giá trị sai kiểu cho key hợp lệ → 422', async () => {
+    it('[F185 — Reviewer đối kháng] key="constructor" → 422, không lọt whitelist qua thuộc tính kế thừa', async () => {
+      const version = await tenantVersion();
       const r = await api().patch('/api/v1/admin/tenant-config').set(as(admin)).send({
-        patch: { defaultLocale: 'fr' },
+        patch: { constructor: 'pwned' }, version,
+      });
+      expect(r.status).toBe(422);
+    });
+
+    it('[F185] key="__proto__" → 422, không ném 500 chưa bắt', async () => {
+      // Object literal `{ __proto__: ... }` gán PROTOTYPE chứ không tạo thuộc tính own —
+      // JSON.stringify sẽ bỏ qua nó. Dựng payload qua JSON.parse để có own property literal
+      // "__proto__" giống hệt request thật từ client gửi lên (đúng cách khai thác Reviewer nêu).
+      const version = await tenantVersion();
+      const body = JSON.parse(`{"patch":{"__proto__":{"x":1}},"version":${version}}`);
+      const r = await api().patch('/api/v1/admin/tenant-config').set(as(admin)).send(body);
+      expect(r.status).toBe(422);
+    });
+
+    it('giá trị sai kiểu cho key hợp lệ → 422', async () => {
+      const version = await tenantVersion();
+      const r = await api().patch('/api/v1/admin/tenant-config').set(as(admin)).send({
+        patch: { defaultLocale: 'fr' }, version,
       });
       expect(r.status).toBe(422);
     });
@@ -551,17 +637,38 @@ describe('[Trục B L1] Hợp đồng API quản trị', () => {
       expect(r.body.roles.every((x: any) => typeof x.roleCode === 'string')).toBe(true);
     });
 
+    // [F189 — Reviewer đối kháng] PATCH đòi optimistic lock — đọc version THẬT trước mỗi lần.
+    const empSettingsVersion = async () => (await api().get('/api/v1/me/settings').set(as(emp))).body.version;
+
     it('/me/settings: PATCH whitelist key → GET phản ánh đúng; key lạ → 422', async () => {
+      const v1 = await empSettingsVersion();
       const put = await api().patch('/api/v1/me/settings').set(as(emp)).send({
-        patch: { theme: 'dark', locale: 'en' },
+        patch: { theme: 'dark', locale: 'en' }, version: v1,
       });
       expect(put.status).toBe(200);
       const get = await api().get('/api/v1/me/settings').set(as(emp));
       expect(get.body.theme).toBe('dark');
       expect(get.body.locale).toBe('en');
 
-      const bad = await api().patch('/api/v1/me/settings').set(as(emp)).send({ patch: { fontSize: 99 } });
+      const v2 = await empSettingsVersion();
+      const bad = await api().patch('/api/v1/me/settings').set(as(emp)).send({ patch: { fontSize: 99 }, version: v2 });
       expect(bad.status).toBe(422);
+    });
+
+    it('[F189] version lệch → 409, KHÔNG ghi', async () => {
+      const v1 = await empSettingsVersion();
+      const r = await api().patch('/api/v1/me/settings').set(as(emp)).send({ patch: { theme: 'light' }, version: v1 + 1 });
+      expect(r.status).toBe(409);
+    });
+
+    it('[F185 — Reviewer đối kháng] /me/settings: key="constructor"/"__proto__" → 422, không lọt hay 500', async () => {
+      const v1 = await empSettingsVersion();
+      const r1 = await api().patch('/api/v1/me/settings').set(as(emp)).send({ patch: { constructor: 'pwned' }, version: v1 });
+      expect(r1.status).toBe(422);
+      const v2 = await empSettingsVersion();
+      const body = JSON.parse(`{"patch":{"__proto__":{"x":1}},"version":${v2}}`);
+      const r2 = await api().patch('/api/v1/me/settings').set(as(emp)).send(body);
+      expect(r2.status).toBe(422);
     });
 
     it('/me/notifications: mặc định TẤT CẢ bật; PATCH tắt 1 mục → phản ánh đúng, còn lại giữ nguyên', async () => {

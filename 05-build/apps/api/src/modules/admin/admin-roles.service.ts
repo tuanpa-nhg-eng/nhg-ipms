@@ -63,6 +63,11 @@ export class AdminRolesService {
    * Cách làm cho UI không thể hiện lựa chọn sẽ bị API từ chối (J4): FE liệt kê đúng những
    * gì server trả, không tự đoán theo role code. `BASE_ROLE_ALLOWLIST` phải khớp CHÍNH XÁC
    * ngoại lệ trong `doAssign` — nếu không, liệt kê một lựa chọn mà lúc bấm lại bị 403.
+   *
+   * [F184] `selfOnly: true` cho vai sàn — FE PHẢI khoá scopeType='self' khi chọn vai này
+   * (không cho đổi sang 'tenant'/'org_unit'), đúng khuôn ngoại lệ hẹp ở `doAssign`. Thiếu
+   * cờ này, FE vẫn hiện đủ 3 lựa chọn scope cho vai sàn rồi API 403 ở 'tenant'/'org_unit'
+   * — chính là J4 mà cờ này tồn tại để tránh.
    */
   list(user: RequestUser) {
     return this.prisma.withTenant(user.tenantId, async (tx) => {
@@ -75,6 +80,7 @@ export class AdminRolesService {
         .map((r) => ({
           code: r.code, nameVi: r.nameVi, nameEn: r.nameEn,
           permissions: r.rolePermissions.map((rp) => rp.permission.code),
+          selfOnly: (BASE_ROLE_ALLOWLIST as readonly string[]).includes(r.code),
         }))
         .filter((r) =>
           (BASE_ROLE_ALLOWLIST as readonly string[]).includes(r.code)
@@ -125,12 +131,25 @@ export class AdminRolesService {
       // (①) không cấp quyền mình không có — TRỪ vai SÀN trong allowlist (xem ghi chú đầu
       // file): cấp vai đó không cho NGƯỜI CẤP thêm quyền gì, chỉ người NHẬN có quyền đó
       // trên chính tài nguyên của họ.
-      const isBaseRole = (BASE_ROLE_ALLOWLIST as readonly string[]).includes(input.roleCode);
+      //
+      // [F184 — Reviewer đối kháng, MAJOR] Bản đầu KHÔNG ép `scopeType === 'self'` cho
+      // ngoại lệ này — lý do biện minh ở comment trên ("chỉ tác động tài nguyên CỦA HỌ")
+      // chỉ đúng khi scope là 'self'. Với scope='tenant', vai `employee` (goal:write/
+      // checkin:write/review:write/evidence:write) áp lên MỌI người trong tenant — và
+      // `assertScope` cho qua ngay khi có scope tenant, không xét chủ sở hữu tài nguyên
+      // (scope.util.ts). Hệ quả: tenant_admin (không giữ MỘT quyền ghi nghiệp vụ nào sau
+      // L0) gán `employee` scope='tenant' cho một tài khoản BẤT KỲ ⇒ tài khoản đó ghi được
+      // dữ liệu của TOÀN TENANT — dựng lại đúng god-account mà cả trục B tồn tại để đập.
+      const isBaseRole = (BASE_ROLE_ALLOWLIST as readonly string[]).includes(input.roleCode)
+        && input.scopeType === 'self';
       const notOwned = rolePerms.filter((p) => !user.permissions.has(p));
       if (!isBaseRole && notOwned.length > 0) {
         throw new GrantViolationError(
-          `Không cấp được vai '${input.roleCode}' — bạn không giữ: ${notOwned.join(', ')} (J1①)`,
-          { role_code: input.roleCode, missing: notOwned }, 'forbidden',
+          `Không cấp được vai '${input.roleCode}' — bạn không giữ: ${notOwned.join(', ')} (J1①)`
+          + (BASE_ROLE_ALLOWLIST.includes(input.roleCode as any)
+            ? ` — vai sàn chỉ được miễn trừ khi scopeType='self'`
+            : ''),
+          { role_code: input.roleCode, missing: notOwned, scope_type: input.scopeType }, 'forbidden',
         );
       }
 

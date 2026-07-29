@@ -105,17 +105,31 @@ export function Sidebar() {
       { href: "/hr/talent-matrix", label: t("nav.talentmatrix"), icon: <Grid3x3 size={ICON} /> },
       { href: "/hr/policy", label: t("nav.policy"), icon: <ShieldCheck size={ICON} /> },
     ]},
-    // Configuration Studio — khu nối API thật, role-gated CẢ BE lẫn sidebar (L6)
+    // Configuration Studio — khu nối API thật, role-gated CẢ BE lẫn sidebar (L6).
+    // [F186 — Reviewer đối kháng] Nhóm "studio" gộp 6 vai trò rất khác quyền nhau (SoD theo
+    // TỪNG màn, không phải theo cả khu). Gate NHÓM chỉ quyết hiện/ẩn cả cụm; gate TỪNG LINK
+    // (dưới, field `roles`) mới quyết ai trong cụm đó thấy màn nào — khớp đúng permission
+    // GET đầu tiên màn đó gọi (xem admin-roles.controller.ts + derivation/process/library/
+    // taskloop/ai controllers), không suy đoán.
     { id: "studio", group: t("nav.studio"), links: [
-      { href: "/studio", label: t("nav.studioversions"), icon: <SlidersHorizontal size={ICON} /> },
-      { href: "/studio/org", label: t("nav.orgdesigner"), icon: <Building2 size={ICON} /> },
-      { href: "/studio/process", label: t("nav.processdesigner"), icon: <Workflow size={ICON} /> },
-      { href: "/studio/derivation", label: t("nav.derivation"), icon: <GitFork size={ICON} /> },
-      { href: "/studio/brand", label: t("nav.brandkit"), icon: <Palette size={ICON} /> },
-      { href: "/studio/library", label: t("nav.taskcellstudio"), icon: <BookPlus size={ICON} /> },
-      { href: "/studio/curation", label: t("nav.curation"), icon: <Inbox size={ICON} /> },
-      { href: "/studio/dept", label: t("nav.deptboard"), icon: <ClipboardList size={ICON} /> },
-      { href: "/studio/ai-governance", label: t("nav.aigov"), icon: <Activity size={ICON} /> },
+      { href: "/studio", label: t("nav.studioversions"), icon: <SlidersHorizontal size={ICON} />,
+        roles: ["config_designer", "config_approver", "library_curator"] }, // GET /config-versions → config:read
+      { href: "/studio/org", label: t("nav.orgdesigner"), icon: <Building2 size={ICON} />,
+        roles: ["config_designer"] }, // GET /org-functions → org:design
+      { href: "/studio/process", label: t("nav.processdesigner"), icon: <Workflow size={ICON} />,
+        roles: ["config_designer"] }, // GET /processes → process:design
+      { href: "/studio/derivation", label: t("nav.derivation"), icon: <GitFork size={ICON} />,
+        roles: ["config_designer"] }, // GET /derivation-rules → derivation:run
+      { href: "/studio/brand", label: t("nav.brandkit"), icon: <Palette size={ICON} />,
+        roles: ["config_designer", "config_approver", "library_curator"] }, // GET /brand-kit → config:read
+      { href: "/studio/library", label: t("nav.taskcellstudio"), icon: <BookPlus size={ICON} />,
+        roles: ["bu_author", "staff_author"] }, // GET /library/contributions → library:submit
+      { href: "/studio/curation", label: t("nav.curation"), icon: <Inbox size={ICON} />,
+        roles: ["library_curator", "dept_head"] }, // GET /library/queue → library:curate
+      { href: "/studio/dept", label: t("nav.deptboard"), icon: <ClipboardList size={ICON} />,
+        roles: ["dept_head"] }, // GET /task-board → taskcell:approve
+      { href: "/studio/ai-governance", label: t("nav.aigov"), icon: <Activity size={ICON} />,
+        roles: ["config_designer"] }, // GET /ai/learning/stats,/ai/eval/* → ai:eval
     ]},
     { id: "audit", group: t("nav.audit"), links: [
       { href: "/audit/logs", label: t("nav.auditlog"), icon: <ScrollText size={ICON} /> },

@@ -60,15 +60,21 @@ export class PolicyGuard implements CanActivate {
     if (decision.decision === 'allow') return true;
 
     // Audit deny — best-effort (deny không được phụ thuộc audit thành công)
+    // [F188 — Reviewer đối kháng, MAJOR] `actorUserId` phải là NGƯỜI THẬT (act), không phải
+    // target đang bị đóng vai (sub) — cùng bất biến J13 mà audit.interceptor.ts đã áp dụng
+    // cho MỌI audit log khác. Bỏ sót ở đây làm log "ai bị chặn bởi policy" chỉ tên target,
+    // xoá dấu vết actor thật trong đúng lúc actor thật đang làm gì đó bị Cedar từ chối.
+    const actingAs: string | undefined = user.claims.act ? user.claims.sub : undefined;
     await this.prisma.withTenant(user.tenantId, (tx) =>
       tx.auditLog.create({
         data: {
-          tenantId: user.tenantId, actorUserId: user.claims.sub,
+          tenantId: user.tenantId, actorUserId: user.claims.act ?? user.claims.sub,
           action: 'policy.denied', entityType: 'access_policy',
           after: {
             permission: required,
             denied_by: decision.deniedBy,
             errors: decision.errors.map((e) => ({ policy_id: e.policyId, message: e.message })),
+            ...(actingAs ? { _impersonating: actingAs } : {}),
           } as object,
           ip: req.ip,
         },

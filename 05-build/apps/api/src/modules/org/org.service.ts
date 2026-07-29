@@ -1,6 +1,8 @@
-import { ConflictException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { uuidv7 } from '@ipms/db';
 import { PrismaService } from '../../prisma.service';
+import type { RequestUser } from '../../common/auth/decorators';
+import { effectiveScope } from '../../common/auth/scope.util';
 
 export interface CreateOrgUnitInput {
   code: string;
@@ -163,7 +165,7 @@ export class OrgService {
   }
 
   /** Soft-delete — chặn khi còn người hoặc còn đơn vị con (409 kèm số lượng). */
-  async archive(tenantId: string, actorId: string, id: string) {
+  async archive(tenantId: string, actorId: string, id: string, version: number) {
     return this.prisma.withTenant(tenantId, async (tx) => {
       const unit = await tx.orgUnit.findFirst({ where: { id, deletedAt: null } });
       if (!unit) throw new NotFoundException('org unit not found');
@@ -178,10 +180,14 @@ export class OrgService {
         );
       }
 
-      await tx.orgUnit.update({
-        where: { id },
+      // [F189 — Reviewer đối kháng, MINOR] Trước đây archive() KHÔNG đòi version — hai admin
+      // cùng thao tác một đơn vị (vd một người đổi tên, người kia archive) ghi đè lặng lẽ.
+      // Cùng khuôn J7 mà update() đã dùng ở trên.
+      const count = await tx.orgUnit.updateMany({
+        where: { id, version },
         data: { deletedAt: new Date(), updatedBy: actorId, version: { increment: 1 } },
       });
+      if (count.count !== 1) throw new ConflictException('Version lệch — tải lại và thử lại');
       await tx.auditLog.create({
         data: {
           tenantId, actorUserId: actorId,

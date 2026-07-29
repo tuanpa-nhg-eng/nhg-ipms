@@ -99,6 +99,11 @@ const GLOBAL_ROLES: Record<string, string[]> = {
     'evidence:read', 'evidence:write', 'evidence:verify', 'integration:run',
     'checkin:read', 'checkin:review', 'review:read', 'review:write', 'review:manage',
     'calibration:run', 'payroll:export',
+    // [F186 — Reviewer đối kháng] `/hr/policy` (SPA đã có sẵn) đọc qua `GET /policies`,
+    // đòi `config:read` — hrbp trước đây KHÔNG có, bấm vào ăn 403. Chỉ thêm quyền ĐỌC
+    // (cùng lý do tenant_admin đã có config:read: "đọc rộng để hỗ trợ" — không kèm
+    // config:write/config:publish, SoD designer/approver giữ nguyên).
+    'config:read',
   ],
   // [Trục B L0 — J2] tenant_admin LIỆT KÊ TƯỜNG MINH. Trước đây là
   // `PERMISSIONS.filter((p) => p !== 'audit:read')` — tức god-account trừ đúng một quyền:
