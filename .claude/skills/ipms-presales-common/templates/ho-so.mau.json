@@ -1,0 +1,198 @@
+{
+  "_huong_dan": [
+    "ĐÂY LÀ NGUỒN DUY NHẤT của bộ hồ sơ gửi khách. Từ file này sinh ra: BRD .docx + Phụ lục .xlsx.",
+    "MỌI khoá bắt đầu bằng dấu gạch dưới (_) là GHI CHÚ NỘI BỘ — bộ sinh file KHÔNG BAO GIỜ xuất chúng ra bản gửi khách.",
+    "Ghi chú nội bộ của từng yêu cầu để trong yeu_cau[]._noibo (ngày công, rủi ro thương mại, mức nền tảng).",
+    "Chạy: py .claude/skills/ipms-presales-common/scripts/xuat-ho-so.py <đường-dẫn-ho-so.json>"
+  ],
+  "ma_kh": "KH-2026-00-MAU",
+  "khach": {
+    "ten": "TỔ CHỨC MẪU",
+    "ten_en": "Sample Organization",
+    "nganh": "Giáo dục",
+    "quy_mo": "1.200 nhân sự",
+    "so_don_vi": "4 đơn vị thành viên"
+  },
+  "tai_lieu": {
+    "phien_ban": "v1",
+    "ngay": "2026-07-28",
+    "pham_vi_ngan": "thí điểm 1 đơn vị, mở rộng 4 đơn vị",
+    "nguoi_lap": "Chuyên viên Phân tích Nghiệp vụ",
+    "nguoi_soat_xet_khach": "Giám đốc Nhân sự",
+    "can_cu": "4 buổi khảo sát · 7 tài liệu thu thập · phiếu tự khai ngày 10/07/2026",
+    "ngay_doi_chieu_nang_luc": "2026-07-28"
+  },
+
+  "boi_canh": {
+    "tom_tat": "Tổ chức đang quản trị hiệu suất bằng bảng tính rời rạc theo từng đơn vị. Bộ chỉ số không thống nhất giữa các phòng, kết quả đánh giá phụ thuộc nhiều vào nhận định của quản lý trực tiếp và không gắn được với dữ liệu vận hành. Ban lãnh đạo cần một hệ thống chung để nhìn xuyên tổ chức và để kết quả đánh giá có thể giải thích được.",
+    "diem_dau": [
+      { "noi_dung": "Mỗi đơn vị dùng một mẫu KPI khác nhau, không cộng gộp được", "he_qua": "Không so sánh được giữa các đơn vị", "bang_chung": "BC-01" },
+      { "noi_dung": "Không có bước cân chỉnh giữa các quản lý", "he_qua": "Điểm lạm phát, mất niềm tin vào kết quả", "bang_chung": "BC-03" },
+      { "noi_dung": "Số liệu thực tế nhập tay từ nhiều nguồn", "he_qua": "Mất 3–5 ngày công mỗi kỳ, còn sai sót", "bang_chung": "BC-04" }
+    ],
+    "muc_truong_thanh": "M1 — KPI thủ công rời rạc",
+    "dien_giai": "Đã có văn hoá đo lường nhưng chưa có khung thống nhất; ưu tiên đợt đầu là chuẩn hoá Từ điển KPI trước khi số hoá quy trình."
+  },
+
+  "muc_tieu": [
+    { "muc_tieu": "Thống nhất bộ chỉ số toàn tổ chức", "tieu_chi": "100% phòng ban dùng chung Từ điển KPI đã duyệt trong kỳ đầu tiên", "ai_do": "Giám đốc Nhân sự", "khi_nao": "Cuối kỳ đánh giá đầu tiên" },
+    { "muc_tieu": "Rút ngắn thời gian chốt kỳ đánh giá", "tieu_chi": "Thời gian từ khoá sổ đến chốt kết quả giảm còn ≤ 10 ngày làm việc", "ai_do": "Phòng Nhân sự", "khi_nao": "Kỳ thứ hai" }
+  ],
+
+  "pham_vi": {
+    "trong": [
+      { "hang_muc": "Từ điển KPI và bộ chấm điểm", "don_vi": "Toàn tổ chức", "ghi_chu": "" },
+      { "hang_muc": "Trọn vòng đánh giá: giao mục tiêu → check-in → tự đánh giá → quản lý đánh giá → cân chỉnh → chốt", "don_vi": "Đơn vị thí điểm", "ghi_chu": "" },
+      { "hang_muc": "Từ điển Tác vụ gắn KPI cho 3 phòng nghiệp vụ", "don_vi": "Đơn vị thí điểm", "ghi_chu": "Kèm vòng lặp tối ưu" }
+    ],
+    "ngoai": [
+      { "hang_muc": "Bảng điều khiển hợp nhất cấp tập đoàn", "ly_do": "Chỉ có ý nghĩa khi ≥2 đơn vị đã có dữ liệu thật", "xem_xet": "Sau khi mở rộng đơn vị thứ hai" },
+      { "hang_muc": "Đồng bộ hai chiều với phần mềm kế toán", "ly_do": "Chưa xác nhận được hệ nguồn có mở giao diện kết nối", "xem_xet": "Sau khi bộ phận CNTT trả lời" }
+    ]
+  },
+
+  "nhom_nguoi_dung": [
+    { "nhom": "Nhân viên", "nhom_en": "Employee", "quy_mo": "1.050", "viec_chinh": "Nhận mục tiêu, cập nhật tiến độ, tự đánh giá", "duoc_thay": "Mục tiêu và kết quả của bản thân", "khong_duoc_thay": "Kết quả của đồng nghiệp" },
+    { "nhom": "Trưởng phòng", "nhom_en": "Manager", "quy_mo": "95", "viec_chinh": "Giao mục tiêu, đánh giá, duyệt tác vụ của phòng", "duoc_thay": "Toàn bộ nhân sự phòng mình", "khong_duoc_thay": "Nhân sự phòng khác" },
+    { "nhom": "Nhân sự", "nhom_en": "HR", "quy_mo": "12", "viec_chinh": "Vận hành chu kỳ, quản trị Từ điển KPI", "duoc_thay": "Toàn tổ chức ở mức tổng hợp", "khong_duoc_thay": "" },
+    { "nhom": "Ban lãnh đạo", "nhom_en": "Executive", "quy_mo": "8", "viec_chinh": "Theo dõi toàn cảnh, mục tiêu rủi ro", "duoc_thay": "Toàn tổ chức", "khong_duoc_thay": "" },
+    { "nhom": "Kiểm soát nội bộ", "nhom_en": "Internal control", "quy_mo": "3", "viec_chinh": "Tra cứu nhật ký thao tác", "duoc_thay": "Nhật ký kiểm toán", "khong_duoc_thay": "Không có quyền sửa dữ liệu" }
+  ],
+
+  "as_is": {
+    "B": "Mục tiêu năm ban hành bằng văn bản, không phân rã xuống cá nhân theo cách truy vết được.",
+    "C": "Bốn đơn vị thành viên, quản trị hiệu suất khác nhau về chu kỳ và thang điểm.",
+    "D": "Phân quyền theo tệp chia sẻ; chưa có quy tắc người soạn khác người duyệt.",
+    "E": "Mỗi phòng một mẫu KPI riêng; công thức không thống nhất, không có bậc thang chuẩn.",
+    "F": "Đánh giá một lần cuối năm, không có check-in giữa kỳ, không có bước cân chỉnh.",
+    "G": "Có bản mô tả công việc dạng văn bản, cập nhật không thường xuyên, không gắn chỉ số.",
+    "H": "Số liệu thực tế lấy tay từ phần mềm kế toán và tệp theo dõi của từng phòng.",
+    "I": "Chưa ứng dụng trí tuệ nhân tạo trong quản trị hiệu suất.",
+    "J": "Báo cáo tổng hợp làm thủ công cuối kỳ.",
+    "K": "Không có nhu cầu thương hiệu riêng theo đơn vị ở đợt đầu.",
+    "L": "Đăng nhập bằng tài khoản Microsoft của tổ chức; yêu cầu lưu vết thao tác."
+  },
+
+  "yeu_cau": [
+    {
+      "ma": "BR-E-01", "phan_he": "E", "tieu_de": "KPI cấu trúc cha–con",
+      "phat_bieu": "Hệ thống phải cho phép định nghĩa KPI tổng hợp từ hai KPI thành phần trở lên, mỗi thành phần có trọng số riêng và tổng trọng số bằng 100%.",
+      "vi_sao": "Chỉ số cấp phòng hiện được cộng gộp thủ công từ nhiều chỉ số nhỏ, không kiểm chứng được cách cộng.",
+      "tieu_chi_chap_nhan": "Dựng lại đúng chỉ số tổng hợp trong tài liệu BC-02 và điểm tính ra khớp bảng tính hiện hành với sai số ≤ 0,5 điểm.",
+      "nguon": "BB-03 Q2", "bang_chung": "BC-02", "moscow": "M",
+      "muc_fit": "Sẵn sàng", "nang_luc": "Từ điển KPI cha–con", "gap": "",
+      "_noibo": { "muc_nen_tang": "VH", "ngay_cong": 0, "ghi_chu": "Khớp lõi sản phẩm, không rủi ro." }
+    },
+    {
+      "ma": "BR-F-02", "phan_he": "F", "tieu_de": "Bước cân chỉnh có ghi lý do",
+      "phat_bieu": "Hệ thống phải có bước cân chỉnh cho phép so sánh kết quả giữa các quản lý trước khi chốt, và mọi điều chỉnh điểm phải kèm lý do được lưu vết.",
+      "vi_sao": "Thiếu bước này là nguyên nhân chính khiến kết quả đánh giá bị nghi ngờ.",
+      "tieu_chi_chap_nhan": "Chạy thử một kỳ với 2 phòng: mọi thay đổi điểm tại bước cân chỉnh đều có lý do đính kèm và truy xuất lại được.",
+      "nguon": "BB-02 Q4", "bang_chung": "BC-03", "moscow": "M",
+      "muc_fit": "Sẵn sàng", "nang_luc": "Cân chỉnh bắt buộc ghi lý do", "gap": "",
+      "_noibo": { "muc_nen_tang": "VH", "ngay_cong": 0, "ghi_chu": "" }
+    },
+    {
+      "ma": "BR-G-01", "phan_he": "G", "tieu_de": "Tác vụ bắt buộc gắn chỉ số",
+      "phat_bieu": "Hệ thống phải chặn việc đưa một tác vụ vào sử dụng khi tác vụ đó chưa gắn với một chỉ số đo lường có thật trong Từ điển KPI.",
+      "vi_sao": "Bản mô tả công việc hiện không gắn chỉ số nên không dùng để đánh giá được.",
+      "tieu_chi_chap_nhan": "Thử kích hoạt một tác vụ chưa gắn chỉ số: hệ thống từ chối và nêu rõ lý do.",
+      "nguon": "BB-04 Q1", "bang_chung": "BC-06", "moscow": "M",
+      "muc_fit": "Sẵn sàng", "nang_luc": "Tác vụ bắt buộc gắn KPI mới được kích hoạt", "gap": "",
+      "_noibo": { "muc_nen_tang": "VH", "ngay_cong": 0, "ghi_chu": "Điểm khác biệt mạnh — nên demo sớm." }
+    },
+    {
+      "ma": "BR-G-02", "phan_he": "G", "tieu_de": "Vòng lặp tối ưu tác vụ",
+      "phat_bieu": "Hệ thống phải cho phép trưởng phòng uỷ quyền cho nhân viên soạn tác vụ, tiếp nhận góp ý từ người làm thật, mở lại để sửa và duyệt thành phiên bản mới, giữ nguyên lịch sử các phiên bản.",
+      "vi_sao": "Mô tả công việc hiện lạc hậu vì không có cơ chế cập nhật liên tục từ người trực tiếp làm.",
+      "tieu_chi_chap_nhan": "Chạy trọn một vòng trên một tác vụ thật: góp ý → mở lại → sửa → duyệt → phiên bản 2, và so sánh được hai phiên bản.",
+      "nguon": "BB-04 Q2", "bang_chung": "", "moscow": "S",
+      "muc_fit": "Sẵn sàng", "nang_luc": "Vòng lặp tối ưu liên tục", "gap": "",
+      "_noibo": { "muc_nen_tang": "VH", "ngay_cong": 0, "ghi_chu": "" }
+    },
+    {
+      "ma": "BR-L-03", "phan_he": "L", "tieu_de": "Đăng nhập một lần bằng tài khoản tổ chức",
+      "phat_bieu": "Hệ thống phải cho phép người dùng đăng nhập bằng chính tài khoản Microsoft của tổ chức, không tạo mật khẩu riêng.",
+      "vi_sao": "Chính sách an toàn thông tin không cho phép hệ thống ngoài giữ mật khẩu người dùng.",
+      "tieu_chi_chap_nhan": "Người dùng đăng nhập thành công bằng tài khoản tổ chức; khoá tài khoản ở hệ định danh thì mất quyền truy cập ngay.",
+      "nguon": "BB-05 Q3", "bang_chung": "", "moscow": "M",
+      "muc_fit": "Sẵn sàng — cần kích hoạt", "nang_luc": "Đăng nhập một lần qua Microsoft Entra ID", "gap": "Cần tổ chức cấp môi trường định danh và quyền đăng ký ứng dụng.",
+      "_noibo": { "muc_nen_tang": "BẬT", "ngay_cong": 3, "ghi_chu": "Chưa từng cắm thật — tính đệm." }
+    },
+    {
+      "ma": "BR-H-02", "phan_he": "H", "tieu_de": "Lấy số liệu tự động từ phần mềm kế toán",
+      "phat_bieu": "Hệ thống phải lấy được số liệu thực tế của các chỉ số tài chính từ phần mềm kế toán đang dùng, theo chu kỳ tối thiểu hằng ngày.",
+      "vi_sao": "Nhập tay đang tốn 3–5 ngày công mỗi kỳ và còn sai sót.",
+      "tieu_chi_chap_nhan": "Số liệu của 5 chỉ số tài chính khớp với báo cáo gốc của phần mềm kế toán trong 3 kỳ đồng bộ liên tiếp.",
+      "nguon": "BB-05 Q1", "bang_chung": "BC-04", "moscow": "M",
+      "muc_fit": "Cần phát triển", "nang_luc": "Bộ khung kết nối hệ nguồn", "gap": "Cần viết kết nối riêng cho phần mềm kế toán; phụ thuộc việc hệ nguồn có mở giao diện kết nối hay không.",
+      "_noibo": { "muc_nen_tang": "PT", "ngay_cong": 12, "ghi_chu": "RỦI RO CAO: hệ mua ngoài. Chốt phương án tệp CSV làm dự phòng trong hợp đồng." }
+    },
+    {
+      "ma": "BR-J-03", "phan_he": "J", "tieu_de": "Xuất báo cáo trình hội đồng",
+      "phat_bieu": "Hệ thống phải xuất được báo cáo kết quả kỳ ra tệp trình bày để đưa vào hồ sơ hội đồng.",
+      "vi_sao": "Hồ sơ trình hội đồng phải lưu bản in.",
+      "tieu_chi_chap_nhan": "Xuất được báo cáo kỳ đúng mẫu do tổ chức cung cấp.",
+      "nguon": "BB-02 Q7", "bang_chung": "", "moscow": "S",
+      "muc_fit": "Cần phát triển", "nang_luc": "", "gap": "Bản hiện tại xem trên màn hình; xuất theo mẫu riêng cần phát triển.",
+      "_noibo": { "muc_nen_tang": "PT", "ngay_cong": 5, "ghi_chu": "Xin mẫu báo cáo trước khi ước lượng chính xác." }
+    }
+  ],
+
+  "he_nguon": [
+    { "he": "Phần mềm kế toán", "chu_so_huu": "Trưởng phòng Tài chính", "du_lieu": "Doanh thu, chi phí theo đơn vị", "co_api": "Chưa rõ", "tan_suat": "Hằng ngày", "du_phong": "Tệp CSV định kỳ" },
+    { "he": "Phần mềm nhân sự", "chu_so_huu": "Trưởng phòng Nhân sự", "du_lieu": "Danh sách nhân sự, chức danh, phòng ban", "co_api": "Có", "tan_suat": "Hằng ngày", "du_phong": "Tệp CSV" }
+  ],
+
+  "kien_truc_tac_vu": {
+    "ghi_chu": "Bảng này là đầu vào để dựng Từ điển Tác vụ. Mỗi tác vụ phải gắn một mã chỉ số; tác vụ chưa gắn chỉ số sẽ không được đưa vào sử dụng.",
+    "dong": [
+      { "phong": "Tuyển sinh", "nhom_tac_vu": "Tiếp nhận hồ sơ", "ten_tac_vu": "Kiểm tra tính đầy đủ của hồ sơ", "nguoi_chiu_trach_nhiem": "Chuyên viên tuyển sinh", "dau_ra": "Hồ sơ hợp lệ đã phân loại", "ma_kpi": "KPI-TS-01", "tan_suat": "Hằng ngày", "trang_thai": "Đề xuất" },
+      { "phong": "Tuyển sinh", "nhom_tac_vu": "Chăm sóc ứng viên", "ten_tac_vu": "Gọi lại ứng viên tiềm năng trong 24 giờ", "nguoi_chiu_trach_nhiem": "Chuyên viên tuyển sinh", "dau_ra": "Nhật ký liên hệ", "ma_kpi": "KPI-TS-04", "tan_suat": "Hằng ngày", "trang_thai": "Đề xuất" },
+      { "phong": "Tài chính", "nhom_tac_vu": "Đối chiếu công nợ", "ten_tac_vu": "Đối chiếu số thu học phí cuối tháng", "nguoi_chiu_trach_nhiem": "Kế toán công nợ", "dau_ra": "Biên bản đối chiếu", "ma_kpi": "KPI-TC-02", "tan_suat": "Hằng tháng", "trang_thai": "Đề xuất" }
+    ]
+  },
+
+  "ai": {
+    "ky_vong": "Gợi ý soạn chỉ số và mô tả tác vụ; cảnh báo mục tiêu có nguy cơ trượt.",
+    "tu_chu": "Chấp nhận nguyên tắc trí tuệ nhân tạo chỉ đề xuất, người có thẩm quyền duyệt.",
+    "egress": "Dữ liệu lương và kết quả đánh giá cá nhân không được xử lý qua dịch vụ bên ngoài.",
+    "giai_thich": "Mọi đề xuất phải nêu được căn cứ.",
+    "chi_phi": "Cần ước tính chi phí trước khi bật."
+  },
+
+  "bao_cao": [
+    { "nhom": "Nhân viên", "bao_cao": "Tiến độ mục tiêu của tôi", "tan_suat": "Liên tục", "dinh_dang": "Trên màn hình" },
+    { "nhom": "Trưởng phòng", "bao_cao": "Tình hình đội ngũ, mục tiêu rủi ro", "tan_suat": "Hằng tuần", "dinh_dang": "Trên màn hình" },
+    { "nhom": "Ban lãnh đạo", "bao_cao": "Toàn cảnh tổ chức, phân bố kết quả", "tan_suat": "Cuối kỳ", "dinh_dang": "Trên màn hình + tệp trình bày" }
+  ],
+
+  "nfr": [
+    { "nhom": "Quy mô & tải", "yeu_cau": "1.200 người dùng, 4 đơn vị, đỉnh tải vào tuần chốt kỳ", "ghi_chu": "" },
+    { "nhom": "Hạ tầng", "yeu_cau": "Điện toán đám mây, ưu tiên đặt tại Việt Nam", "ghi_chu": "" },
+    { "nhom": "Định danh & đăng nhập", "yeu_cau": "Đăng nhập một lần bằng tài khoản Microsoft của tổ chức", "ghi_chu": "Xem BR-L-03" },
+    { "nhom": "Tuân thủ", "yeu_cau": "Bảo vệ dữ liệu cá nhân theo Nghị định 13; lưu vết thao tác", "ghi_chu": "" },
+    { "nhom": "Ngôn ngữ", "yeu_cau": "Tiếng Việt; giao diện tiếng Anh cho nhân sự nước ngoài", "ghi_chu": "" }
+  ],
+
+  "gia_dinh": [
+    { "ma": "GD-01", "noi_dung": "Danh sách nhân sự và cơ cấu phòng ban lấy từ phần mềm nhân sự là nguồn chuẩn.", "anh_huong": "Nếu không phải, phải bổ sung bước làm sạch dữ liệu tổ chức." }
+  ],
+  "rang_buoc": [
+    { "ma": "RB-01", "noi_dung": "Phải kịp áp dụng cho kỳ đánh giá cuối năm.", "nguon": "Ban lãnh đạo" }
+  ],
+  "phu_thuoc": [
+    { "ma": "PT-01", "noi_dung": "Cấp môi trường định danh Microsoft và quyền đăng ký ứng dụng", "cho_yeu_cau": "BR-L-03", "han": "Trước khi bắt đầu triển khai" },
+    { "ma": "PT-02", "noi_dung": "Xác nhận phần mềm kế toán có mở giao diện kết nối hay không", "cho_yeu_cau": "BR-H-02", "han": "Trong 2 tuần" }
+  ],
+  "rui_ro": [
+    { "ma": "RR-01", "noi_dung": "Phần mềm kế toán không mở giao diện kết nối", "muc": "Cao", "giam_thieu": "Chốt phương án nạp tệp định kỳ làm dự phòng ngay trong phạm vi đợt đầu", "trach_nhiem": "Hai bên" },
+    { "ma": "RR-02", "noi_dung": "Bộ chỉ số các phòng chưa thống nhất, việc chuẩn hoá kéo dài hơn dự kiến", "muc": "Trung bình", "giam_thieu": "Chuẩn hoá theo đợt, bắt đầu từ 3 phòng của đơn vị thí điểm", "trach_nhiem": "Khách hàng" }
+  ],
+  "cau_hoi_mo": [
+    { "stt": 1, "noi_dung": "Công thức quy đổi từ điểm đánh giá sang thưởng hiện hành là gì?", "nguoi_tra_loi": "Trưởng phòng Nhân sự", "han": "Trong 1 tuần", "chan_yeu_cau": "BR-F-05" },
+    { "stt": 2, "noi_dung": "Người được đánh giá có được xem điểm trước khi kết quả chốt cuối cùng không?", "nguoi_tra_loi": "Giám đốc Nhân sự", "han": "Trong 1 tuần", "chan_yeu_cau": "BR-D-04" }
+  ],
+
+  "buoc_tiep_theo": "Đề nghị Quý tổ chức rà soát tài liệu này cùng Phụ lục kèm theo, ghi ý kiến trực tiếp vào cột dành riêng trong Phụ lục, và trả lời các câu hỏi tại Mục 15. Sau khi hai bên thống nhất, chúng tôi sẽ lập Đề xuất giải pháp kèm lộ trình và nguồn lực."
+}

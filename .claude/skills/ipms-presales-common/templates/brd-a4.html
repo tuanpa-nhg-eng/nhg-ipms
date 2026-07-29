@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>BRD · {{TEN_KHACH}} · Nền tảng iPMS</title>
+<!--
+  TEMPLATE BRD A4 song ngữ — self-contained (logo data-URI, CSS inline).
+  Chỗ điền: {{TEN_KHACH}} {{MA_KH}} {{PHIEN_BAN}} {{NGAY}} {{...}}
+  Xoá mọi khối <!-- HD: ... --> (hướng dẫn) trước khi gửi khách.
+  Trước khi phát hành: chạy rà hàng rào (SKILL.md §Bước 6) và đổi dòng cuối file thành PASS.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --green:#037236; --green-700:#025E2C; --green-800:#04361c; --green-50:#E8F4ED; --green-100:#D6EADE;
+  --red:#ED2024; --red-50:#FDECEC;
+  --ink:#101214; --ink-2:#454B4D; --ink-3:#7C8285;
+  --white:#FFFFFF; --paper:#FBFAF7; --mist:#EEF3EF; --line:#DDE5E0;
+  --warn:#B86A00; --warn-50:#FBF0DC; --info:#0A6BB8; --info-50:#E5F0F9;
+  --sans:'Be Vietnam Pro',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{font-size:10.4pt}
+body{font-family:var(--sans);color:var(--ink);background:#8f9691;line-height:1.5;
+  -webkit-font-smoothing:antialiased;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+.book{width:210mm;margin:9mm auto;background:var(--white);padding:19mm 18mm 16mm;box-shadow:0 3px 20px rgba(0,0,0,.28);}
+@page{ size:A4; margin:16mm 16mm 15mm;
+  @top-center{content:"Tài liệu Yêu cầu Nghiệp vụ · Nền tảng iPMS";font-family:'Be Vietnam Pro',sans-serif;font-size:8pt;color:#9AA3A0;}
+  @bottom-left{content:"MẬT — chỉ lưu hành giữa hai bên / CONFIDENTIAL";font-family:'Be Vietnam Pro',sans-serif;font-size:8pt;color:#9AA3A0;}
+  @bottom-right{content:"Trang " counter(page) " / " counter(pages);font-family:'Be Vietnam Pro',sans-serif;font-size:8pt;color:#9AA3A0;}
+}
+@page:first{ @top-center{content:""} @bottom-left{content:""} @bottom-right{content:""} }
+@media print{ body{background:#fff} .book{width:auto;margin:0;padding:0;box-shadow:none} .no-print{display:none!important} .break{break-before:page} a{color:inherit;text-decoration:none} }
+h1,h2,h3,h4{line-height:1.22;color:var(--ink)}
+p{margin:0 0 6pt;text-align:justify}
+.en{color:var(--ink-3);font-weight:400;font-style:italic}
+.small{font-size:8.6pt;color:var(--ink-2)}
+/* bìa */
+.cover{height:260mm;display:flex;flex-direction:column;color:var(--white);
+  background:radial-gradient(120% 90% at 100% 0%,rgba(255,255,255,.10),transparent 55%),
+             linear-gradient(155deg,var(--green-800) 0%,var(--green-700) 42%,var(--green) 100%);
+  padding:22mm 20mm;position:relative;overflow:hidden;break-after:page;}
+.cover::after{content:"";position:absolute;right:-40mm;bottom:-40mm;width:150mm;height:150mm;border-radius:50%;
+  background:radial-gradient(circle at 50% 50%,rgba(237,32,36,.28),transparent 62%);z-index:0;}
+.cover>*{position:relative;z-index:2}
+.cv-top{display:flex;justify-content:space-between;align-items:flex-start;gap:14pt}
+.cv-logo{height:14mm;max-width:66mm;object-fit:contain;filter:brightness(0) invert(1);opacity:.96}
+.cv-tag{flex:0 0 auto;margin-top:2mm;font-size:8.3pt;font-weight:600;white-space:nowrap;
+  border:1px solid rgba(255,255,255,.45);border-radius:999px;padding:4pt 11pt;color:#EAF6EF;letter-spacing:.05em}
+.cv-kicker{margin-top:auto;font-size:10.5pt;letter-spacing:.26em;text-transform:uppercase;font-weight:600;color:#BFE6CE}
+.cover h1{font-size:33pt;font-weight:800;line-height:1.06;margin:9pt 0 0;letter-spacing:-.4px;color:#fff}
+.cv-sub{font-size:13.5pt;font-weight:400;color:#D9EEE1;margin-top:11pt;max-width:158mm}
+.cv-sub .en{color:#A9D4BB}
+.cv-rule{width:46mm;height:4px;background:var(--red);border-radius:3px;margin:16pt 0}
+.cv-meta{display:flex;gap:22pt;font-size:9.4pt;color:#CDE7D8;flex-wrap:wrap}
+.cv-meta b{display:block;color:#fff;font-weight:700;font-size:10.5pt;margin-top:2pt}
+.cv-foot{margin-top:16pt;font-size:8.6pt;color:#A9D4BB;border-top:1px solid rgba(255,255,255,.22);padding-top:8pt;max-width:160mm}
+/* mục */
+.sec{margin:15pt 0 8pt;padding:8pt 13pt;border-radius:11px;background:linear-gradient(120deg,var(--green-700),var(--green));color:#fff;break-after:avoid}
+.sec .sn{font-size:8pt;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#BFE6CE}
+.sec h2{color:#fff;font-size:14.5pt;font-weight:800;margin-top:1pt}
+.sec h2 .en{color:#BFE6CE;font-weight:500;font-size:10pt}
+h3.sub{font-size:11.6pt;color:var(--green-800);font-weight:800;margin:11pt 0 5pt;break-after:avoid}
+h3.sub .en{font-size:9pt}
+table{width:100%;border-collapse:collapse;font-size:9pt;margin:6pt 0}
+th,td{border:1px solid var(--line);padding:4pt 7pt;text-align:left;vertical-align:top;line-height:1.35}
+thead th{background:var(--green-50);color:var(--green-800);font-weight:700}
+td .en{font-size:8pt}
+/* thẻ yêu cầu */
+.br{border:1px solid var(--line);border-left:4px solid var(--green);border-radius:0 10px 10px 0;padding:8pt 12pt;margin:7pt 0;break-inside:avoid;background:var(--white)}
+.br-h{display:flex;align-items:baseline;gap:8pt;margin-bottom:4pt}
+.br-id{font-size:8.4pt;font-weight:800;color:#fff;background:var(--green);border-radius:6px;padding:1pt 7pt;letter-spacing:.02em}
+.br-t{font-size:11pt;font-weight:700}
+.br dl{display:grid;grid-template-columns:max-content 1fr;gap:2pt 9pt;font-size:9.2pt;margin-top:3pt}
+.br dt{font-weight:700;color:var(--green-700)}
+.br dd{color:var(--ink-2)}
+.pri{display:inline-block;font-size:7.4pt;font-weight:800;border-radius:4px;padding:0 5pt;line-height:1.6;margin-left:auto}
+.pri.m{background:var(--red-50);color:var(--red)} .pri.s{background:var(--info-50);color:var(--info)}
+.pri.c{background:var(--mist);color:var(--ink-2)} .pri.w{background:#EFEFEF;color:var(--ink-3)}
+/* mức đáp ứng */
+.fit{display:inline-block;font-size:7.6pt;font-weight:700;border-radius:4px;padding:1pt 5pt;white-space:nowrap}
+.fit.ready{background:var(--green-50);color:var(--green-700)}
+.fit.act{background:var(--info-50);color:var(--info)}
+.fit.cfg{background:var(--mist);color:var(--ink-2)}
+.fit.dev{background:var(--warn-50);color:var(--warn)}
+.fit.out{background:var(--red-50);color:var(--red)}
+.callout{border-left:4px solid var(--green);background:var(--mist);border-radius:0 9px 9px 0;padding:8pt 12pt;margin:9pt 0;font-size:9.4pt}
+.callout b{color:var(--green-700)}
+.note{border-left:3px solid var(--warn);background:var(--warn-50);border-radius:0 6px 6px 0;padding:4pt 9pt;font-size:8.8pt;color:var(--warn);margin:6pt 0}
+/* ký */
+.sign{display:grid;grid-template-columns:1fr 1fr;gap:14pt;margin-top:14pt;break-inside:avoid}
+.sign .box{border:1px solid var(--line);border-radius:10px;padding:11pt 13pt 26mm;background:var(--paper)}
+.sign .box h4{font-size:10.5pt;color:var(--green-800);margin-bottom:5pt}
+.sign .box .ln{font-size:8.8pt;color:var(--ink-2);margin-top:4pt}
+.foot{margin-top:16pt;border-top:1px solid var(--line);padding-top:7pt;font-size:8.4pt;color:var(--ink-3);text-align:center}
+</style>
+</head>
+<body>
+<div class="book">
+
+  <!-- ══════════ BÌA ══════════ -->
+  <section class="cover">
+    <div class="cv-top">
+      <img class="cv-logo" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJQAAABBCAMAAAAAEX16AAABQVBMVEX///8DcjYAAAAFBwiBgoUFBwiBgoXtICQDcjaBgoUFBwgFBwgDcjaBgoUDcjbtICQFBwgFBwgFBwgFBwiBgoWBgoWBgoWBgoUDcjaBgoUFBwgFBwiBgoUFBwgDcjaBgoWBgoUFBwgFBwgDcjaBgoUDcjaBgoUFBwgDcjYDcjYDcjYDcjYDcjaBgoUFBwgDcjbtICTtICQDcjbtICRNZjbEMSjtICRPZTYOcTeaQSwUcTepPCvtICSNRS3sICTtICTtICTtICQtcDjWKCYDcjYDdDdHZzbcKSYfbTY2bDfYKiYncDjFMyolbDa9NirtICTZJyYGdDd2Ti/fJSXtICRXXjTqISRLYTTnIiQzajbUKycqbDbMLiftICQFBwiBgoUDcjbtICQIcjYDdDcEdDcFdDcFeDneKCYDczYEczYEdjhAzG2jAAAAXnRSTlMAAAC/QIC/gL+AQO+A70C/EM/fMM8QMGDvryCfcGBgj99wrxAgMJ+Pn8+v349QUHBQECBA0ORw8fzb+ODf2vqfIDCEh1CD9fv29vf480/w70bExMnP6Pns9O7v8+iv3j8PbwAAA8JJREFUeF7E1keP2zAQhuEZnXgQuFeeeCEEkLYBI9r0XpzeeweGqeX//4Bs1rEt0xqLCTH2e/sAHR6BAEGgeWaGW1L0t+NFixT2xX2jR4YGG/sWAJZzKotqFWVmOyjykqjGUHYz6Izg5FCB8lPQXaaRQk3pv1FkrBAqFKCIahGUoyIUjZwASheiKLSiKMU13oYi00iikAlqWuSBerJ7RBnfAFBffl8oZR0AgyLl9oAykxbmUX/jZtcoPYNlxGRmw6ig2f4dNS9F+YQ1ZVHZlaO0TVTeCaPC8OWpURtaKzhZlM5Abb56TCOKQp+DwiYkKiuKak0OCl2iookkCussFDq18WwoQ8FRHRSs5ca00beTXRRz0KGVQ4GlpF9nvh/0oHCSqIzmUIor5KJAUbcvt27H2IvCDb5hUMils1G68x+f796LMUXxKgFUmv5x/0GMW1DYmJ2jHj6KkUExKnFUVT2Jgyhsww5R1VGHGSh0QQ6VkrJR6EYSKJX29Nnzgz+9YFBpXgCV9PXlq5g0gMKJMOrn6zcJKAOFVhT19l2MgyhGVY5qqaf3H2J/HxlUcmGVosBQ2p1Tket0gmJUxSifkM5fiGwXTwyjsA3lqPUn5tlzke/xtSoDhS4Uo6BZqT5duhz5rlytKtDLHHK5etHxrFeTq60XWZjn7HzfvH7jd/t1t+ooDEUBeFg77iEJQkyqolX84WCvWmZeKPv932IaT6UHhjn0prYXsy4EVy782IaIP/+dX7+BK2rf4KHs/PCXonpyCCd8k0AAaFdUFmcYwjcxEUDcF+WtMYRTtNZkGTI6HtH7YIvCURFt2FDorS/ai/Uz1t6R9fFpKMr8hUIM7oYy1s1ZMYEmmjFnCZUCazAfnbvEsPZTAfNEFAoiQwB9ouCn2MZr19PVmG2TChHIqLfHaNY+rTwTZeI2qQJHwmQJxQTgK+o2KerdDTV5Nz0ThVPaU96b1saC4GKPYIsYNtR9T7mT9fYT5ShSfPI51aK1AWsyj0fSYvJPRlGMJ6zpbXjI5KPvdzvRHdaUdcO8qLf6zFSjHIbhUL8Tqhxz9XYf5E62GdVc5xrdKPlQouIqNQB3jchS7otqZCu0yKA6aZSWBkpUagCR5tzIsi+KZb0IQ0sH5IcV+nFHjev6C1C1HhNKAaLTrag7agDS0iv2FG+oIXV/o6pdUWWeV19Q41gCLKWSDuDt9Y05dkVB5cJ6yW+osxw0i07WgfOEWotuZxQ+OmYeFGqukrHh5gyganhRDMiwMJ/f7MdB9GOH53+UVljzB2H3EVudxsyJAAAAAElFTkSuQmCC" alt="Nhà cung cấp" />
+      <span class="cv-tag">TÀI LIỆU MẬT · CONFIDENTIAL</span>
+    </div>
+    <div class="cv-kicker">Business Requirements Document</div>
+    <h1>Tài liệu Yêu cầu Nghiệp vụ</h1>
+    <div class="cv-sub">
+      {{TEN_KHACH}} — Triển khai Nền tảng iPMS<br />
+      <span class="en">{{TEN_KHACH_EN}} — iPMS Platform implementation</span>
+    </div>
+    <div class="cv-rule"></div>
+    <div class="cv-meta">
+      <span>Mã hồ sơ<b>{{MA_KH}}</b></span>
+      <span>Phiên bản<b>{{PHIEN_BAN}} · {{NGAY}}</b></span>
+      <span>Phạm vi<b>{{SO_YEU_CAU}} yêu cầu / 13 phân hệ</b></span>
+      <span>Ngôn ngữ<b>Song ngữ VI / EN</b></span>
+    </div>
+    <div class="cv-foot">
+      Tài liệu ghi nhận yêu cầu nghiệp vụ của {{TEN_KHACH}} và mức đáp ứng của Nền tảng iPMS, làm căn cứ
+      thống nhất phạm vi trước khi lập đề xuất giải pháp.
+      <span class="en">Records the customer's business requirements and the iPMS platform's fit, as the agreed basis for scoping.</span>
+    </div>
+  </section>
+
+  <!-- ══════════ 1 ══════════ -->
+  <div class="sec"><div class="sn">Mục 1 / Section 1</div><h2>Thông tin tài liệu <span class="en">Document control</span></h2></div>
+  <table>
+    <tbody>
+      <tr><th style="width:32%">Khách hàng <span class="en">Customer</span></th><td>{{TEN_KHACH}}</td></tr>
+      <tr><th>Dự án <span class="en">Project</span></th><td>Triển khai Nền tảng iPMS — {{PHAM_VI_NGAN}}</td></tr>
+      <tr><th>Phiên bản <span class="en">Version</span></th><td>{{PHIEN_BAN}} · {{NGAY}}</td></tr>
+      <tr><th>Phân loại <span class="en">Classification</span></th><td><b>Mật</b> — chỉ lưu hành giữa hai bên</td></tr>
+      <tr><th>Người lập <span class="en">Prepared by</span></th><td>{{CHUC_DANH_NCC}} · Nhà cung cấp</td></tr>
+      <tr><th>Người soát xét phía khách <span class="en">Customer reviewer</span></th><td>{{CHUC_DANH_KHACH}}</td></tr>
+      <tr><th>Căn cứ <span class="en">Basis</span></th><td>{{SO_BUOI}} buổi khảo sát · {{SO_TAI_LIEU}} tài liệu thu thập · phiếu tự khai ngày {{NGAY_TU_KHAI}}</td></tr>
+    </tbody>
+  </table>
+
+  <h3 class="sub">Lịch sử phiên bản <span class="en">Revision history</span></h3>
+  <table>
+    <thead><tr><th>Phiên bản</th><th>Ngày</th><th>Thay đổi chính</th><th>Người lập</th></tr></thead>
+    <tbody><tr><td>v1</td><td>{{NGAY}}</td><td>Bản đầu</td><td>{{CHUC_DANH_NCC}}</td></tr></tbody>
+  </table>
+
+  <!-- ══════════ 2 ══════════ -->
+  <div class="sec break"><div class="sn">Mục 2 / Section 2</div><h2>Bối cảnh, động cơ &amp; mức trưởng thành <span class="en">Context, drivers &amp; maturity</span></h2></div>
+  <p>{{BOI_CANH}}</p>
+  <h3 class="sub">Cách làm hiện tại và chỗ nó gãy <span class="en">Current approach and where it breaks</span></h3>
+  <table>
+    <thead><tr><th style="width:60%">Điểm đau <span class="en">Pain point</span></th><th>Hệ quả</th><th>Bằng chứng</th></tr></thead>
+    <tbody><tr><td>{{DIEM_DAU_1}}</td><td>{{HE_QUA_1}}</td><td>BC-{{nn}}</td></tr></tbody>
+  </table>
+  <div class="callout"><b>Mức trưởng thành quản trị hiệu suất hiện tại:</b> {{MUC_TRUONG_THANH}} — {{DIEN_GIAI}}</div>
+
+  <!-- ══════════ 3 ══════════ -->
+  <div class="sec"><div class="sn">Mục 3 / Section 3</div><h2>Mục tiêu kinh doanh &amp; tiêu chí thành công <span class="en">Business objectives &amp; success criteria</span></h2></div>
+  <table>
+    <thead><tr><th style="width:6%">#</th><th style="width:34%">Mục tiêu kinh doanh</th><th style="width:34%">Tiêu chí thành công đo được</th><th>Ai đo</th><th>Khi nào</th></tr></thead>
+    <tbody><tr><td>1</td><td>{{MUC_TIEU_1}}</td><td>{{TIEU_CHI_1}}</td><td>{{AI_DO}}</td><td>{{KHI_NAO}}</td></tr></tbody>
+  </table>
+
+  <!-- ══════════ 4 ══════════ -->
+  <div class="sec"><div class="sn">Mục 4 / Section 4</div><h2>Phạm vi <span class="en">Scope</span></h2></div>
+  <h3 class="sub">Trong phạm vi đợt này <span class="en">In scope</span></h3>
+  <table><thead><tr><th style="width:50%">Hạng mục</th><th>Đơn vị áp dụng</th><th>Ghi chú</th></tr></thead>
+    <tbody><tr><td>{{TRONG_PV_1}}</td><td>{{DON_VI_1}}</td><td></td></tr></tbody></table>
+  <h3 class="sub">Ngoài phạm vi đợt này <span class="en">Out of scope — mutually agreed</span></h3>
+  <table><thead><tr><th style="width:50%">Hạng mục</th><th>Lý do hoãn</th><th>Xem xét lại</th></tr></thead>
+    <tbody><tr><td>{{NGOAI_PV_1}}</td><td>{{LY_DO_1}}</td><td>{{XEM_XET_1}}</td></tr></tbody></table>
+
+  <!-- ══════════ 5 ══════════ -->
+  <div class="sec break"><div class="sn">Mục 5 / Section 5</div><h2>Các bên liên quan &amp; nhóm người dùng <span class="en">Stakeholders &amp; user groups</span></h2></div>
+  <table>
+    <thead><tr><th>Nhóm</th><th>Quy mô</th><th>Việc chính trên hệ thống</th><th>Được thấy</th><th>Không được thấy</th></tr></thead>
+    <tbody>
+      <tr><td>Nhân viên <span class="en">Employee</span></td><td>{{n}}</td><td></td><td></td><td></td></tr>
+      <tr><td>Trưởng phòng <span class="en">Manager</span></td><td>{{n}}</td><td></td><td></td><td></td></tr>
+      <tr><td>Nhân sự <span class="en">HR</span></td><td>{{n}}</td><td></td><td></td><td></td></tr>
+      <tr><td>Ban lãnh đạo <span class="en">Executive</span></td><td>{{n}}</td><td></td><td></td><td></td></tr>
+      <tr><td>Kiểm toán nội bộ <span class="en">Internal audit</span></td><td>{{n}}</td><td></td><td></td><td></td></tr>
+      <tr><td>Quản trị hệ thống <span class="en">Admin</span></td><td>{{n}}</td><td></td><td></td><td></td></tr>
+    </tbody>
+  </table>
+
+  <!-- ══════════ 6 ══════════ -->
+  <div class="sec"><div class="sn">Mục 6 / Section 6</div><h2>Hiện trạng <span class="en">Current state (as-is)</span></h2></div>
+  <table>
+    <thead><tr><th style="width:24%">Phân hệ</th><th>Hiện trạng</th><th style="width:14%">Bằng chứng</th></tr></thead>
+    <tbody>
+      <tr><td>B · Phân rã mục tiêu</td><td>{{AS_IS_B}}</td><td></td></tr>
+      <tr><td>C · Cơ cấu tổ chức</td><td>{{AS_IS_C}}</td><td></td></tr>
+      <tr><td>D · Vai trò &amp; phân quyền</td><td>{{AS_IS_D}}</td><td></td></tr>
+      <tr><td>E · Khung KPI</td><td>{{AS_IS_E}}</td><td></td></tr>
+      <tr><td>F · Chu trình đánh giá</td><td>{{AS_IS_F}}</td><td></td></tr>
+      <tr><td>G · Kiến trúc tác vụ</td><td>{{AS_IS_G}}</td><td></td></tr>
+      <tr><td>H · Dữ liệu &amp; tích hợp</td><td>{{AS_IS_H}}</td><td></td></tr>
+      <tr><td>I · AI &amp; tự động hoá</td><td>{{AS_IS_I}}</td><td></td></tr>
+      <tr><td>J · Báo cáo</td><td>{{AS_IS_J}}</td><td></td></tr>
+      <tr><td>K · Cấu hình &amp; thương hiệu</td><td>{{AS_IS_K}}</td><td></td></tr>
+      <tr><td>L · Bảo mật &amp; tuân thủ</td><td>{{AS_IS_L}}</td><td></td></tr>
+    </tbody>
+  </table>
+
+  <!-- ══════════ 7 ══════════ -->
+  <div class="sec break"><div class="sn">Mục 7 / Section 7</div><h2>Yêu cầu nghiệp vụ <span class="en">Business requirements</span></h2></div>
+  <!-- HD: nhân bản khối .br cho mỗi yêu cầu; nhóm theo phân hệ B·C·D·E·F·G·K -->
+  <h3 class="sub">E · Khung KPI &amp; chỉ số đo lường <span class="en">KPI framework</span></h3>
+
+  <div class="br">
+    <div class="br-h"><span class="br-id">BR-E-01</span><span class="br-t">{{TIEU_DE}}</span><span class="pri m">MUST</span></div>
+    <dl>
+      <dt>Yêu cầu</dt><dd>Hệ thống phải {{PHAT_BIEU}}</dd>
+      <dt>Vì sao</dt><dd>{{VI_SAO}}</dd>
+      <dt>Tiêu chí chấp nhận</dt><dd>{{TIEU_CHI_CHAP_NHAN}}</dd>
+      <dt>Nguồn</dt><dd>{{NGUON}} · Bằng chứng {{BC}}</dd>
+    </dl>
+  </div>
+
+  <!-- ══════════ 8–11 ══════════ -->
+  <div class="sec break"><div class="sn">Mục 8 / Section 8</div><h2>Yêu cầu dữ liệu &amp; tích hợp <span class="en">Data &amp; integration</span></h2></div>
+  <table>
+    <thead><tr><th>Hệ nguồn</th><th>Chủ sở hữu</th><th>Dữ liệu cần lấy</th><th>Có API?</th><th>Tần suất</th><th>Dự phòng</th></tr></thead>
+    <tbody><tr><td>{{HE_NGUON_1}}</td><td>{{CHUC_DANH}}</td><td></td><td></td><td></td><td>CSV định kỳ</td></tr></tbody>
+  </table>
+  <p class="small">Nguồn chuẩn dữ liệu nhân sự (system of record): {{SOR_NHAN_SU}}</p>
+
+  <div class="sec"><div class="sn">Mục 9 / Section 9</div><h2>Yêu cầu AI &amp; quản trị AI <span class="en">AI &amp; AI governance</span></h2></div>
+  <div class="callout"><b>Nguyên tắc bất biến của nền tảng:</b> AI chỉ đề xuất, người có thẩm quyền duyệt; mọi đề xuất giải thích được và lưu vết. <span class="en">AI proposes, a human approves — always explainable, always logged.</span></div>
+  <table>
+    <thead><tr><th style="width:34%">Nội dung</th><th>Yêu cầu của khách hàng</th></tr></thead>
+    <tbody>
+      <tr><td>Kỳ vọng ứng dụng AI</td><td>{{AI_KY_VONG}}</td></tr>
+      <tr><td>Mức tự chủ chấp nhận được</td><td>{{AI_TU_CHU}}</td></tr>
+      <tr><td>Phân loại dữ liệu &amp; ranh giới xuất dữ liệu</td><td>{{AI_EGRESS}}</td></tr>
+      <tr><td>Yêu cầu giải thích được</td><td>{{AI_EXPLAIN}}</td></tr>
+      <tr><td>Chính sách chi phí mô hình</td><td>{{AI_CHI_PHI}}</td></tr>
+    </tbody>
+  </table>
+
+  <div class="sec"><div class="sn">Mục 10 / Section 10</div><h2>Yêu cầu báo cáo &amp; phân tích <span class="en">Reporting &amp; analytics</span></h2></div>
+  <table><thead><tr><th>Nhóm người dùng</th><th>Báo cáo cần</th><th>Tần suất</th><th>Định dạng xuất</th></tr></thead>
+    <tbody><tr><td>{{NHOM}}</td><td>{{BAO_CAO}}</td><td></td><td></td></tr></tbody></table>
+
+  <div class="sec"><div class="sn">Mục 11 / Section 11</div><h2>Yêu cầu phi chức năng, bảo mật &amp; tuân thủ <span class="en">Non-functional, security &amp; compliance</span></h2></div>
+  <table>
+    <thead><tr><th style="width:26%">Nhóm</th><th>Yêu cầu</th><th style="width:22%">Ghi chú</th></tr></thead>
+    <tbody>
+      <tr><td>Quy mô &amp; tải</td><td>{{QUY_MO}}</td><td></td></tr>
+      <tr><td>Hạ tầng</td><td>{{HA_TANG}}</td><td></td></tr>
+      <tr><td>Định danh &amp; đăng nhập</td><td>{{SSO}}</td><td></td></tr>
+      <tr><td>Tuân thủ</td><td>{{TUAN_THU}}</td><td></td></tr>
+      <tr><td>Lưu vết kiểm toán</td><td>{{AUDIT}}</td><td></td></tr>
+      <tr><td>Ngôn ngữ</td><td>{{NGON_NGU}}</td><td></td></tr>
+    </tbody>
+  </table>
+
+  <!-- ══════════ 12 ══════════ -->
+  <div class="sec break"><div class="sn">Mục 12 / Section 12</div><h2>Đối chiếu năng lực &amp; khoảng trống <span class="en">Capability fit &amp; gaps</span></h2></div>
+  <p class="small">Đối chiếu với năng lực nền tảng tại ngày {{NGAY_DOI_CHIEU}}.</p>
+  <table>
+    <thead><tr><th>Mức đáp ứng <span class="en">Fit level</span></th><th style="width:16%">Số yêu cầu</th><th style="width:20%">Trong đó Must have</th></tr></thead>
+    <tbody>
+      <tr><td><span class="fit ready">Sẵn sàng</span> — dùng được ngay</td><td>{{n}}</td><td>{{n}}</td></tr>
+      <tr><td><span class="fit act">Sẵn sàng — cần kích hoạt</span> — chờ khách cung cấp khoá/hạ tầng</td><td>{{n}}</td><td>{{n}}</td></tr>
+      <tr><td><span class="fit cfg">Đáp ứng bằng cấu hình</span> — không sửa mã nguồn</td><td>{{n}}</td><td>{{n}}</td></tr>
+      <tr><td><span class="fit dev">Cần phát triển</span> — bổ sung theo yêu cầu</td><td>{{n}}</td><td>{{n}}</td></tr>
+      <tr><td><span class="fit out">Ngoài phạm vi đợt này</span></td><td>{{n}}</td><td>{{n}}</td></tr>
+    </tbody>
+  </table>
+  <h3 class="sub">Khoảng trống cần xử lý <span class="en">Gaps to resolve</span></h3>
+  <table>
+    <thead><tr><th style="width:12%">Yêu cầu</th><th>Khoảng trống</th><th style="width:30%">Phương án đề xuất</th></tr></thead>
+    <tbody><tr><td>{{BR}}</td><td>{{GAP}}</td><td>{{PHUONG_AN}}</td></tr></tbody>
+  </table>
+  <div class="note">Ngày công và chi phí cho các hạng mục “Cần phát triển” được trình bày trong tài liệu Đề xuất giải pháp riêng, sau khi hai bên chốt tài liệu này.</div>
+
+  <!-- ══════════ 13–14 ══════════ -->
+  <div class="sec"><div class="sn">Mục 13 / Section 13</div><h2>Giả định · Ràng buộc · Phụ thuộc <span class="en">Assumptions · Constraints · Dependencies</span></h2></div>
+  <h3 class="sub">Giả định <span class="en">Assumptions</span></h3>
+  <table><thead><tr><th style="width:10%">#</th><th>Giả định</th><th style="width:34%">Ảnh hưởng nếu sai</th></tr></thead>
+    <tbody><tr><td>GD-01</td><td>{{GIA_DINH}}</td><td>{{ANH_HUONG}}</td></tr></tbody></table>
+  <h3 class="sub">Ràng buộc <span class="en">Constraints</span></h3>
+  <table><thead><tr><th style="width:10%">#</th><th>Ràng buộc</th><th style="width:30%">Nguồn</th></tr></thead>
+    <tbody><tr><td>RB-01</td><td>{{RANG_BUOC}}</td><td></td></tr></tbody></table>
+  <h3 class="sub">Phụ thuộc phía khách hàng <span class="en">Customer-side dependencies</span></h3>
+  <table><thead><tr><th style="width:10%">#</th><th>Quý vị cần cung cấp</th><th style="width:18%">Phục vụ yêu cầu</th><th style="width:18%">Hạn đề nghị</th></tr></thead>
+    <tbody><tr><td>PT-01</td><td>{{PHU_THUOC}}</td><td>{{BR}}</td><td>{{HAN}}</td></tr></tbody></table>
+
+  <div class="sec"><div class="sn">Mục 14 / Section 14</div><h2>Rủi ro <span class="en">Risks</span></h2></div>
+  <table>
+    <thead><tr><th style="width:9%">#</th><th>Rủi ro</th><th style="width:10%">Mức</th><th>Giảm thiểu</th><th style="width:16%">Trách nhiệm</th></tr></thead>
+    <tbody><tr><td>RR-01</td><td>{{RUI_RO}}</td><td>Cao</td><td>{{GIAM_THIEU}}</td><td>{{AI}}</td></tr></tbody>
+  </table>
+
+  <!-- ══════════ 15 ══════════ -->
+  <div class="sec break"><div class="sn">Mục 15 / Section 15</div><h2>Câu hỏi mở &amp; bước tiếp theo <span class="en">Open questions &amp; next steps</span></h2></div>
+  <table>
+    <thead><tr><th style="width:8%">#</th><th>Câu hỏi cần quý vị làm rõ</th><th style="width:20%">Người trả lời</th><th style="width:14%">Hạn</th><th style="width:14%">Chặn yêu cầu</th></tr></thead>
+    <tbody><tr><td>1</td><td>{{CAU_HOI}}</td><td>{{CHUC_DANH}}</td><td></td><td>{{BR}}</td></tr></tbody>
+  </table>
+  <h3 class="sub">Bước tiếp theo <span class="en">Next steps</span></h3>
+  <p>{{BUOC_TIEP_THEO}}</p>
+
+  <div class="callout">
+    Hai bên xác nhận nội dung tài liệu này phản ánh đúng yêu cầu nghiệp vụ tại thời điểm ký. Mọi thay đổi sau ngày ký
+    được xử lý qua quy trình quản trị thay đổi phạm vi.
+    <span class="en">Both parties confirm this document reflects the business requirements as of the signing date; subsequent changes follow the scope-change process.</span>
+  </div>
+
+  <div class="sign">
+    <div class="box"><h4>Đại diện Khách hàng <span class="en">For the Customer</span></h4>
+      <div class="ln">Chức danh / Title: ..................................</div>
+      <div class="ln">Ngày / Date: ..........................................</div>
+      <div class="ln">Ký &amp; ghi rõ họ tên / Signature:</div>
+    </div>
+    <div class="box"><h4>Đại diện Nhà cung cấp <span class="en">For the Provider</span></h4>
+      <div class="ln">Chức danh / Title: ..................................</div>
+      <div class="ln">Ngày / Date: ..........................................</div>
+      <div class="ln">Ký &amp; ghi rõ họ tên / Signature:</div>
+    </div>
+  </div>
+
+  <div class="foot">
+    {{MA_KH}} · Tài liệu Yêu cầu Nghiệp vụ · Phiên bản {{PHIEN_BAN}} · MẬT — chỉ lưu hành giữa hai bên<br />
+    <span class="en">Business Requirements Document · Confidential — for the two parties only</span>
+  </div>
+</div>
+
+<!-- ra-hang-rao: CHƯA CHẠY -->
+</body>
+</html>

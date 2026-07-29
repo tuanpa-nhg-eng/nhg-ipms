@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Phiếu Khảo sát Nhu cầu — Nền tảng iPMS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --green:#037236; --green-700:#025E2C; --green-800:#04361c; --green-50:#E8F4ED;
+  --red:#ED2024; --ink:#101214; --ink-2:#454B4D; --ink-3:#7C8285;
+  --white:#fff; --paper:#FBFAF7; --mist:#EEF3EF; --line:#DDE5E0;
+  --sans:'Be Vietnam Pro',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{font-size:10.6pt}
+body{font-family:var(--sans);color:var(--ink);background:#8f9691;line-height:1.5;
+  -webkit-print-color-adjust:exact;print-color-adjust:exact}
+.book{width:210mm;margin:9mm auto;background:var(--white);padding:18mm 17mm 15mm;box-shadow:0 3px 20px rgba(0,0,0,.28)}
+@page{ size:A4; margin:15mm;
+  @top-center{content:"Phiếu Khảo sát Nhu cầu · Nền tảng iPMS";font-family:'Be Vietnam Pro',sans-serif;font-size:8pt;color:#9AA3A0}
+  @bottom-right{content:"Trang " counter(page) " / " counter(pages);font-family:'Be Vietnam Pro',sans-serif;font-size:8pt;color:#9AA3A0}
+}
+@page:first{ @top-center{content:""} @bottom-right{content:""} }
+@media print{ body{background:#fff} .book{width:auto;margin:0;padding:0;box-shadow:none}
+  .no-print{display:none!important} .break{break-before:page}
+  textarea{border:none!important;border-bottom:1px dotted #bbb!important;background:#fff!important;resize:none}
+}
+h1,h2,h3{line-height:1.22}
+.en{color:var(--ink-3);font-weight:400;font-style:italic}
+/* bìa rút gọn */
+.head{background:linear-gradient(155deg,var(--green-800),var(--green-700) 45%,var(--green));color:#fff;
+  border-radius:14px;padding:16mm 14mm;position:relative;overflow:hidden;margin-bottom:10pt}
+.head::after{content:"";position:absolute;right:-30mm;bottom:-34mm;width:110mm;height:110mm;border-radius:50%;
+  background:radial-gradient(circle at 50% 50%,rgba(237,32,36,.30),transparent 62%)}
+.head>*{position:relative;z-index:2}
+.head img{height:12mm;filter:brightness(0) invert(1);opacity:.96;margin-bottom:8pt}
+.head .k{font-size:9pt;letter-spacing:.24em;text-transform:uppercase;font-weight:600;color:#BFE6CE}
+.head h1{font-size:26pt;font-weight:800;margin:5pt 0 0;color:#fff}
+.head .s{font-size:12pt;color:#D9EEE1;margin-top:8pt;max-width:150mm}
+.head .s .en{color:#A9D4BB}
+.rule{width:40mm;height:4px;background:var(--red);border-radius:3px;margin:12pt 0 0}
+.intro{border-left:4px solid var(--green);background:var(--mist);border-radius:0 9px 9px 0;padding:9pt 13pt;margin:10pt 0;font-size:9.6pt}
+.intro b{color:var(--green-700)}
+.sec{margin:16pt 0 7pt;padding:7pt 12pt;border-radius:10px;background:linear-gradient(120deg,var(--green-700),var(--green));color:#fff;break-after:avoid}
+.sec .c{font-size:8pt;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#BFE6CE}
+.sec h2{font-size:13pt;font-weight:800;color:#fff;margin-top:1pt}
+.sec h2 .en{color:#BFE6CE;font-weight:500;font-size:9.5pt}
+.q{border-top:1px solid var(--mist);padding:8pt 0 4pt;break-inside:avoid}
+.q:first-of-type{border-top:0}
+.q .n{display:inline-block;font-size:7.6pt;font-weight:800;color:var(--green-700);background:var(--green-50);
+  border-radius:5px;padding:1pt 6pt;margin-right:6pt;min-width:26pt;text-align:center}
+.q .t{font-size:10.4pt;font-weight:600}
+.q .te{display:block;font-size:8.8pt;color:var(--ink-3);font-style:italic;margin:1pt 0 0 32pt}
+.q .hint{display:block;font-size:8.8pt;color:var(--ink-2);margin:3pt 0 0 32pt}
+.q .ans{margin:5pt 0 0 32pt}
+textarea{width:100%;font-family:var(--sans);font-size:9.8pt;color:var(--ink);border:1px solid var(--line);
+  border-radius:8px;padding:6pt 9pt;background:var(--paper);resize:vertical;min-height:34pt;overflow:hidden}
+textarea:focus{outline:2px solid var(--green-50);border-color:var(--green)}
+input[type=text]{width:100%;font-family:var(--sans);font-size:9.8pt;border:1px solid var(--line);border-radius:8px;
+  padding:5pt 9pt;background:var(--paper)}
+.opts{display:flex;flex-wrap:wrap;gap:5pt 16pt;font-size:9.6pt;margin-bottom:5pt}
+.opts label{display:flex;align-items:center;gap:5pt;cursor:pointer}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8pt}
+table{width:100%;border-collapse:collapse;font-size:9.2pt;margin:5pt 0 0 32pt;width:calc(100% - 32pt)}
+th,td{border:1px solid var(--line);padding:4pt 7pt;text-align:left;vertical-align:top}
+thead th{background:var(--green-50);color:var(--green-800);font-weight:700}
+td input[type=text]{border:none;background:transparent;padding:2pt}
+.bar{position:sticky;top:0;z-index:9;background:rgba(255,255,255,.96);backdrop-filter:blur(6px);
+  border:1px solid var(--line);border-radius:12px;padding:8pt 12pt;margin-bottom:10pt;
+  display:flex;gap:9pt;align-items:center;flex-wrap:wrap;box-shadow:0 2px 10px rgba(0,0,0,.06)}
+.btn{font-family:var(--sans);font-size:9.4pt;font-weight:700;border:0;border-radius:8px;padding:6pt 13pt;cursor:pointer}
+.btn.p{background:var(--green);color:#fff}
+.btn.s{background:var(--mist);color:var(--green-800)}
+.status{font-size:8.8pt;color:var(--ink-3);margin-left:auto}
+.foot{margin-top:16pt;border-top:1px solid var(--line);padding-top:8pt;font-size:8.5pt;color:var(--ink-3);text-align:center}
+</style>
+</head>
+<body>
+<div class="book">
+
+  <div class="bar no-print">
+    <button class="btn p" onclick="tai()">⬇ Tải câu trả lời (.txt)</button>
+    <button class="btn s" onclick="window.print()">🖨 In / Xuất PDF</button>
+    <button class="btn s" onclick="xoa()">↺ Xoá hết</button>
+    <span class="status" id="st">Câu trả lời được lưu tạm trên chính máy của quý vị.</span>
+  </div>
+
+  <div class="head">
+    <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJQAAABBCAMAAAAAEX16AAABQVBMVEX///8DcjYAAAAFBwiBgoUFBwiBgoXtICQDcjaBgoUFBwgFBwgDcjaBgoUDcjbtICQFBwgFBwgFBwgFBwiBgoWBgoWBgoWBgoUDcjaBgoUFBwgFBwiBgoUFBwgDcjaBgoWBgoUFBwgFBwgDcjaBgoUDcjaBgoUFBwgDcjYDcjYDcjYDcjYDcjaBgoUFBwgDcjbtICTtICQDcjbtICRNZjbEMSjtICRPZTYOcTeaQSwUcTepPCvtICSNRS3sICTtICTtICTtICQtcDjWKCYDcjYDdDdHZzbcKSYfbTY2bDfYKiYncDjFMyolbDa9NirtICTZJyYGdDd2Ti/fJSXtICRXXjTqISRLYTTnIiQzajbUKycqbDbMLiftICQFBwiBgoUDcjbtICQIcjYDdDcEdDcFdDcFeDneKCYDczYEczYEdjhAzG2jAAAAXnRSTlMAAAC/QIC/gL+AQO+A70C/EM/fMM8QMGDvryCfcGBgj99wrxAgMJ+Pn8+v349QUHBQECBA0ORw8fzb+ODf2vqfIDCEh1CD9fv29vf480/w70bExMnP6Pns9O7v8+iv3j8PbwAAA8JJREFUeF7E1keP2zAQhuEZnXgQuFeeeCEEkLYBI9r0XpzeeweGqeX//4Bs1rEt0xqLCTH2e/sAHR6BAEGgeWaGW1L0t+NFixT2xX2jR4YGG/sWAJZzKotqFWVmOyjykqjGUHYz6Izg5FCB8lPQXaaRQk3pv1FkrBAqFKCIahGUoyIUjZwASheiKLSiKMU13oYi00iikAlqWuSBerJ7RBnfAFBffl8oZR0AgyLl9oAykxbmUX/jZtcoPYNlxGRmw6ig2f4dNS9F+YQ1ZVHZlaO0TVTeCaPC8OWpURtaKzhZlM5Abb56TCOKQp+DwiYkKiuKak0OCl2iookkCussFDq18WwoQ8FRHRSs5ca00beTXRRz0KGVQ4GlpF9nvh/0oHCSqIzmUIor5KJAUbcvt27H2IvCDb5hUMils1G68x+f796LMUXxKgFUmv5x/0GMW1DYmJ2jHj6KkUExKnFUVT2Jgyhsww5R1VGHGSh0QQ6VkrJR6EYSKJX29Nnzgz+9YFBpXgCV9PXlq5g0gMKJMOrn6zcJKAOFVhT19l2MgyhGVY5qqaf3H2J/HxlUcmGVosBQ2p1Tket0gmJUxSifkM5fiGwXTwyjsA3lqPUn5tlzke/xtSoDhS4Uo6BZqT5duhz5rlytKtDLHHK5etHxrFeTq60XWZjn7HzfvH7jd/t1t+ooDEUBeFg77iEJQkyqolX84WCvWmZeKPv932IaT6UHhjn0prYXsy4EVy782IaIP/+dX7+BK2rf4KHs/PCXonpyCCd8k0AAaFdUFmcYwjcxEUDcF+WtMYRTtNZkGTI6HtH7YIvCURFt2FDorS/ai/Uz1t6R9fFpKMr8hUIM7oYy1s1ZMYEmmjFnCZUCazAfnbvEsPZTAfNEFAoiQwB9ouCn2MZr19PVmG2TChHIqLfHaNY+rTwTZeI2qQJHwmQJxQTgK+o2KerdDTV5Nz0ThVPaU96b1saC4GKPYIsYNtR9T7mT9fYT5ShSfPI51aK1AWsyj0fSYvJPRlGMJ6zpbXjI5KPvdzvRHdaUdcO8qLf6zFSjHIbhUL8Tqhxz9XYf5E62GdVc5xrdKPlQouIqNQB3jchS7otqZCu0yKA6aZSWBkpUagCR5tzIsi+KZb0IQ0sH5IcV+nFHjev6C1C1HhNKAaLTrag7agDS0iv2FG+oIXV/o6pdUWWeV19Q41gCLKWSDuDt9Y05dkVB5cJ6yW+osxw0i07WgfOEWotuZxQ+OmYeFGqukrHh5gyganhRDMiwMJ/f7MdB9GOH53+UVljzB2H3EVudxsyJAAAAAElFTkSuQmCC" alt="" />
+    <div class="k">Requirements intake</div>
+    <h1>Phiếu Khảo sát Nhu cầu</h1>
+    <div class="s">Nền tảng Quản trị Hiệu suất iPMS<br />
+      <span class="en">iPMS — Intelligent Performance Management System</span></div>
+    <div class="rule"></div>
+  </div>
+
+  <div class="intro">
+    <b>Kính gửi Quý tổ chức,</b> phiếu này giúp chúng tôi hiểu đúng nhu cầu trước buổi làm việc trực tiếp, để buổi đó
+    đi thẳng vào chiều sâu thay vì hỏi lại thông tin cơ bản. Quý vị <b>không cần trả lời hết</b> — phần nào chưa rõ
+    xin để trống, chúng tôi sẽ cùng làm rõ khi trao đổi.
+    <br /><br />
+    <b>Cách dùng:</b> điền trực tiếp trên trình duyệt (nội dung tự lưu trên máy quý vị, không gửi đi đâu) → bấm
+    <b>Tải câu trả lời</b> để lấy file gửi lại, hoặc <b>In / Xuất PDF</b>.
+    <span class="en">Fill in your browser — nothing is transmitted; export a file or print to PDF when done.</span>
+  </div>
+
+  <!-- 0 -->
+  <div class="sec"><div class="c">Phần 0</div><h2>Thông tin chung <span class="en">General information</span></h2></div>
+  <div class="grid2">
+    <div><div class="q"><span class="t">Tên tổ chức</span><div class="ans"><input type="text" data-k="org" /></div></div></div>
+    <div><div class="q"><span class="t">Lĩnh vực hoạt động</span><div class="ans"><input type="text" data-k="nganh" /></div></div></div>
+    <div><div class="q"><span class="t">Tổng số nhân sự</span><div class="ans"><input type="text" data-k="quymo" /></div></div></div>
+    <div><div class="q"><span class="t">Số đơn vị / pháp nhân</span><div class="ans"><input type="text" data-k="sodonvi" /></div></div></div>
+    <div><div class="q"><span class="t">Người điền phiếu (chức danh)</span><div class="ans"><input type="text" data-k="nguoidien" /></div></div></div>
+    <div><div class="q"><span class="t">Đầu mối liên hệ (email / điện thoại)</span><div class="ans"><input type="text" data-k="lienhe" /></div></div></div>
+  </div>
+
+  <!-- A -->
+  <div class="sec"><div class="c">Phần A</div><h2>Động cơ &amp; kỳ vọng <span class="en">Motivation &amp; expectations</span></h2></div>
+  <div class="q"><span class="n">A1</span><span class="t">Điều gì khiến tổ chức muốn làm hệ thống quản trị hiệu suất vào lúc này? Nếu không làm gì, 12 tháng tới điều gì sẽ tệ đi?</span>
+    <span class="te">Why now? If nothing changes, what worsens over the next 12 months?</span>
+    <div class="ans"><textarea data-k="A1"></textarea></div></div>
+  <div class="q"><span class="n">A2</span><span class="t">Nếu dự án thành công, 6 tháng sau bức tranh khác đi thế nào?</span>
+    <span class="hint">Xin nêu 3 biểu hiện cụ thể, đo được.</span>
+    <span class="te">Three concrete, measurable signs of success.</span>
+    <div class="ans"><textarea data-k="A2"></textarea></div></div>
+  <div class="q"><span class="n">A3</span><span class="t">Tổ chức đang ở mức nào?</span>
+    <span class="te">Current maturity level.</span>
+    <div class="ans"><div class="opts">
+      <label><input type="radio" name="A3" data-k="A3" value="Chưa có khung KPI chính thức" /> Chưa có khung KPI chính thức</label>
+      <label><input type="radio" name="A3" data-k="A3" value="Có KPI nhưng làm thủ công, rời rạc" /> Có KPI nhưng thủ công, rời rạc</label>
+      <label><input type="radio" name="A3" data-k="A3" value="Có khung nhưng chưa xuyên suốt tới cá nhân" /> Có khung, chưa xuyên suốt tới cá nhân</label>
+      <label><input type="radio" name="A3" data-k="A3" value="Đang dùng phần mềm khác, muốn nâng cấp/thay thế" /> Đang dùng phần mềm khác, muốn thay</label>
+    </div></div></div>
+  <div class="q"><span class="n">A4</span><span class="t">Ai là người tài trợ dự án và ai chịu trách nhiệm thành–bại? <span class="en">(chức danh)</span></span>
+    <div class="ans"><textarea data-k="A4"></textarea></div></div>
+
+  <!-- B -->
+  <div class="sec"><div class="c">Phần B</div><h2>Chiến lược &amp; phân rã mục tiêu <span class="en">Strategy &amp; goal cascade</span></h2></div>
+  <div class="q"><span class="n">B1</span><span class="t">Tổ chức đặt mục tiêu theo khung nào?</span>
+    <div class="ans"><div class="opts">
+      <label><input type="checkbox" data-k="B1" value="OKR" /> OKR</label>
+      <label><input type="checkbox" data-k="B1" value="Thẻ điểm cân bằng (BSC)" /> Thẻ điểm cân bằng (BSC)</label>
+      <label><input type="checkbox" data-k="B1" value="KPI truyền thống" /> KPI truyền thống</label>
+      <label><input type="checkbox" data-k="B1" value="MBO" /> MBO</label>
+      <label><input type="checkbox" data-k="B1" value="Chưa có khung chính thức" /> Chưa có khung chính thức</label>
+    </div><textarea data-k="B1b" placeholder="Mô tả thêm nếu cần…"></textarea></div></div>
+  <div class="q"><span class="n">B2</span><span class="t">Mục tiêu cấp tổ chức được phân rã xuống phòng ban và cá nhân ra sao? Hiện có gì đảm bảo mục tiêu con phục vụ mục tiêu cha không?</span>
+    <span class="te">How do goals cascade, and what ensures alignment?</span>
+    <div class="ans"><textarea data-k="B2"></textarea></div></div>
+  <div class="q"><span class="n">B3</span><span class="t">Chu kỳ đặt mục tiêu: <span class="en">Goal-setting cycle</span></span>
+    <div class="ans"><div class="opts">
+      <label><input type="radio" name="B3" data-k="B3" value="Năm" /> Năm</label>
+      <label><input type="radio" name="B3" data-k="B3" value="Nửa năm" /> Nửa năm</label>
+      <label><input type="radio" name="B3" data-k="B3" value="Quý" /> Quý</label>
+      <label><input type="radio" name="B3" data-k="B3" value="Khác" /> Khác</label>
+    </div></div></div>
+
+  <!-- C, D -->
+  <div class="sec break"><div class="c">Phần C · D</div><h2>Tổ chức, vai trò &amp; phân quyền <span class="en">Organization, roles &amp; access</span></h2></div>
+  <div class="q"><span class="n">C1</span><span class="t">Mô hình tổ chức: một pháp nhân hay nhiều đơn vị (tập đoàn – công ty thành viên)? Quy mô mỗi đơn vị?</span>
+    <div class="ans"><textarea data-k="C1"></textarea></div></div>
+  <div class="q"><span class="n">C2</span><span class="t">Các đơn vị quản trị hiệu suất giống nhau hay khác nhau? Khác ở điểm nào (khung, chu kỳ, bộ KPI, thang điểm)?</span>
+    <span class="te">Do units manage performance identically or differently?</span>
+    <div class="ans"><textarea data-k="C2"></textarea></div></div>
+  <div class="q"><span class="n">C3</span><span class="t">Cấp tập đoàn có cần nhìn xuyên các đơn vị để so sánh/tổng hợp không? Đơn vị có được giữ kín một số chỉ số không?</span>
+    <div class="ans"><textarea data-k="C3"></textarea></div></div>
+  <div class="q"><span class="n">D1</span><span class="t">Những nhóm nào sẽ dùng hệ thống, và mỗi nhóm bao nhiêu người?</span>
+    <div class="ans"><table>
+      <thead><tr><th>Nhóm</th><th style="width:22%">Số người</th><th style="width:40%">Ghi chú</th></tr></thead>
+      <tbody>
+        <tr><td>Nhân viên</td><td><input type="text" data-k="D1_nv" /></td><td><input type="text" data-k="D1_nv_n" /></td></tr>
+        <tr><td>Trưởng phòng / quản lý</td><td><input type="text" data-k="D1_tp" /></td><td><input type="text" data-k="D1_tp_n" /></td></tr>
+        <tr><td>Nhân sự</td><td><input type="text" data-k="D1_hr" /></td><td><input type="text" data-k="D1_hr_n" /></td></tr>
+        <tr><td>Ban lãnh đạo</td><td><input type="text" data-k="D1_ld" /></td><td><input type="text" data-k="D1_ld_n" /></td></tr>
+        <tr><td>Kiểm toán / kiểm soát nội bộ</td><td><input type="text" data-k="D1_kt" /></td><td><input type="text" data-k="D1_kt_n" /></td></tr>
+        <tr><td>Quản trị hệ thống</td><td><input type="text" data-k="D1_ad" /></td><td><input type="text" data-k="D1_ad_n" /></td></tr>
+      </tbody></table></div></div>
+  <div class="q"><span class="n">D2</span><span class="t">Có điều gì <b>bắt buộc không được để lộ</b> giữa các nhóm không?</span>
+    <span class="hint">Ví dụ: nhân viên không được thấy điểm của đồng nghiệp; trưởng phòng không được thấy phòng khác.</span>
+    <div class="ans"><textarea data-k="D2"></textarea></div></div>
+  <div class="q"><span class="n">D3</span><span class="t">Có nghiệp vụ nào bắt buộc <b>người soạn khác người duyệt</b> không? (KPI, cấu hình, dữ liệu lương)</span>
+    <div class="ans"><textarea data-k="D3"></textarea></div></div>
+
+  <!-- E -->
+  <div class="sec"><div class="c">Phần E</div><h2>Khung KPI &amp; chỉ số đo lường <span class="en">KPI framework</span></h2></div>
+  <div class="intro" style="margin-top:0"><b>Quan trọng:</b> nếu được, xin gửi kèm <b>bộ KPI thật của 2–3 phòng ban</b> và <b>bảng quy đổi điểm</b> đang dùng.
+    Tài liệu thật giúp chúng tôi đánh giá chính xác hơn mọi mô tả bằng lời.</div>
+  <div class="q"><span class="n">E1</span><span class="t">KPI có cấu trúc cha–con không? (một KPI tổng gồm nhiều KPI thành phần)</span>
+    <div class="ans"><div class="opts">
+      <label><input type="radio" name="E1" data-k="E1" value="Có" /> Có</label>
+      <label><input type="radio" name="E1" data-k="E1" value="Không" /> Không</label>
+      <label><input type="radio" name="E1" data-k="E1" value="Chưa rõ" /> Chưa rõ</label>
+    </div><textarea data-k="E1b" placeholder="Ví dụ minh hoạ…"></textarea></div></div>
+  <div class="q"><span class="n">E2</span><span class="t">Tỷ lệ KPI chấm thủ công (người nhập số) so với chấm tự động (hệ thống lấy số)?</span>
+    <div class="ans"><textarea data-k="E2"></textarea></div></div>
+  <div class="q"><span class="n">E3</span><span class="t">Công thức KPI có cả chiều xuôi (càng cao càng tốt) lẫn chiều ngược (càng thấp càng tốt, vd tỷ lệ lỗi) không? Có điều kiện áp dụng riêng theo vị trí/tình huống không?</span>
+    <div class="ans"><textarea data-k="E3"></textarea></div></div>
+  <div class="q"><span class="n">E4</span><span class="t">Có bậc thang quy đổi điểm không (đạt X% → bậc Y)? Trọng số đặt theo từng KPI hay theo nhóm tiêu chí, tổng có bắt buộc bằng 100% không?</span>
+    <div class="ans"><textarea data-k="E4"></textarea></div></div>
+
+  <!-- F -->
+  <div class="sec break"><div class="c">Phần F</div><h2>Chu trình đánh giá <span class="en">Review cycle</span></h2></div>
+  <div class="q"><span class="n">F1</span><span class="t">Chu kỳ đánh giá hiện tại:</span>
+    <div class="ans"><div class="opts">
+      <label><input type="radio" name="F1" data-k="F1" value="Tháng" /> Tháng</label>
+      <label><input type="radio" name="F1" data-k="F1" value="Quý" /> Quý</label>
+      <label><input type="radio" name="F1" data-k="F1" value="Nửa năm" /> Nửa năm</label>
+      <label><input type="radio" name="F1" data-k="F1" value="Năm" /> Năm</label>
+      <label><input type="radio" name="F1" data-k="F1" value="Chưa có chu kỳ cố định" /> Chưa cố định</label>
+    </div></div></div>
+  <div class="q"><span class="n">F2</span><span class="t">Bước nào tổ chức đang có?</span>
+    <div class="ans"><div class="opts">
+      <label><input type="checkbox" data-k="F2" value="Giao mục tiêu đầu kỳ" /> Giao mục tiêu đầu kỳ</label>
+      <label><input type="checkbox" data-k="F2" value="Check-in giữa kỳ" /> Check-in giữa kỳ</label>
+      <label><input type="checkbox" data-k="F2" value="Tự đánh giá" /> Tự đánh giá</label>
+      <label><input type="checkbox" data-k="F2" value="Quản lý đánh giá" /> Quản lý đánh giá</label>
+      <label><input type="checkbox" data-k="F2" value="Họp cân chỉnh giữa các quản lý" /> Họp cân chỉnh</label>
+      <label><input type="checkbox" data-k="F2" value="Chốt kết quả" /> Chốt kết quả</label>
+    </div></div></div>
+  <div class="q"><span class="n">F3</span><span class="t">Kết quả đánh giá dẫn tới gì? Nếu có công thức quy đổi điểm sang lương/thưởng, xin mô tả hoặc gửi kèm.</span>
+    <span class="te">What do results drive — pay, promotion, development plan?</span>
+    <div class="ans"><textarea data-k="F3"></textarea></div></div>
+  <div class="q"><span class="n">F4</span><span class="t">Có yêu cầu đính kèm minh chứng cho từng chỉ số không? Ai là người xác minh?</span>
+    <div class="ans"><textarea data-k="F4"></textarea></div></div>
+
+  <!-- G -->
+  <div class="sec"><div class="c">Phần G</div><h2>Tác vụ &amp; mô tả công việc <span class="en">Tasks &amp; job descriptions</span></h2></div>
+  <div class="q"><span class="n">G1</span><span class="t">Tổ chức có thư viện mô tả công việc hoặc danh mục tác vụ chuẩn hoá chưa? Ai đang cập nhật?</span>
+    <div class="ans"><textarea data-k="G1"></textarea></div></div>
+  <div class="q"><span class="n">G2</span><span class="t">Có mong muốn để trưởng phòng và nhân viên <b>tự soạn và tối ưu dần</b> mô tả công việc theo vòng lặp góp ý – duyệt không?</span>
+    <div class="ans"><textarea data-k="G2"></textarea></div></div>
+
+  <!-- H -->
+  <div class="sec"><div class="c">Phần H</div><h2>Dữ liệu &amp; tích hợp <span class="en">Data &amp; integration</span></h2></div>
+  <div class="q"><span class="n">H1</span><span class="t">Với các chỉ số cần lấy số tự động, dữ liệu nằm ở hệ thống nào?</span>
+    <div class="ans"><table>
+      <thead><tr><th>Hệ thống</th><th style="width:26%">Dữ liệu cần lấy</th><th style="width:20%">Có API?</th></tr></thead>
+      <tbody>
+        <tr><td><input type="text" data-k="H1_s1" /></td><td><input type="text" data-k="H1_d1" /></td><td><input type="text" data-k="H1_a1" /></td></tr>
+        <tr><td><input type="text" data-k="H1_s2" /></td><td><input type="text" data-k="H1_d2" /></td><td><input type="text" data-k="H1_a2" /></td></tr>
+        <tr><td><input type="text" data-k="H1_s3" /></td><td><input type="text" data-k="H1_d3" /></td><td><input type="text" data-k="H1_a3" /></td></tr>
+      </tbody></table></div></div>
+  <div class="q"><span class="n">H2</span><span class="t">Nguồn chuẩn cho dữ liệu nhân sự (danh sách người, chức danh, phòng ban) là hệ nào?</span>
+    <div class="ans"><textarea data-k="H2"></textarea></div></div>
+  <div class="q"><span class="n">H3</span><span class="t">Có công cụ cộng tác nào muốn đồng bộ công việc hai chiều không? (Notion, Microsoft Planner/To-Do, Jira…)</span>
+    <div class="ans"><textarea data-k="H3"></textarea></div></div>
+
+  <!-- I -->
+  <div class="sec break"><div class="c">Phần I</div><h2>Trí tuệ nhân tạo &amp; tự động hoá <span class="en">AI &amp; automation</span></h2></div>
+  <div class="q"><span class="n">I1</span><span class="t">Quý vị kỳ vọng AI hỗ trợ ở đâu?</span>
+    <div class="ans"><div class="opts">
+      <label><input type="checkbox" data-k="I1" value="Gợi ý soạn KPI / mô tả công việc" /> Gợi ý soạn KPI, mô tả công việc</label>
+      <label><input type="checkbox" data-k="I1" value="Tóm tắt kết quả đánh giá" /> Tóm tắt kết quả đánh giá</label>
+      <label><input type="checkbox" data-k="I1" value="Cảnh báo mục tiêu có nguy cơ trượt" /> Cảnh báo mục tiêu rủi ro</label>
+      <label><input type="checkbox" data-k="I1" value="Trợ lý hỏi đáp trong hệ thống" /> Trợ lý hỏi–đáp</label>
+      <label><input type="checkbox" data-k="I1" value="Chưa có nhu cầu AI" /> Chưa có nhu cầu</label>
+    </div></div></div>
+  <div class="q"><span class="n">I2</span><span class="t">Quý vị có chấp nhận nguyên tắc <b>AI chỉ đề xuất, người có thẩm quyền duyệt</b> là bắt buộc không?</span>
+    <span class="te">Human-in-the-loop as a mandatory rule.</span>
+    <div class="ans"><div class="opts">
+      <label><input type="radio" name="I2" data-k="I2" value="Chấp nhận, đây là điều chúng tôi mong muốn" /> Chấp nhận — đúng mong muốn</label>
+      <label><input type="radio" name="I2" data-k="I2" value="Chấp nhận nhưng muốn nới dần" /> Chấp nhận, muốn nới dần</label>
+      <label><input type="radio" name="I2" data-k="I2" value="Cần thảo luận thêm" /> Cần thảo luận thêm</label>
+    </div></div></div>
+  <div class="q"><span class="n">I3</span><span class="t">Dữ liệu nhạy cảm (lương, đánh giá cá nhân, thông tin cá nhân) có được phép xử lý qua dịch vụ AI bên ngoài không, hay bắt buộc giữ trong hạ tầng của tổ chức?</span>
+    <div class="ans"><textarea data-k="I3"></textarea></div></div>
+
+  <!-- J, K -->
+  <div class="sec"><div class="c">Phần J · K</div><h2>Báo cáo &amp; cấu hình <span class="en">Reporting &amp; configuration</span></h2></div>
+  <div class="q"><span class="n">J1</span><span class="t">Mỗi nhóm cần nhìn thấy báo cáo gì?</span>
+    <span class="hint">Ví dụ — nhân viên: tiến độ của tôi · trưởng phòng: đội của tôi · lãnh đạo: toàn cảnh · nhân sự: tiến độ chu kỳ &amp; phân bố điểm.</span>
+    <div class="ans"><textarea data-k="J1"></textarea></div></div>
+  <div class="q"><span class="n">J2</span><span class="t">Có cần xuất báo cáo ra file (PDF/Excel) để trình hội đồng không? Có cần song ngữ không?</span>
+    <div class="ans"><textarea data-k="J2"></textarea></div></div>
+  <div class="q"><span class="n">K1</span><span class="t">Mỗi đơn vị có cần giao diện mang thương hiệu riêng (logo, màu, tên gọi) không?</span>
+    <div class="ans"><textarea data-k="K1"></textarea></div></div>
+  <div class="q"><span class="n">K2</span><span class="t">Sau khi hệ thống chạy, ai phía tổ chức sẽ tự cấu hình (thêm phòng ban, sửa KPI, sửa quy trình)?</span>
+    <div class="ans"><textarea data-k="K2"></textarea></div></div>
+
+  <!-- L -->
+  <div class="sec"><div class="c">Phần L</div><h2>Hạ tầng, bảo mật &amp; tuân thủ <span class="en">Infrastructure, security &amp; compliance</span></h2></div>
+  <div class="q"><span class="n">L1</span><span class="t">Yêu cầu hạ tầng:</span>
+    <div class="ans"><div class="opts">
+      <label><input type="radio" name="L1" data-k="L1" value="Điện toán đám mây" /> Điện toán đám mây</label>
+      <label><input type="radio" name="L1" data-k="L1" value="Máy chủ tại tổ chức (on-premise)" /> Máy chủ tại tổ chức</label>
+      <label><input type="radio" name="L1" data-k="L1" value="Bắt buộc đặt tại Việt Nam" /> Bắt buộc đặt tại Việt Nam</label>
+      <label><input type="radio" name="L1" data-k="L1" value="Chưa quyết định" /> Chưa quyết định</label>
+    </div></div></div>
+  <div class="q"><span class="n">L2</span><span class="t">Tổ chức có hệ đăng nhập một lần (SSO) cần tích hợp không? Có bắt buộc xác thực nhiều lớp (MFA) không?</span>
+    <span class="hint">Ví dụ: Microsoft Entra ID (Azure AD), Google Workspace.</span>
+    <div class="ans"><textarea data-k="L2"></textarea></div></div>
+  <div class="q"><span class="n">L3</span><span class="t">Ràng buộc tuân thủ: bảo vệ dữ liệu cá nhân (Nghị định 13), lưu vết kiểm toán, thời hạn lưu trữ dữ liệu?</span>
+    <div class="ans"><textarea data-k="L3"></textarea></div></div>
+
+  <!-- M -->
+  <div class="sec"><div class="c">Phần M</div><h2>Phạm vi &amp; lộ trình <span class="en">Scope &amp; roadmap</span></h2></div>
+  <div class="q"><span class="n">M1</span><span class="t">Nếu triển khai thí điểm trước, nên bắt đầu ở đơn vị/phòng ban nào? Vì sao chọn nơi đó?</span>
+    <div class="ans"><textarea data-k="M1"></textarea></div></div>
+  <div class="q"><span class="n">M2</span><span class="t">Có mốc thời gian cứng nào không? (ví dụ phải kịp chu kỳ đánh giá năm)</span>
+    <div class="ans"><textarea data-k="M2"></textarea></div></div>
+  <div class="q"><span class="n">M3</span><span class="t">Tiêu chí thành công <b>đo được</b> của chính dự án này là gì?</span>
+    <span class="te">Measurable success criteria for the project itself.</span>
+    <div class="ans"><textarea data-k="M3"></textarea></div></div>
+  <div class="q"><span class="n">M4</span><span class="t">Còn điều gì quan trọng mà phiếu này chưa hỏi tới?</span>
+    <span class="te">What haven't we asked that matters?</span>
+    <div class="ans"><textarea data-k="M4"></textarea></div></div>
+
+  <div class="foot">
+    Xin cảm ơn Quý tổ chức. Chúng tôi sẽ tổng hợp thành <b>Tài liệu Yêu cầu Nghiệp vụ</b> để hai bên cùng rà soát và thống nhất phạm vi.<br />
+    <span class="en">Thank you — your answers will be consolidated into a Business Requirements Document for joint review.</span>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY='ipms-phieu-tu-khai';
+  var st=document.getElementById('st');
+  function fields(){ return Array.prototype.slice.call(document.querySelectorAll('[data-k]')); }
+  function autoresize(t){ if(t.tagName!=='TEXTAREA')return; t.style.height='auto'; t.style.height=(t.scrollHeight+4)+'px'; }
+  function luu(){
+    var d={};
+    fields().forEach(function(f){
+      var k=f.getAttribute('data-k');
+      if(f.type==='checkbox'){ if(f.checked){ (d[k]=d[k]||[]).push(f.value); } }
+      else if(f.type==='radio'){ if(f.checked) d[k]=f.value; }
+      else if(f.value) d[k]=f.value;
+    });
+    try{ localStorage.setItem(KEY,JSON.stringify(d)); st.textContent='Đã lưu tạm lúc '+new Date().toLocaleTimeString('vi-VN'); }catch(e){}
+  }
+  function nap(){
+    var raw; try{ raw=localStorage.getItem(KEY); }catch(e){ return; }
+    if(!raw) return;
+    var d=JSON.parse(raw);
+    fields().forEach(function(f){
+      var k=f.getAttribute('data-k'), v=d[k];
+      if(v===undefined) return;
+      if(f.type==='checkbox') f.checked=(v.indexOf(f.value)>=0);
+      else if(f.type==='radio') f.checked=(v===f.value);
+      else { f.value=v; autoresize(f); }
+    });
+  }
+  window.tai=function(){
+    var out=['PHIẾU KHẢO SÁT NHU CẦU — NỀN TẢNG iPMS','Xuất lúc: '+new Date().toLocaleString('vi-VN'),''];
+    document.querySelectorAll('.sec, .q').forEach(function(el){
+      if(el.classList.contains('sec')){ out.push('','═══ '+el.querySelector('h2').textContent.trim()+' ═══'); return; }
+      var n=el.querySelector('.n'), t=el.querySelector('.t');
+      if(!t) return;
+      var ans=[];
+      el.querySelectorAll('[data-k]').forEach(function(f){
+        if((f.type==='checkbox'||f.type==='radio')){ if(f.checked) ans.push(f.value); }
+        else if(f.value.trim()) ans.push(f.value.trim());
+      });
+      out.push('', (n?n.textContent.trim()+'. ':'')+t.textContent.trim());
+      out.push('→ '+(ans.length?ans.join(' | '):'(chưa trả lời)'));
+    });
+    var blob=new Blob([out.join('\n')],{type:'text/plain;charset=utf-8'});
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='phieu-khao-sat-iPMS-'+new Date().toISOString().slice(0,10)+'.txt';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(a.href); },1000);
+  };
+  window.xoa=function(){
+    if(!confirm('Xoá toàn bộ câu trả lời đã nhập?')) return;
+    try{ localStorage.removeItem(KEY); }catch(e){}
+    location.reload();
+  };
+  document.addEventListener('input',function(e){ if(e.target.hasAttribute&&e.target.hasAttribute('data-k')){ autoresize(e.target); luu(); } });
+  document.addEventListener('change',function(e){ if(e.target.hasAttribute&&e.target.hasAttribute('data-k')) luu(); });
+  window.addEventListener('beforeprint',function(){ document.querySelectorAll('textarea').forEach(autoresize); });
+  nap();
+  document.querySelectorAll('textarea').forEach(autoresize);
+})();
+</script>
+</body>
+</html>

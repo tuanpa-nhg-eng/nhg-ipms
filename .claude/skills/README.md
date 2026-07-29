@@ -1,3 +1,14 @@
+# Bộ skill của dự án
+
+Hai bộ độc lập trong thư mục này:
+
+| Bộ | Skill | Kho chung | Hồ sơ đầu ra |
+|---|---|---|---|
+| **Kiểm toán nội bộ** | 7 skill `audit-*` | `audit-common/` | `07-kiem-toan-noi-bo/` |
+| **Tiền bán hàng iPMS** | `ipms-brd` | `ipms-presales-common/` | `12-khach-hang/` |
+
+---
+
 # Hệ thống Skill Kiểm toán Nội bộ (Internal Audit Skill Suite)
 
 Bộ skill phủ trọn **vòng đời kiểm toán nội bộ** theo chuẩn IIA IPPF + Nghị định 05/2019/NĐ-CP, dùng cho Tập đoàn Nguyễn Hoàng (NHG).
