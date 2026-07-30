@@ -35,6 +35,13 @@ memory/
 06-tu-dien-tac-vu/Archive.zip
 gg-io-nhg/
 
+# ===== [Graphify T1 — G1] Đầu ra bản đồ tri thức — KHÔNG BAO GIỜ vào git =====
+# graph.json/graph.html dựng từ spec + BRD là DẪN XUẤT của tài liệu mật đang bị loại ở khối
+# trên. Commit nó là lách chính sách "tài liệu nội bộ không vào repo code" bằng cửa sau —
+# nội dung vẫn ra ngoài, chỉ đổi định dạng. Dòng này phải có TRƯỚC lần chạy đầu tiên.
+graphify-out/
+.graphify-cache/
+
 # ===== Hồ sơ khách hàng THẬT — mật, không bao giờ vào git =====
 # 12-khach-hang/00-tai-san-ban-hang/ (bản trắng + bản mẫu hư cấu) ĐƯỢC theo dõi.
 # Mọi thư mục theo năm chứa hồ sơ khách hàng thật thì KHÔNG.
