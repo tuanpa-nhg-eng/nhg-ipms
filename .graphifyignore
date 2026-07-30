@@ -1,0 +1,50 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# .graphifyignore — BỀ MẶT DỮ LIỆU CHO BẢN ĐỒ TRI THỨC (nhánh T1, bất biến G3)
+#
+# Tệp này là CỔNG EGRESS của công cụ, không phải một tệp cấu hình tiện lợi.
+#
+# Vì sao nó tồn tại: Graphify tôn trọng `.gitignore`, mà `.gitignore` của repo này loại đúng
+# toàn bộ kho tri thức (02-dac-ta, 00-boi-canh, 01-nghien-cuu…). Đo được ở T1.L0: mặc định
+# chỉ thấy 43 tài liệu; với `--no-gitignore` thấy 113 tài liệu + 3 PDF — tức 62% kho tri thức
+# VÔ HÌNH mà không có một dòng cảnh báo. Nên ta chạy với `--no-gitignore`.
+#
+# HỆ QUẢ PHẢI HIỂU RÕ: khi `--no-gitignore` bật, tệp NÀY là nguồn loại trừ DUY NHẤT. Mọi thứ
+# `.gitignore` đang chặn — kể cả hồ sơ khách hàng thật — sẽ được đọc nếu không liệt kê ở đây.
+# Và theo mã nguồn công cụ (`detect.py`): `.graphifyignore` chỉ có thể loại THÊM, KHÔNG bao
+# giờ tái nạp — nên không có mẫu phủ định nào cứu được một dòng thiếu ở đây.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ───── ① HỒ SƠ KHÁCH HÀNG THẬT — chủ dự án chốt 30/07/2026: LOẠI ─────
+# Đây là dòng quan trọng nhất của tệp. Phiếu khảo sát và hồ sơ đơn vị là dữ liệu KHÁCH HÀNG,
+# không phải tài liệu nội bộ NHG; theo sổ đăng ký dữ liệu (trục C L0) thuộc `confidential`,
+# và Strategic Context §9.3 nói dữ liệu nhạy cảm không rời hạ tầng do NHG kiểm soát. Trích
+# xuất ngữ nghĩa GỌI LLM NGOÀI ⇒ đưa hai thư mục này vào là tự phá đúng nguyên tắc mà trục C
+# đang thực thi cho sản phẩm. Xoá một trong hai dòng dưới đây = một lần rò dữ liệu khách hàng.
+11-khao-sat-yeu-cau/
+12-khach-hang/[0-9][0-9][0-9][0-9]/
+
+# ───── ② ĐẦU RA CỦA CHÍNH CÔNG CỤ (G1) — không tự ăn lại sản phẩm của mình ─────
+graphify-out/
+.graphify-cache/
+raw/
+
+# ───── ③ KHÔNG PHẢI TRI THỨC: phụ thuộc, sản phẩm build, kho lưu nặng ─────
+# Bắt buộc phải có: khi `--gitignore` tắt, không ai chặn `node_modules` thay ta.
+node_modules/
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+.vercel/
+06-tu-dien-tac-vu/Archive/
+06-tu-dien-tac-vu/Archive.zip
+gg-io-nhg/
+
+# ───── ④ BÍ MẬT & TRẠNG THÁI CÔNG CỤ ─────
+.env
+.env.*
+*.log
+.claude/
+memory/
+.git/
