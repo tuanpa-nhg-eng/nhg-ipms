@@ -1832,6 +1832,22 @@ model DataAsset {
   @@map("data_asset")
 }
 
+/// [Trục C L2] Read model xuyên đơn vị cho tầng quản trị nền tảng (B3).
+/// CHỈ số đếm + trạng thái — không tên người, không email, không điểm, không nội dung.
+/// Đọc qua `withPlatform()` (GUC `app.platform_read`, KHÔNG set tenant context ⇒ mọi bảng
+/// nghiệp vụ trả 0 dòng). Ghi LUÔN tenant-bound: job đi từng đơn vị bằng `withTenant(t)`.
+model PlatformSnapshot {
+  id         String   @id @db.Uuid
+  tenantId   String   @unique @map("tenant_id") @db.Uuid
+  capturedAt DateTime @default(now()) @map("captured_at") @db.Timestamptz(6)
+  metrics    Json     @default("{}")
+  health     String   @default("ok") // ok|warn|alert
+  note       String?
+  version    Int      @default(1)
+
+  @@map("platform_snapshot")
+}
+
 /// [Trục C L1] Sổ nhật ký XUẤT DỮ LIỆU — append-only (K6), RLS tenant-bound.
 /// Không thay audit_log: audit_log ghi "ai làm hành động gì", export_log trả lời câu B0/B5
 /// thực sự cần — *dữ liệu nào, mức phân loại gì, đi đâu, bao nhiêu bản ghi*. Bốn cột đó

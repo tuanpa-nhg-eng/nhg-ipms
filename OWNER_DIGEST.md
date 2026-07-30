@@ -651,3 +651,30 @@ Kèm hai bất biến mới đóng đinh trong `rbac-matrix.spec`: `export:confi
 **Việc của B1:** vào màn Người dùng & Vai trò → chọn người (đề xuất: 1–2 người đang giữ vai `hrbp` phụ trách chuyển dữ liệu sang hệ lương) → gán vai **"Cán bộ xuất dữ liệu" (`export_officer`)**, phạm vi Toàn đơn vị. Thu hồi cũng một cú bấm. Không cần B3 can thiệp DB.
 
 **VERIFY:** driver sống **18/18** (thêm 6 check cho đường cấp quyền, gồm 3 ca đối chứng chống leo thang) · full suite xanh sau khi thêm vai + ngoại lệ.
+
+### Lát 2 — Quản trị nền tảng cho B3 · **🎯 MỐC DEMO** · 30/07/2026
+
+**B3 vận hành được toàn hệ mà không đọc được một dòng đánh giá nào.** Bề mặt `/platform/*`: danh sách đơn vị kèm trạng thái · sức khoẻ toàn hệ · cờ tính năng · chi phí AI theo đơn vị · số lần xuất dữ liệu · tạo đơn vị mới. Tài khoản demo `platform@h01.nhg.local`.
+
+**Chỗ khó nhất của lát — xuyên đơn vị mà không có `BYPASSRLS` (K1).** Giải bằng cách tách hai chiều, và đây là phần đáng đọc nhất của L2:
+
+- **Ghi:** job làm mới snapshot đi **từng đơn vị một** qua `withTenant(t)` — vẫn trong RLS như mọi truy vấn nghiệp vụ khác, đếm dữ liệu của đúng đơn vị đó, ghi đúng dòng của đơn vị đó. **Không tồn tại một truy vấn nào đọc dữ liệu hai đơn vị cùng lúc.**
+- **Đọc:** một GUC riêng, và **cố ý KHÔNG set tenant context**. Nhờ vậy mọi bảng nghiệp vụ trả 0 dòng — bán kính nổ **đo được bằng test**, không phải một lời hứa trong tài liệu: trong đường đọc nền tảng, `review`/`person`/`evidence`/`app_user`/`audit_log`/`export_log`/`scorecard` đều = 0, còn `tenant` ≥ 2. Kèm ca đối chứng chứng minh dữ liệu **có** thật (rỗng vì RLS, không vì DB rỗng).
+
+Ba cách làm sai đã cân nhắc và loại: cấp `BYPASSRLS` cho vai người dùng (phá K1) · nới policy bảng nghiệp vụ (cùng hệ quả, khó thấy hơn) · để job chạy bằng OWNER connection (owner bỏ qua RLS ⇒ một lỗi trong job là một lần đọc chéo toàn bộ nội dung).
+
+**Phòng tuyến thứ hai của K9 — cái mà RBAC guard không bắt được.** Nếu ai đó cấp thêm một quyền nghiệp vụ cho vai `platform_admin` **trong DB** (seed sửa tay, script vá), guard vẫn cho qua vì quyền có thật. Nên allowlist được **khai trong mã** (`PLATFORM_ADMIN_PERMISSIONS`), service tự so mỗi request và **tự khoá cả bề mặt** nếu lệch. Test dựng đúng tình huống đó rồi hoàn nguyên.
+
+### Ba lỗi tự bắt trong L2 — hai đáng ghi vào sổ
+
+① **RÒ DỮ LIỆU THẬT, do trùng tên quyền giữa hai tầng.** Kế hoạch ghi `platform_admin` có `exportlog:read`. Ca quét K9 bắt ngay: route `GET /export-log` — sổ vết **chi tiết** trong phạm vi đơn vị, gác đúng quyền đó — trả **200** cho `platform@`, tức B3 đọc được *ai xuất dữ liệu gì đi đâu* của H.01, phá thẳng K1. Đã tách `exportlog:read_metadata` (chỉ số đếm) khỏi `exportlog:read` (chi tiết, của B0). **Bài học: trùng tên quyền giữa hai tầng là một đường rò không nhìn thấy khi đọc mã — chỉ ca quét toàn bộ endpoint mới thấy.** Đây chính là lý do kế hoạch đòi "ca đối chứng bắt buộc" thay vì tin vào thiết kế.
+
+② **`INSERT ... RETURNING` bị RLS chặn, và thông báo lỗi trỏ sai hướng.** Postgres áp policy **SELECT** lên mệnh đề RETURNING, mà `prisma.create()` **luôn** sinh RETURNING. Lỗi báo *"new row violates row-level security policy"* — nghe như WITH CHECK sai, thực tế là SELECT sai. Ba cách sửa, chọn cách **giữ** bất biến thay vì nới nó: không dùng RETURNING (id tự sinh), thay vì bật thêm quyền đọc cho đường ghi.
+
+③ **Và một bài học về cách tôi ĐO.** Probe đầu tiên của tôi nối bằng `ipms_owner` — owner **bỏ qua RLS hoàn toàn** — nên nó "chứng minh" RLS cho qua trong khi thực tế đang chặn. Cùng họ với bài học "API dev server không watch ⇒ đo mã cũ": **kiểm chứng sai đối tượng thì kết quả xanh là vô nghĩa.** Đã đo lại bằng đúng role runtime (`ipms_app`).
+
+**Lệch có chủ đích so với chữ trong kế hoạch:** kế hoạch ghi màn "nhật ký xuất dữ liệu" cho B3; tôi cho B3 **số lần xuất + lần gần nhất theo đơn vị**, không phải từng dòng. Vì đọc từng dòng nghĩa là biết đơn vị nào xuất dữ liệu gì đi đâu — đó là hồ sơ giám sát của B0, và K1 nói tầng nền tảng chỉ đọc metadata. Muốn xem chi tiết ⇒ đi qua ngoại lệ có thời hạn ở **L3**, đúng như kế hoạch đã định sẵn.
+
+**Xác nhận thêm rằng L1 hoạt động:** khi L2 thêm route `/platform/export-activity`, snapshot bề mặt xuất của L1 **đỏ ngay** và buộc tôi phải khai `@ExportExempt` + cập nhật danh sách đã rà. Lớp fail-closed build-time làm đúng việc nó tồn tại để làm — trên một route do chính tôi thêm.
+
+**VERIFY L2:** **687 test / 55 suite** · typecheck `shared`+`db`+`api` sạch · driver sống **25/25** trên API thật đã restart (+7 check cho L2, gồm ca quét 23 endpoint nghiệp vụ → 403 hết và ca chứng minh metrics chỉ chứa số đếm).

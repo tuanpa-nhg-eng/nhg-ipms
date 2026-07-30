@@ -357,6 +357,10 @@ describe('[Trục C L1] Kiểm soát xuất dữ liệu', () => {
     'POST /api/v1/integrations/outbox/dispatch',  // @Exported system.log → connector ngoài
     'GET /api/v1/export-log',                     // @ExportExempt — đọc chính sổ vết
     'GET /api/v1/probe/export/undeclared',        // controller thăm dò của chính spec này
+    // [Trục C L2] @ExportExempt — số đếm hoạt động xuất theo đơn vị cho tầng nền tảng.
+    // Dòng này được thêm vì test NÀY đỏ khi L2 tạo route mới: lớp fail-closed build-time hoạt
+    // động đúng như thiết kế — route dạng xuất mới không thể lặng lẽ xuất hiện.
+    'GET /api/v1/platform/export-activity',
   ].sort();
   // `POST /integrations/import/csv` KHÔNG có trong danh sách này: `INGRESS_MARKERS` loại nó
   // khỏi heuristic trước khi tới đây (dữ liệu VÀO). Nó vẫn khai `@ExportExempt` — dư về mặt

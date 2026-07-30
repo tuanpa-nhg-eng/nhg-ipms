@@ -93,6 +93,9 @@ import { DataCatalogService } from './modules/datacatalog/datacatalog.service';
 import { ExportGuard } from './common/export/export.guard';
 import { ExportLogInterceptor } from './common/export/export-log.interceptor';
 import { ExportLogController } from './modules/export/export-log.controller';
+// [Trục C L2] Quản trị nền tảng B3 — xuyên đơn vị qua read model, KHÔNG BYPASSRLS (K1)
+import { PlatformController } from './modules/platform/platform.controller';
+import { PlatformService } from './modules/platform/platform.service';
 import { MeController } from './modules/me/me.controller';
 import { MeService } from './modules/me/me.service';
 import { ImpersonationController } from './modules/admin/impersonation.controller';
@@ -116,6 +119,8 @@ import { ImpersonationService } from './modules/admin/impersonation.service';
     DataCatalogController,
     // [Trục C L1] đọc sổ vết xuất — gác sau exportlog:read (hiện chỉ auditor)
     ExportLogController,
+    // [Trục C L2] bề mặt quản trị nền tảng của B3
+    PlatformController,
     ImpersonationController,
   ],
   providers: [
@@ -157,6 +162,7 @@ import { ImpersonationService } from './modules/admin/impersonation.service';
     TaskLoopService,
     AdminUsersService, AdminRolesService, TenantConfigService, MeService, ImpersonationService,
     DataCatalogService,
+    PlatformService,
     // Guard pipeline Spec Config Studio §7: Jwt → Tenant → Permission (RBAC) → Policy (ABAC #2)
     // [Trục C L1] → Export (trần xuất dữ liệu). ĐỨNG CUỐI có chủ đích: cần
     // `req.ipmsUser.permissions` do PermissionGuard dựng, và ngữ nghĩa của nó là tầng riêng —

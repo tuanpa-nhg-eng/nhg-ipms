@@ -71,6 +71,12 @@ const PERMISSIONS = [
   // [Trục C L1] Kiểm soát xuất dữ liệu — 'export:confidential' KHÔNG cấp cho vai nào (quyết
   // định của B1 trên từng người); 'exportlog:read' chỉ auditor ở L1, platform_admin ở L2.
   'export:confidential', 'exportlog:read',
+  // [Trục C L2] Quản trị nền tảng (tầng ①) — chỉ metadata + hai hành động vận hành.
+  'tenant:list', 'tenant:create',
+  'system:health', 'integration:status', 'ai:usage_read', 'audit:read_metadata',
+  // [L2 — tự bắt] tách khỏi `exportlog:read`: tầng nền tảng chỉ được SỐ ĐẾM, không đọc sổ
+  // vết chi tiết của đơn vị (ca quét K9 bắt được `platform@` đọc `GET /export-log` của H.01).
+  'exportlog:read_metadata',
 ];
 
 // ⚠️ NỢ KỸ THUẬT (phát hiện khi làm trục C L0): danh sách trên là BẢN SAO TAY của
@@ -223,6 +229,23 @@ const GLOBAL_ROLES: Record<string, string[]> = {
    * `admin-roles.service.ts`.
    */
   export_officer: ['export:confidential'],
+  /**
+   * [Trục C L2 — K9] Quản trị nền tảng. Danh sách này là BẢN PHẢN CHIẾU của
+   * `PLATFORM_ADMIN_PERMISSIONS` khai trong `packages/shared/src/index.ts` — nguồn gốc nằm ở
+   * MÃ, không ở seed (kế hoạch trục C §4 L2). `rbac-matrix.spec` đối chiếu hai bên, và
+   * `PlatformService.assertWithinAllowlist` kiểm lại lúc chạy: cấp thêm quyền cho vai này
+   * bằng đường nào cũng bị bắt.
+   *
+   * KHÔNG có `audit:read` (của auditor, giữ J3) · không một quyền ghi nghiệp vụ nào ·
+   * không `datacatalog:write` (của data_steward) · không `user:*`/`role:*` (của tenant_admin —
+   * B3 vận hành hạ tầng, không quản trị người của đơn vị khác).
+   */
+  platform_admin: [
+    'tenant:list', 'tenant:create',
+    'system:health', 'integration:status', 'ai:usage_read',
+    'flag:read', 'flag:write',
+    'exportlog:read_metadata', 'audit:read_metadata',
+  ],
   // [Trục C L0] Chủ dữ liệu — B3 (nền tảng, nhật ký) + B5 (tuân thủ). Vai DUY NHẤT được
   // sửa sổ đăng ký dữ liệu. Không kèm quyền nghiệp vụ nào: sổ này quyết định dữ liệu được
   // xử lý thế nào, nên người giữ nó không nên đồng thời là người xử lý dữ liệu đó.
@@ -503,6 +526,17 @@ async function main() {
     // ngay khi API quản trị lên ở L1, thay vì chỉ chứng minh trên tenant_admin scope tenant.
     // [Trục C L0] Chủ dữ liệu — vai DUY NHẤT sửa được sổ đăng ký dữ liệu.
     await seedStudioUser('steward', 'data_steward');
+    /**
+     * [Trục C L2] Quản trị nền tảng (B3).
+     *
+     * Danh tính NẰM TRONG một đơn vị (H.01) dù vai là toàn hệ — có chủ đích, và không phải
+     * lỗ hổng: `app_user`/`user_role` là bảng tenant-bound, nên một người "không thuộc đơn vị
+     * nào" sẽ cần phá cả mô hình danh tính để dựng. Quan trọng hơn: vai này KHÔNG có một
+     * quyền nghiệp vụ nào, nên ở trong H.01 cũng không đọc được dữ liệu H.01 — chính điều đó
+     * là ca đối chứng mạnh nhất của K9 (`platform@` bị 403 ở mọi endpoint nghiệp vụ của đúng
+     * đơn vị chứa nó). Xuyên đơn vị đến từ read model + GUC, không từ chỗ danh tính nằm.
+     */
+    if (code === 'H.01') await seedStudioUser('platform', 'platform_admin');
     await seedStudioUser('orgadmin', 'org_admin', { scopeType: 'org_unit', scopeId: dept.id }, dept.id);
 
     // [F53] SoD mặc định fail-closed: config:write ⟂ config:publish

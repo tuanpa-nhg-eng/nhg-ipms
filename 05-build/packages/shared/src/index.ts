@@ -71,6 +71,18 @@ export const PERMISSIONS = [
   //  · 'exportlog:read' — đọc sổ nhật ký xuất. Cấp cho `auditor` (B0) ở L1; `platform_admin`
   //    nhận ở L2. KHÔNG cấp cho vai vận hành: người xuất không tự soát vết xuất của mình.
   'export:confidential', 'exportlog:read',
+  // [Trục C L2] Quản trị NỀN TẢNG (tầng ①) — vận hành toàn hệ, KHÔNG đọc nội dung nghiệp vụ.
+  // Không quyền nào ở đây chạm được một dòng `review`/`scorecard_item`/`evidence`/`person`:
+  // chúng chỉ mở read model metadata (`platform_snapshot`) + hai hành động vận hành
+  // (tạo đơn vị, bật/tắt cờ tính năng). Bất biến K9 + ca đối chứng ở `platform-admin.spec`.
+  'tenant:list', 'tenant:create',
+  'system:health', 'integration:status', 'ai:usage_read', 'audit:read_metadata',
+  // [Trục C L2 — tự bắt bằng ca đối chứng] `exportlog:read_metadata` TÁCH khỏi
+  // `exportlog:read`. Bản đầu cấp `exportlog:read` cho platform_admin, và ca quét K9 phát
+  // hiện ngay: route `GET /export-log` (sổ vết CHI TIẾT trong phạm vi đơn vị, gác đúng quyền
+  // đó) trả về 200 cho `platform@` — tức B3 đọc được ai xuất dữ liệu gì đi đâu của H.01, phá
+  // thẳng K1. Trùng tên quyền giữa hai tầng là một đường rò không ai nhìn thấy khi đọc mã.
+  'exportlog:read_metadata',
 ] as const;
 export type PermissionCode = (typeof PERMISSIONS)[number];
 
@@ -162,6 +174,45 @@ export function exportDecision(cls: DataClassification, dest: ExportDestKind): E
     };
   }
   return { allowed: true, requires: null, rule: `${cls}: trong trần cho phép` };
+}
+
+/**
+ * [Trục C L2 — K9] ALLOWLIST QUYỀN CỦA `platform_admin` — KHAI TRONG MÃ, không trong seed.
+ *
+ * Vì sao ở đây chứ không chỉ ở `seed.ts`: cạm bẫy lớn nhất của lát này là `platform_admin`
+ * lặng lẽ trở thành god-account MỚI — đúng thứ trục B vừa đập bỏ. Một danh sách nằm trong
+ * seed thì lớn dần theo từng lần "thêm cho tiện"; một danh sách nằm ở đây, được test đóng
+ * đinh và được service tự kiểm lúc chạy, thì mỗi lần mở rộng là một sửa đổi tường minh có
+ * người rà.
+ *
+ * Ba nhóm, và KHÔNG có nhóm thứ tư:
+ *   ① metadata xuyên đơn vị — đọc `platform_snapshot` (chỉ số đếm + trạng thái)
+ *   ② hai hành động vận hành — tạo đơn vị mới, bật/tắt cờ tính năng
+ *   ③ vết giám sát ở mức đếm — `exportlog:read` (số lần xuất/đơn vị), `audit:read_metadata`
+ *
+ * KHÔNG có `audit:read` (đó là của `auditor`, giữ J3 — đọc VẾT ĐẦY ĐỦ là việc của B0, không
+ * phải của người vận hành hạ tầng), không một quyền `*:write` nghiệp vụ nào, và không
+ * `datacatalog:write` (sổ phân loại là của `data_steward`).
+ */
+export const PLATFORM_ADMIN_PERMISSIONS: readonly PermissionCode[] = [
+  'tenant:list', 'tenant:create',
+  'system:health', 'integration:status', 'ai:usage_read',
+  'flag:read', 'flag:write',
+  // KHÔNG phải `exportlog:read` — đó là quyền đọc sổ vết CHI TIẾT trong phạm vi đơn vị
+  // (`auditor`/B0). Tầng nền tảng chỉ được số đếm (K1). Xem ghi chú ở catalog phía trên.
+  'exportlog:read_metadata', 'audit:read_metadata',
+];
+
+/**
+ * [Trục C L2 — K9] Hậu tố/mã của quyền NGHIỆP VỤ. Dùng cho ca đối chứng: không một quyền nào
+ * của `platform_admin` được khớp danh sách này. Viết dưới dạng suy diễn thay vì liệt kê tay
+ * để permission nghiệp vụ THÊM SAU NÀY tự động nằm trong phạm vi kiểm.
+ */
+export function isBusinessPermission(p: string): boolean {
+  if ((PLATFORM_ADMIN_PERMISSIONS as readonly string[]).includes(p)) return false;
+  if (p.includes('.self:')) return false;          // quyền cá nhân, mọi vai đều có
+  if (p === 'taskdict:read') return false;         // tài nguyên tham chiếu toàn hàng
+  return /^(kpi|scorecard|strategy|goal|evidence|checkin|review|rating|calibration|payroll|config|brand|org|person|user|role|taskcell|task|library|process|derivation|ai|integration|datacatalog|audit|tenant\.config|orgunit|export)[:.]/.test(p);
 }
 
 /**

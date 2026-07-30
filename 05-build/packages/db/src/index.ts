@@ -50,3 +50,52 @@ export async function withTenant<T>(
     { maxWait: 10_000, timeout: 20_000 },
   );
 }
+
+/**
+ * [Trục C L2 — K1] Đường ĐỌC của tầng quản trị nền tảng: bật GUC `app.platform_read` và
+ * **CỐ Ý KHÔNG set `app.tenant_id`**.
+ *
+ * Bỏ trống tenant context không phải là thiếu sót — nó LÀ cơ chế giới hạn: policy của mọi
+ * bảng nghiệp vụ so `tenant_id` với `app.tenant_id`, mà `current_setting(..., true)` trả
+ * NULL khi chưa set ⇒ so sánh ra NULL ⇒ 0 dòng. Chỉ `platform_snapshot` và `tenant` có
+ * policy nhìn GUC mới. Nghĩa là bán kính nổ của hàm này KIỂM CHỨNG ĐƯỢC: xem
+ * `platform-admin.spec` — đọc `review`/`person`/`evidence` bên trong đây phải trả về rỗng.
+ *
+ * Đây là lý do KHÔNG dùng OWNER connection cho việc này: owner bỏ qua RLS nên một lỗi trong
+ * mã là một lần đọc chéo toàn bộ nội dung nghiệp vụ; ở đây, cùng lỗi đó trả về mảng rỗng.
+ */
+export async function withPlatform<T>(
+  prisma: PrismaClient,
+  fn: (tx: TenantTx) => Promise<T>,
+): Promise<T> {
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.platform_read', 'on', true)`;
+      return fn(tx);
+    },
+    { maxWait: 10_000, timeout: 20_000 },
+  );
+}
+
+/**
+ * [Trục C L2] Đường GHI của tầng nền tảng — TÁCH HẲN khỏi `withPlatform`.
+ *
+ * Chỉ dùng cho hai việc mà bản chất là không-thuộc-đơn-vị-nào: tạo đơn vị mới (chưa có
+ * tenant để mà bind) và bật/tắt cờ tính năng toàn cục (`tenant_id NULL`). Tách khỏi đường
+ * đọc để một request đọc thông thường của B3 KHÔNG mang theo khả năng ghi — nếu gộp một
+ * GUC, mọi màn hình danh sách đều chạy với quyền ghi hàng global.
+ *
+ * KHÔNG bật `app.platform_read` ở đây: hai việc trên không cần đọc chéo.
+ */
+export async function withPlatformWrite<T>(
+  prisma: PrismaClient,
+  fn: (tx: TenantTx) => Promise<T>,
+): Promise<T> {
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.platform_write', 'on', true)`;
+      return fn(tx);
+    },
+    { maxWait: 10_000, timeout: 20_000 },
+  );
+}

@@ -290,6 +290,107 @@ async function main() {
     return bad.length === 0 ? true : `${bad.length} dòng có onBehalfOfUserId — J11 đã vỡ`;
   });
 
+  // ═══ L2 — quản trị nền tảng: vận hành toàn hệ mà KHÔNG đọc được nội dung ═══
+  group('L2 — Platform Admin B3: metadata xuyên đơn vị, 0 nội dung nghiệp vụ');
+
+  const plat = await login('platform');
+
+  await check('B3 làm mới snapshot rồi thấy ĐỦ các đơn vị kèm trạng thái (xuyên đơn vị thật)', async () => {
+    const r0 = await req('POST', '/platform/snapshot/refresh', { ...plat, body: {} });
+    if (![200, 201].includes(r0.status)) return `refresh: ${is(r0, 200, 201)}`;
+    const r = await req('GET', '/platform/tenants', { ...plat });
+    if (r.status !== 200) return is(r, 200);
+    const codes = (r.json?.entries ?? []).map((e) => e.code);
+    if (!codes.includes('H.01') || !codes.includes('T2.TEST')) {
+      return `thiếu đơn vị: thấy ${JSON.stringify(codes)}`;
+    }
+    const noHealth = (r.json.entries ?? []).filter((e) => !e.health);
+    return noHealth.length === 0 ? true : `${noHealth.length} đơn vị không có trạng thái`;
+  });
+
+  /**
+   * Ca đối chứng BẮT BUỘC của kế hoạch (§4 L2 cổng ra): quét platform_admin qua toàn bộ
+   * endpoint nghiệp vụ → 403 tất cả. Chạy trên API THẬT, không phải app trong process test —
+   * đúng loại kiểm mà L2 cần vì nó đi qua đủ 5 tầng guard.
+   */
+  await check('[K9] platform@ bị chặn ở MỌI endpoint nghiệp vụ (quét thật, không ngoại lệ)', async () => {
+    const eps = [
+      ['GET', '/reviews'], ['GET', '/review-cycles'], ['GET', '/goals'], ['GET', '/checkins'],
+      ['GET', '/evidence'], ['GET', '/persons'], ['GET', '/org-units'], ['GET', '/kpis'],
+      ['GET', '/scorecards'], ['GET', '/objectives'], ['GET', '/admin/users'],
+      ['GET', '/admin/roles'], ['GET', '/admin/tenant-config'], ['GET', '/audit-logs'],
+      ['GET', '/data-catalog'], ['GET', '/export-log'], ['GET', '/task-cells'],
+      ['GET', '/policies'], ['GET', '/exec/overview'], ['GET', '/ai/economics'],
+      ['POST', '/goals'], ['POST', '/reviews'], ['POST', '/integrations/outbox/dispatch'],
+    ];
+    const leaks = [];
+    for (const [m, u] of eps) {
+      const r = await req(m, u, { ...plat, body: m === 'POST' ? {} : undefined });
+      if (r.status < 400) leaks.push(`${m} ${u} → ${r.status}`);
+    }
+    if (eps.length < 20) return 'danh sách quét quá mỏng — sửa driver, không sửa ngưỡng';
+    return leaks.length === 0 ? true : `RÒ: ${leaks.join(' · ')}`;
+  });
+
+  await check('[K1] hai quyền sổ vết tách nhau: platform@ chỉ số đếm, auditor@ chi tiết', async () => {
+    const detail = await req('GET', '/export-log', { ...plat });
+    if (detail.status !== 403) return `platform@ đọc được sổ vết chi tiết: ${is(detail, 403)}`;
+    const counts = await req('GET', '/platform/export-activity', { ...plat });
+    if (counts.status !== 200) return `số đếm: ${is(counts, 200)}`;
+    const aud = await req('GET', '/export-log', { ...auditor });
+    return is(aud, 200);   // đối chứng: không chặn oan B0
+  });
+
+  await check('Vai nghiệp vụ mạnh (hrbp) và quản trị đơn vị (tenant_admin) KHÔNG vào được tầng ①', async () => {
+    for (const c of [hr, admin]) {
+      const r = await req('GET', '/platform/tenants', { ...c });
+      if (r.status !== 403) return `${c.prefix}@ vào được /platform/tenants: ${is(r, 403)}`;
+    }
+    return true;
+  });
+
+  await check('Snapshot chỉ chứa SỐ ĐẾM — không chuỗi nào trông giống PII', async () => {
+    const r = await req('GET', '/platform/tenants', { ...plat });
+    const withM = (r.json?.entries ?? []).filter((e) => e.metrics);
+    if (withM.length === 0) return 'không đơn vị nào có metrics — chạy refresh trước';
+    const bad = [];
+    for (const e of withM) {
+      for (const [k, v] of Object.entries(e.metrics)) {
+        if (typeof v === 'number' || v === null) continue;
+        if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(v)) continue;
+        bad.push(`${e.code}.${k}=${JSON.stringify(v)}`);
+      }
+    }
+    return bad.length === 0 ? true : `metrics có giá trị không phải số/thời điểm: ${bad.join(', ')}`;
+  });
+
+  await check('B3 tạo được đơn vị mới (INSERT không RETURNING, qua RLS) và thấy nó ngay', async () => {
+    const code = `DRV.${String(Date.now()).slice(-6)}`;
+    // ⚠️ KHÔNG đặt tên biến này là `c`: `c` là bảng màu ở scope ngoài, và bản đầu đặt trùng
+    // tên khiến dòng thông báo dọn dẹp in ra "undefined· đơn vị..." — lỗi nhỏ nhưng đúng loại
+    // làm người đọc kết quả driver mất tin vào chính driver.
+    const res = await req('POST', '/platform/tenants',
+      { ...plat, body: { code, nameVi: 'Đơn vị driver', type: 'opco' } });
+    if (![200, 201].includes(res.status)) return `tạo: ${is(res, 200, 201)}`;
+    // Không có API xoá đơn vị (đúng thiết kế: xoá một đơn vị không phải việc một cú bấm) ⇒ ghi
+    // nhận để người chạy biết, thay vì im lặng để lại rác.
+    cleanup.push(async () => {
+      console.log(`  ${c.d}· đơn vị '${code}' do driver tạo còn lại trong DB (không có API xoá — dọn tay nếu cần)${c.x}`);
+    });
+    const list = await req('GET', '/platform/tenants', { ...plat });
+    const found = (list.json?.entries ?? []).find((e) => e.code === code);
+    if (!found) return 'đơn vị vừa tạo không hiện trong danh sách toàn hệ';
+    return found.health === 'unknown' ? true : `đơn vị mới phải là 'unknown', nhận '${found.health}'`;
+  });
+
+  await check('Cờ tính năng toàn cục: bật rồi tắt được (bề mặt duy nhất ghi hàng global)', async () => {
+    const key = `drv.l2.${String(Date.now()).slice(-6)}`;
+    const on = await req('PUT', `/platform/flags/${key}`, { ...plat, body: { enabled: true } });
+    if (![200, 201].includes(on.status)) return `bật: ${is(on, 200, 201)}`;
+    const off = await req('PUT', `/platform/flags/${key}`, { ...plat, body: { enabled: false } });
+    return is(off, 200, 201);
+  });
+
   // ── dọn dẹp ──
   group('Dọn dẹp — hoàn nguyên mọi thay đổi trạng thái');
   for (const fn of cleanup.reverse()) { try { await fn(); } catch { /* best effort */ } }

@@ -11,7 +11,7 @@
  * thêm một permission mới vào catalog.
  */
 import { createPrismaClient, PrismaClient } from '@ipms/db';
-import { PERMISSIONS } from '@ipms/shared';
+import { PERMISSIONS, PLATFORM_ADMIN_PERMISSIONS, isBusinessPermission } from '@ipms/shared';
 
 jest.setTimeout(120_000);
 
@@ -119,6 +119,15 @@ const EXPECTED: Record<string, string[]> = {
   // J1① trong admin-roles.service (cho phép tenant_admin gán vai này) trở thành đường leo
   // thang thật. Test dưới đóng đinh đúng điều đó.
   export_officer: ['export:confidential'],
+  // [Trục C L2 — K9] Quản trị nền tảng: metadata xuyên đơn vị + hai hành động vận hành.
+  // Nguồn gốc của danh sách này là `PLATFORM_ADMIN_PERMISSIONS` trong @ipms/shared (khai
+  // trong MÃ, không trong seed) — test dưới đối chiếu ba bên: mã ↔ snapshot ↔ DB.
+  platform_admin: [
+    'tenant:list', 'tenant:create',
+    'system:health', 'integration:status', 'ai:usage_read',
+    'flag:read', 'flag:write',
+    'exportlog:read_metadata', 'audit:read_metadata',
+  ],
 };
 
 // [Trục C L0] `datacatalog:read` cấp cho các vai QUẢN TRỊ + kiểm toán — viết dưới dạng
@@ -258,6 +267,21 @@ describe('[Trục B L0] Ma trận role→permission — J2 không god-account', 
       .filter(([, ps]) => ps.has('export:confidential') && EXPORT_ROUTE_PERMS.some((p) => ps.has(p)))
       .map(([r]) => r);
     expect(both).toEqual([]);
+  });
+
+  /**
+   * [Trục C L2 — K9] Ba nguồn phải khớp nhau: allowlist trong MÃ ↔ snapshot ở đây ↔ hàng thật
+   * trong DB. Hai phép so ở trên đã chốt snapshot↔DB; phép này chốt mã↔snapshot. Thiếu nó,
+   * ai đó sửa cả seed lẫn snapshot cho khớp nhau mà quên allowlist thì `platform_admin` phình
+   * ra trong im lặng — và allowlist trong mã, thứ service tin lúc chạy, hoá ra là bản cũ.
+   */
+  it('[Trục C L2] allowlist platform_admin trong MÃ khớp snapshot ma trận', () => {
+    expect([...PLATFORM_ADMIN_PERMISSIONS].sort()).toEqual([...EXPECTED['platform_admin']].sort());
+  });
+
+  it('[K9] platform_admin không giữ quyền NGHIỆP VỤ nào (suy diễn, không liệt kê tay)', () => {
+    const business = [...actual['platform_admin']].filter(isBusinessPermission);
+    expect(business).toEqual([]);
   });
 
   it('[J3] KHÔNG role nào ngoài auditor giữ audit:read', () => {
