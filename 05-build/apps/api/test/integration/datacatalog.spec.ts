@@ -45,6 +45,17 @@ describe('[Trục C L0] Sổ đăng ký dữ liệu', () => {
 
   beforeAll(async () => {
     owner = createPrismaClient(process.env.OWNER_DATABASE_URL);
+    /**
+     * [Trục C L1 — tự bắt] Dọn bản riêng của đơn vị TRƯỚC, không chỉ ở afterAll.
+     *
+     * Bản đầu chỉ dọn ở afterAll ⇒ spec này ngầm giả định DB chưa có override nào. Giả định
+     * đó vỡ ngay khi driver sống `verify-governance.mjs` chạy trước (nó siết `system.log` cho
+     * H.01 và API sổ đăng ký KHÔNG có đường xoá override, chỉ có PUT) — ca đối chứng "trigger
+     * cho phép siết chặt" ăn lỗi unique `(tenant_id, code)` chứ không phải lỗi trigger. Một
+     * đơn vị CÓ override là trạng thái sản phẩm hợp lệ, nên chỗ phải sửa là test, không phải
+     * driver: mọi spec chạm sổ đăng ký phải tự dựng trạng thái đầu vào của nó.
+     */
+    await owner.dataAsset.deleteMany({ where: { tenantId: { not: null } } }).catch(() => {});
     admin = await ctxFor('H.01', 'admin@');
     steward = await ctxFor('H.01', 'steward@');
     emp = await ctxFor('H.01', 'emp1@');

@@ -104,6 +104,8 @@ const EXPECTED: Record<string, string[]> = {
   auditor: [
     'tenant:read', 'audit:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read',
     'strategy:read', 'goal:read',
+    // [Trục C L1] đọc sổ vết xuất dữ liệu — B0 giữ, KHÔNG phải người vận hành đường xuất.
+    'exportlog:read',
   ],
   exec_viewer: [
     'tenant:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read',
@@ -212,6 +214,18 @@ describe('[Trục B L0] Ma trận role→permission — J2 không god-account', 
     }
     // Tước quyền mà không giao lại = làm chết tính năng một cách âm thầm.
     expect(orphans).toEqual([]);
+  });
+
+  /**
+   * [Trục C L1] Quyền CỐ Ý không thuộc vai nào. Khác hoàn toàn với "quên cấp": nếu nó nằm
+   * trong một vai nghiệp vụ thì "được chạy kỳ đánh giá" tự động kéo theo "được mang dữ liệu
+   * cá nhân ra khỏi hệ" — đúng loại gộp quyền mà trục B vừa đập ở god-account. Ai được xuất
+   * dữ liệu `confidential` là một lần cấp TƯỜNG MINH cho từng người, có vết trong user_role.
+   */
+  it('[Trục C L1] `export:confidential` KHÔNG thuộc vai toàn cục nào — cấp tường minh từng người', () => {
+    const holders = Object.entries(actual)
+      .filter(([, ps]) => ps.has('export:confidential')).map(([r]) => r);
+    expect(holders).toEqual([]);
   });
 
   it('[J3] KHÔNG role nào ngoài auditor giữ audit:read', () => {

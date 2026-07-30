@@ -63,6 +63,14 @@ export const PERMISSIONS = [
   // [Trục C L0] Sổ đăng ký dữ liệu. ':read' cấp rộng (mọi vai quản trị cần tra mức phân
   // loại trước khi xuất dữ liệu); ':write' CHỈ data_steward (B3 + B5).
   'datacatalog:read', 'datacatalog:write',
+  // [Trục C L1] Kiểm soát xuất dữ liệu.
+  //  · 'export:confidential' — trần theo mức phân loại: xuất dữ liệu `confidential` đòi
+  //    quyền RIÊNG này, và nó KHÔNG nằm trong bộ mặc định của BẤT KỲ vai nào (kể cả hrbp
+  //    đang giữ `payroll:export`). Ai được xuất dữ liệu cá nhân là quyết định TƯỜNG MINH
+  //    của B1 trên từng người, không phải hệ quả phụ của việc được gán một vai nghiệp vụ.
+  //  · 'exportlog:read' — đọc sổ nhật ký xuất. Cấp cho `auditor` (B0) ở L1; `platform_admin`
+  //    nhận ở L2. KHÔNG cấp cho vai vận hành: người xuất không tự soát vết xuất của mình.
+  'export:confidential', 'exportlog:read',
 ] as const;
 export type PermissionCode = (typeof PERMISSIONS)[number];
 
@@ -99,6 +107,61 @@ export function normalizeDataClass(raw: string): DataClassification | null {
 /** Mức nhạy cảm — không rời hạ tầng do NHG kiểm soát (Strategic Context §9.3). */
 export function isSensitiveClass(c: DataClassification): boolean {
   return dataClassRank(c) >= CLASS_RANK.confidential;
+}
+
+/**
+ * [Trục C L1] LOẠI ĐÍCH ĐẾN của một đường xuất dữ liệu. Trần xuất KHÔNG thể quyết chỉ bằng
+ * mức phân loại: "gửi kết quả đánh giá sang hệ lương nội bộ NHG" và "tải bảng điểm về máy
+ * cá nhân" là hai rủi ro khác hẳn nhau dù cùng một mức `confidential`.
+ *
+ *  · internal_system  — hệ khác BÊN TRONG hạ tầng NHG (OneOffice, hệ nhân sự…)
+ *  · file_download    — tệp về máy người dùng: rời vùng kiểm soát, không thu hồi được
+ *  · external_service — dịch vụ NGOÀI hạ tầng NHG (SaaS, connector bên thứ ba)
+ */
+export const EXPORT_DEST_KINDS = ['internal_system', 'file_download', 'external_service'] as const;
+export type ExportDestKind = (typeof EXPORT_DEST_KINDS)[number];
+
+export interface ExportVerdict {
+  allowed: boolean;
+  /** Quyền BỔ SUNG mà người xuất phải có (ngoài permission nghiệp vụ của route). */
+  requires: PermissionCode | null;
+  /** Mã bất biến/lý do — vào thẳng thông báo lỗi và `export_log`, để tra được "vì sao chặn". */
+  rule: string;
+}
+
+/**
+ * [Trục C L1] TRẦN XUẤT DỮ LIỆU — bảng quyết định DUY NHẤT (mức phân loại × loại đích).
+ *
+ * Đặt ở @ipms/shared chứ không trong guard: FE cần biết trước để KHÔNG vẽ nút xuất mà bấm
+ * vào ăn 403, và cùng một bảng phải dùng lại được ở L3 (ngoại lệ có hạn) và L5 (lưu trữ).
+ *
+ * Bất biến K3 nằm ở hàng `restricted`: KHÔNG có ô nào allowed — kể cả `internal_system`, kể
+ * cả khi có ngoại lệ ở L3 (ngoại lệ mở được quyền ĐỌC, không mở được đường XUẤT). Hôm nay
+ * không đường xuất nào trong sản phẩm mang dữ liệu `restricted` (xuất lương mang
+ * `review.result` = confidential; dữ liệu lương thật nằm ở hệ nhân sự, iPMS không giữ). Khi
+ * nào thực sự cần một đường như vậy thì đó là QUYẾT ĐỊNH của B1 kèm mức phân loại mới, chứ
+ * không phải mặc định lọt sẵn ở đây.
+ */
+export function exportDecision(cls: DataClassification, dest: ExportDestKind): ExportVerdict {
+  if (cls === 'restricted') {
+    return {
+      allowed: false, requires: null,
+      rule: 'K3: dữ liệu `restricted` không rời hệ thống dưới bất kỳ hình thức nào',
+    };
+  }
+  if (isSensitiveClass(cls)) {          // confidential
+    if (dest === 'external_service') {
+      return {
+        allowed: false, requires: null,
+        rule: 'Strategic Context §9.3: dữ liệu nhạy cảm không rời hạ tầng do NHG kiểm soát',
+      };
+    }
+    return {
+      allowed: true, requires: 'export:confidential',
+      rule: 'confidential: cần quyền riêng `export:confidential` (không nằm trong vai nào)',
+    };
+  }
+  return { allowed: true, requires: null, rule: `${cls}: trong trần cho phép` };
 }
 
 /**

@@ -11,6 +11,7 @@ import request from 'supertest';
 import { createPrismaClient, PrismaClient } from '@ipms/db';
 import { AppModule } from '../../src/app.module';
 import { getJwtSecret } from '../../src/common/auth/jwt.guard';
+import { grantExtraPermission } from '../helpers/grant-permission';
 
 jest.setTimeout(120_000);
 
@@ -28,6 +29,8 @@ describe('Phase 2 — Review loop E2E', () => {
   let emp: Ctx;     // H.01 employee (scope self)
   let t2hr: Ctx;    // T2 hrbp — dùng cho ca cô lập tenant
   const uniq = Date.now();
+  /** [Trục C L1] hàm hoàn nguyên các lần cấp `export:confidential` — gọi ở afterAll. */
+  const exportGrants: Array<() => Promise<void>> = [];
 
   beforeAll(async () => {
     owner = createPrismaClient(process.env.OWNER_DATABASE_URL);
@@ -49,6 +52,14 @@ describe('Phase 2 — Review loop E2E', () => {
     emp = await ctxFor('H.01', 'emp1@');
     t2hr = await ctxFor('T2.TEST', 'hr@');
 
+    // [Trục C L1] Từ lát export control, `GET /export/payroll` xuất `review.result`
+    // (confidential) ⇒ đòi thêm `export:confidential`, và quyền đó CỐ Ý không nằm trong bộ
+    // mặc định của vai nào — kể cả hrbp đang giữ `payroll:export`. Vòng đánh giá vẫn chạy
+    // nguyên vẹn; chỉ bước MANG DỮ LIỆU RA là cần một lần cấp tường minh. Cấp ở đây đúng
+    // động tác mà B1 sẽ làm trên màn Người dùng & Vai trò, và thu lại ở afterAll.
+    exportGrants.push(await grantExtraPermission(owner, hr.id, hr.userId, 'export:confidential'));
+    exportGrants.push(await grantExtraPermission(owner, t2hr.id, t2hr.userId, 'export:confidential'));
+
     // dọn checkin cũ của EMP1 để test rerun được (owner — chỉ trong test)
     await owner.checkinGoalUpdate.deleteMany({ where: { tenantId: hr.id } }).catch(() => {});
     await owner.checkin.deleteMany({ where: { tenantId: hr.id, personId: emp.personId } }).catch(() => {});
@@ -61,6 +72,7 @@ describe('Phase 2 — Review loop E2E', () => {
   });
 
   afterAll(async () => {
+    for (const undo of exportGrants) await undo().catch(() => {});
     await app?.close();
     await owner?.$disconnect();
   });

@@ -89,6 +89,10 @@ import { TenantConfigService } from './modules/admin/tenant-config.service';
 // [Trục C L0] Sổ đăng ký dữ liệu
 import { DataCatalogController } from './modules/datacatalog/datacatalog.controller';
 import { DataCatalogService } from './modules/datacatalog/datacatalog.service';
+// [Trục C L1] Kiểm soát xuất dữ liệu — một cổng duy nhất, ghi vết đủ bốn thông tin
+import { ExportGuard } from './common/export/export.guard';
+import { ExportLogInterceptor } from './common/export/export-log.interceptor';
+import { ExportLogController } from './modules/export/export-log.controller';
 import { MeController } from './modules/me/me.controller';
 import { MeService } from './modules/me/me.service';
 import { ImpersonationController } from './modules/admin/impersonation.controller';
@@ -110,6 +114,8 @@ import { ImpersonationService } from './modules/admin/impersonation.service';
     // [Trục B — L1] quản trị tenant/org
     AdminUsersController, AdminRolesController, TenantConfigController, MeController,
     DataCatalogController,
+    // [Trục C L1] đọc sổ vết xuất — gác sau exportlog:read (hiện chỉ auditor)
+    ExportLogController,
     ImpersonationController,
   ],
   providers: [
@@ -152,11 +158,16 @@ import { ImpersonationService } from './modules/admin/impersonation.service';
     AdminUsersService, AdminRolesService, TenantConfigService, MeService, ImpersonationService,
     DataCatalogService,
     // Guard pipeline Spec Config Studio §7: Jwt → Tenant → Permission (RBAC) → Policy (ABAC #2)
+    // [Trục C L1] → Export (trần xuất dữ liệu). ĐỨNG CUỐI có chủ đích: cần
+    // `req.ipmsUser.permissions` do PermissionGuard dựng, và ngữ nghĩa của nó là tầng riêng —
+    // "được đọc" (RBAC/ABAC cho qua) không đồng nghĩa "được mang ra khỏi hệ".
     { provide: APP_GUARD, useClass: JwtGuard },
     { provide: APP_GUARD, useClass: TenantGuard },
     { provide: APP_GUARD, useClass: PermissionGuard },
     { provide: APP_GUARD, useClass: PolicyGuard },
+    { provide: APP_GUARD, useClass: ExportGuard },
     { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: ExportLogInterceptor },
     { provide: APP_FILTER, useClass: ApiErrorFilter },
   ],
 })

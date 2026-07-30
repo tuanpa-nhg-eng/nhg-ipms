@@ -4,6 +4,7 @@ import {
   Matches,
 } from 'class-validator';
 import { Audited, CurrentUser, RequirePermission, RequestUser } from '../../common/auth/decorators';
+import { Exported, ExportExempt } from '../../common/export/export.decorators';
 import { IntegrationService } from './integration.service';
 import { OutboxDispatcher } from './outbox.dispatcher';
 import { MorningTodosService } from './morning-todos.service';
@@ -89,11 +90,35 @@ export class IntegrationController {
   @Post('outbox/dispatch')
   @RequirePermission('integration:run')
   @Audited('outbox.dispatch')
+  /**
+   * [Trục C L1] Đường xuất số 2 — dữ liệu ra hệ NGOÀI qua connector.
+   *
+   * ⚠️ Mã `system.log` (internal) đúng với hiện trạng HÔM NAY và chỉ hôm nay: producer duy
+   * nhất đang ghi outbox_event là `integration.importCsv` với `eventType =
+   * 'evidence.batch_imported'`, payload là THỐNG KÊ một lần nạp (nguồn + số đếm) — không
+   * mang nội dung bằng chứng, không mang PII. Ngày nào có producer đẩy payload nghiệp vụ
+   * thật (goal/review/evidence) ra ngoài thì khai báo này SAI và phải đổi: `review.result`
+   * hay `hr.profile` ra `external_service` sẽ bị `exportDecision` chặn thẳng, đúng như
+   * Strategic Context §9.3 muốn. Đó là lý do dòng này ghi rõ giả định thay vì chọn một mã
+   * chung chung cho tiện.
+   *
+   * ⚠️ Worker BullMQ gọi TRỰC TIẾP `dispatchTenant()`, không đi qua HTTP ⇒ không qua guard
+   * này. Bài học `POST /ai/chat` (đường không qua guard) — ghi vào nợ để L7/Reviewer soi.
+   */
+  @Exported({
+    asset: 'system.log',
+    destination: 'integration_connector',
+    destinationKind: 'external_service',
+    count: (r) => r?.dispatched ?? 0,
+  })
   dispatchOutbox(@CurrentUser() user: RequestUser) {
     return this.outbox.dispatchTenant(user.tenantId);
   }
 
   /** [F65] Replay event skipped/dead → pending (vd sau khi thêm binding khớp / hệ ngoài đã phục hồi). */
+  // [Trục C L1] KHÔNG khai @Exported có chủ đích: replay chỉ đổi status trong DB (dead/skipped
+  // → pending), không đẩy gì ra ngoài. Dòng dữ liệu ra xảy ra ở `outbox/dispatch` — nơi đã
+  // khai — nên khai cả ở đây sẽ ghi vết một lần xuất KHÔNG xảy ra, làm sổ vết nói sai.
   @Post('outbox/replay')
   @RequirePermission('integration:run')
   @Audited('outbox.replay')
@@ -107,6 +132,23 @@ export class IntegrationController {
   @Post('jobs/morning-todos/run')
   @RequirePermission('integration:run')
   @Audited('job.morning_todos')
+  /**
+   * [Trục C L1] Đường xuất số 3 — và là ví dụ vì sao heuristic đường dẫn một mình không đủ:
+   * tên route không có chữ "export"/"download" nào, nhưng mỗi lần chạy là đẩy tên mục tiêu +
+   * mã nhân viên ra hệ todo ngoài. Bắt được vì snapshot bề mặt xuất đóng đinh danh sách khai
+   * báo, không vì `looksLikeEgress` đoán ra.
+   *
+   * `objective.kpi` (internal): payload là tiêu đề mục tiêu, kỳ, sức khoẻ, và
+   * `ownerEmployeeCode` — mã nhân viên, KHÔNG tên/email (ẩn danh chuẩn dự án). Nếu ngày nào
+   * payload thêm tên người thì mã phải đổi sang `hr.profile` (confidential) và đường này bị
+   * chặn ra ngoài — đúng ý.
+   */
+  @Exported({
+    asset: 'objective.kpi',
+    destination: 'external_todo',
+    destinationKind: 'external_service',
+    count: (r) => r?.pushed ?? 0,
+  })
   runMorningTodos(@CurrentUser() user: RequestUser, @Body() dto: MorningTodosDto) {
     return this.morningTodos.run(user, dto.date);
   }
@@ -115,6 +157,11 @@ export class IntegrationController {
   @Post('import/csv')
   @RequirePermission('integration:run')
   @Audited('integration.import_csv')
+  // [Trục C L1] Dữ liệu VÀO, không ra. Khớp hint 'csv' của heuristic egress nên phải miễn trừ
+  // TƯỜNG MINH — nếu không, bật chặn ở lát này sẽ giết một đường nạp dữ liệu hoàn toàn hợp lệ
+  // (đúng cái "chặn oan" mà kế hoạch dặn tránh). `INGRESS_MARKERS` đã bắt 'import', khai thêm
+  // ở đây để ý định nằm trong mã chứ không chỉ trong regex.
+  @ExportExempt('nạp CSV VÀO hệ — không phải đường dữ liệu ra')
   importCsv(@CurrentUser() user: RequestUser, @Body() dto: ImportCsvDto) {
     return this.integrations.importCsv(user, dto);
   }

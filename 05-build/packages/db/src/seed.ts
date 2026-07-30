@@ -68,6 +68,9 @@ const PERMISSIONS = [
   'user:impersonate',
   // [Trục C L0] Sổ đăng ký dữ liệu — ':read' cho vai quản trị, ':write' CHỈ data_steward.
   'datacatalog:read', 'datacatalog:write',
+  // [Trục C L1] Kiểm soát xuất dữ liệu — 'export:confidential' KHÔNG cấp cho vai nào (quyết
+  // định của B1 trên từng người); 'exportlog:read' chỉ auditor ở L1, platform_admin ở L2.
+  'export:confidential', 'exportlog:read',
 ];
 
 // ⚠️ NỢ KỸ THUẬT (phát hiện khi làm trục C L0): danh sách trên là BẢN SAO TAY của
@@ -75,6 +78,12 @@ const PERMISSIONS = [
 // thì seed ném `permissionId: undefined` ở bước 2 — thông báo lỗi KHÔNG chỉ ra quyền nào
 // thiếu, phải dò tay (đã mất một vòng khi thêm datacatalog:*). Nên nhập một mối: seed
 // import thẳng từ @ipms/shared. Không làm trong L0 để không trộn refactor vào lát này.
+//
+// [L1 — trả tiền lần hai, VẪN CHƯA GỘP] Thêm export:confidential + exportlog:read phải sửa
+// đúng hai chỗ lần nữa. Không gộp ở L1 vì `packages/db` HIỆN KHÔNG phụ thuộc `@ipms/shared`
+// — gộp là thêm một cạnh vào đồ thị build workspace (ảnh hưởng thứ tự prisma generate),
+// không phải sửa một dòng import. Việc đó xứng đáng một lát riêng có chạy full suite cho
+// mục đích đó, không nhét vào lát export control.
 
 // [Trục B L0] Quyền cá nhân — MỌI role đều có (đúng khuôn taskdict:read đã dùng ở Go-live Từ điển).
 const SELF_PERMISSIONS = [
@@ -193,7 +202,10 @@ const GLOBAL_ROLES: Record<string, string[]> = {
     'library:curate',
     'ai:assist', // AI inline — hỗ trợ duyệt/tối ưu tác vụ của phòng (suggestion PENDING)
   ],
-  auditor: ['tenant:read', 'audit:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read'],
+  // [Trục C L1] `exportlog:read` — B0 đọc sổ vết xuất dữ liệu. Đặt ở auditor chứ không ở
+  // tenant_admin/hrbp theo đúng tinh thần J3: người vận hành đường xuất không tự soát vết
+  // xuất của mình. Là quyền ĐỌC nên không phá bất biến "auditor không giữ quyền ghi nào".
+  auditor: ['tenant:read', 'audit:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read', 'exportlog:read'],
   exec_viewer: ['tenant:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read'],
   // [Trục C L0] Chủ dữ liệu — B3 (nền tảng, nhật ký) + B5 (tuân thủ). Vai DUY NHẤT được
   // sửa sổ đăng ký dữ liệu. Không kèm quyền nghiệp vụ nào: sổ này quyết định dữ liệu được

@@ -39,10 +39,19 @@ describe('[Trục B L4 — J11] IMPERSONATION_READ_WHITELIST', () => {
    * tập con NGHIÊM NGẶT của "mọi :read" — đúng bằng phần còn lại sau khi trừ đi các ngoại lệ
    * tường minh (hiện chỉ có `audit:read`), không khớp tuyệt đối.
    */
-  const READ_EXCLUDED_FROM_IMPERSONATION = ['audit:read'] as const;
+  // [Trục C L1] `exportlog:read` vào danh sách loại trừ cùng lý do với `audit:read`: sổ vết
+  // xuất dữ liệu là hồ sơ GIÁM SÁT, không phải dữ liệu nghiệp vụ. Nó do `auditor` giữ chính
+  // vì người vận hành đường xuất không được tự soát vết xuất của mình — nếu whitelist giữ nó
+  // thì tenant_admin chỉ cần đóng vai auditor@ là đọc được, đúng đường vòng mà F187 đã bịt
+  // cho audit:read. Quy tắc rút ra: quyền ĐỌC HỒ SƠ GIÁM SÁT không bao giờ vào whitelist.
+  const READ_EXCLUDED_FROM_IMPERSONATION = ['audit:read', 'exportlog:read'] as const;
 
   it('[F187] "audit:read" KHÔNG nằm trong whitelist — J3 không lách được qua đóng vai', () => {
     expect(IMPERSONATION_READ_WHITELIST as readonly string[]).not.toContain('audit:read');
+  });
+
+  it('[Trục C L1] "exportlog:read" KHÔNG nằm trong whitelist — không đọc sổ vết xuất qua đóng vai', () => {
+    expect(IMPERSONATION_READ_WHITELIST as readonly string[]).not.toContain('exportlog:read');
   });
 
   it('khớp CHÍNH XÁC tập quyền hậu tố ":read" của catalog TRỪ các ngoại lệ tường minh — không thừa, không thiếu', () => {

@@ -1,5 +1,6 @@
 import { Controller, Get, Query, UnprocessableEntityException } from '@nestjs/common';
 import { CurrentUser, RequirePermission, RequestUser } from '../../common/auth/decorators';
+import { Exported } from '../../common/export/export.decorators';
 import { PrismaService } from '../../prisma.service';
 
 /** reward_map mặc định (TDD §7.4) — override qua tenant.settings.reward_map. */
@@ -22,6 +23,22 @@ export class ExportController {
 
   @Get('payroll')
   @RequirePermission('payroll:export')
+  /**
+   * [Trục C L1] Đường xuất số 1. Mã dữ liệu là `review.result` (confidential) — KHÔNG phải
+   * `payroll.reward`: bảng lương thật nằm ở hệ nhân sự, iPMS chỉ đẩy RA kết quả đánh giá +
+   * tỷ lệ thưởng suy từ hạng. Đích OneOffice nằm TRONG hạ tầng NHG ⇒ `internal_system`.
+   *
+   * Hệ quả có chủ đích: `confidential` đòi thêm quyền `export:confidential`, mà quyền đó
+   * không nằm trong bộ mặc định của vai nào — kể cả `hrbp` đang giữ `payroll:export`. Từ lát
+   * này, "được chạy kỳ đánh giá" và "được mang dữ liệu cá nhân ra khỏi hệ" là hai quyết định
+   * riêng của B1 trên từng người.
+   */
+  @Exported({
+    asset: 'review.result',
+    destination: 'oneoffice',
+    destinationKind: 'internal_system',
+    count: (r) => r?.records?.length ?? 0,
+  })
   async payroll(@CurrentUser() user: RequestUser, @Query('cycle') cycleId?: string) {
     if (!cycleId) throw new UnprocessableEntityException('Thiếu ?cycle=<review_cycle_id>');
     return this.prisma.withTenant(user.tenantId, async (tx) => {

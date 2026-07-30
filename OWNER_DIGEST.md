@@ -577,3 +577,55 @@ Nói cách khác: tính năng đóng vai đã build ở L4 **hiện không dùng
 Khuyến nghị **hướng 2** — không phá bất biến nào, và nằm đúng phạm vi trục C (lớp quản trị & kiểm soát).
 
 > ✅ **CHỦ DỰ ÁN CHỐT 29/07/2026: hướng 2.** Đã đưa vào kế hoạch trục C thành **lát 2b — vai `support` chỉ-đọc**, kèm bất biến mới **K11** (`support` không giữ bất kỳ quyền ghi nào, kiểm bằng ca đối chứng quét toàn bộ endpoint mutation) và không giữ `audit:read` (giữ J3). Cổng ra: `support@` đóng vai được `emp1`/`mgr`/`hr`/`exec` với đọc 200 · mọi ghi 403 · `audit-logs` 403.
+
+---
+
+## Trục C — "Lớp bảo vệ niềm tin" · **30/07/2026 · L0 + L1 XONG — 📍 DỪNG BÁO CÁO theo nhịp đã thoả thuận**
+
+> Kế hoạch: `02-dac-ta/NHG_iPMS_Ke_Hoach_Truc_C_Lop_Bao_Ve_Niem_Tin.md` (duyệt 29/07). Nhịp: dừng báo cáo hết **L1** (kiểm soát xuất) và hết **L2** (mốc demo Platform Admin). Vé Reviewer đánh số tiếp từ **F191** — L0+L1 **chưa có vé nào**, Reviewer đối kháng chạy ở L7.
+
+### Lát 0 — sổ đăng ký dữ liệu + phân loại 4 mức · commit `9a7558b`
+
+Bảng `data_asset`: bản chuẩn cấp tập đoàn (`tenant_id NULL`) + đơn vị **chỉ siết chặt được**, chặn bằng **trigger DB** chứ không chỉ validator tầng API — đường ghi trực tiếp (script vá dữ liệu, endpoint mới thêm sau này, job) vẫn bị chặn. Seed 9 nhóm theo BRD §12: `payroll.reward` và `opco.operational` = **restricted**, `review.result`/`hr.profile`/`finance.metric`/`audit.log` = confidential. Vai mới **`data_steward`** (B3+B5) là vai DUY NHẤT sửa được sổ, và **không kèm quyền nghiệp vụ nào** — người quyết định dữ liệu được xử lý thế nào không nên là người xử lý nó. Mã chưa đăng ký ⇒ **404 fail-closed**, không mặc định về `internal`.
+
+**Hoà giải một lệch vựng âm thầm:** lớp AI dùng `pii` làm mức thứ tư, NHG Strategic Context §7 dùng `restricted`. Hai vựng song song là mầm rò: một chỗ siết `pii`, chỗ kia siết `restricted`, dữ liệu lọt qua khe giữa hai cách gọi. Đã chuẩn hoá về `restricted`, giữ `pii` làm bí danh tương thích ngược cho bản ghi `ai_egress_policy` đã có.
+
+### Lát 1 — kiểm soát xuất dữ liệu · **cổng duy nhất, fail-closed**
+
+**`export_log` append-only** (trigger chặn UPDATE/DELETE, không GRANT UPDATE/DELETE cho `ipms_app` — hai lớp), RLS tenant-bound. Bốn cột NOT NULL, không có đường ghi vết thiếu: **mã dữ liệu · mức phân loại · đích · số bản ghi**. Không thay `audit_log`: audit ghi "ai làm gì", export_log trả lời câu B0/B5 thực sự cần — *dữ liệu nào đã rời hệ, đi đâu, bao nhiêu dòng*.
+
+**Trần xuất = bảng quyết định (mức phân loại × LOẠI ĐÍCH).** Loại đích là phần tự chốt thêm so với kế hoạch, vì mức phân loại một mình không đủ: "gửi kết quả đánh giá sang hệ lương nội bộ NHG" và "tải bảng điểm về máy cá nhân" là hai rủi ro khác hẳn dù cùng `confidential`. Ba loại: `internal_system` · `file_download` · `external_service`.
+
+| | hệ nội bộ NHG | tệp về máy | dịch vụ ngoài |
+|---|---|---|---|
+| public / internal | cho | cho | cho |
+| **confidential** | cần `export:confidential` | cần `export:confidential` | **CHẶN** (§9.3) |
+| **restricted** | **CHẶN** | **CHẶN** (K3) | **CHẶN** |
+
+**Hai lớp fail-closed, cố ý khác bản chất.** ① *Runtime:* route có đường dẫn dạng xuất mà không khai `@Exported` → **403**, không có chế độ cảnh báo-rồi-cho-qua. ② *Build-time:* snapshot đóng đinh chính xác các route đang khai — thêm/bớt một khai báo làm test đỏ. Cần cả hai: heuristic không thể biết `POST /integrations/jobs/morning-todos/run` là đường đẩy dữ liệu ra hệ ngoài (tên vô hại), còn snapshot một mình thì người thêm route mới có thể sửa cho xanh — nhưng khi đó là sửa tường minh, có vết.
+
+### ⚠️ MỘT QUYẾT ĐỊNH LÀM MỘT TÍNH NĂNG ĐANG CHẠY DỪNG LẠI — cần chủ dự án biết
+
+`GET /export/payroll` (xuất kết quả đánh giá sang OneOffice) mang `review.result` = **confidential** ⇒ từ nay đòi thêm `export:confidential`, và theo đúng kế hoạch §4 L1 quyền đó **không nằm trong bộ mặc định của bất kỳ vai nào — kể cả `hrbp` đang giữ `payroll:export`**. Nghĩa là **hôm nay không ai trong hệ xuất được bảng lương** cho tới khi B1 cấp quyền này cho một người cụ thể.
+
+Đây là hệ quả CÓ CHỦ ĐÍCH, không phải hồi quy: "được chạy kỳ đánh giá" và "được mang dữ liệu cá nhân ra khỏi hệ" tách thành hai quyết định. Nhưng nó cần một hành động của B1 trước khi kỳ đánh giá tới chạy. Ba lựa chọn:
+
+1. **Giữ nguyên (khuyến nghị)** — B1 cấp `export:confidential` cho 1–2 người phụ trách chuyển dữ liệu sang hệ lương, có vết trong `user_role`. Đúng tinh thần trục B (không gộp quyền) và không cần sửa mã.
+2. **Cấp sẵn cho `hrbp`** trong seed — tiện, nhưng quay lại đúng kiểu gộp quyền mà trục B vừa đập: mọi HRBP tự động xuất được dữ liệu cá nhân toàn tenant.
+3. **Tạo vai `export_officer`** trong seed, không gán cho ai — ở giữa hai hướng trên; thêm một vai để B1 gán bằng một cú bấm thay vì cấp quyền lẻ.
+
+Bảng `payroll.reward` (restricted) **không** phải mã của đường xuất này: dữ liệu lương thật nằm ở hệ nhân sự, iPMS chỉ đẩy ra kết quả đánh giá + tỷ lệ thưởng suy từ hạng. Nếu sau này có đường xuất mang đúng `payroll.reward` thì theo K3 nó **không xuất được bằng bất kỳ đường nào**, và đó sẽ là một quyết định riêng của B1 chứ không phải mặc định lọt sẵn.
+
+### Ba khoảng cách so với kế hoạch — báo trước để không bị phát hiện muộn
+
+① **Kế hoạch nói "sáu đường xuất", trong mã hôm nay chỉ tồn tại BA.** Đã khai đủ ba: `GET /export/payroll` (→ OneOffice, internal_system) · `POST /integrations/outbox/dispatch` (→ connector ngoài) · `POST /integrations/jobs/morning-todos/run` (→ hệ todo ngoài). Ba đường còn lại kế hoạch nêu — tải bằng chứng, xuất Từ điển Tác vụ, xuất báo cáo — **chưa có route nào trong sản phẩm**, không phải bị bỏ sót. Hàng rào đã dựng trước chúng: thêm route dạng đó mà không khai là 403 + test đỏ.
+
+② **Danh sách người dùng không tính là đường xuất.** Cân nhắc rồi bỏ: `GET /admin/users` là màn đọc có RBAC + scope, coi nó là "xuất" sẽ đòi `export:confidential` và làm chết màn quản trị — đúng loại "chặn oan đường hợp lệ" mà kế hoạch dặn tránh. Khi nào có nút "Tải danh sách (.xlsx)" thì route ĐÓ mới là đường xuất.
+
+③ **Gọi LLM ngoài không ghi vào `export_log`.** Cũng là dữ liệu rời hạ tầng NHG, nhưng đã có cổng riêng + sổ riêng (`ai_egress_policy` + PII scrub + `ai_interaction` append-only). Ghi hai sổ cho một dòng dữ liệu thì hai sổ lệch nhau, và khi đó không sổ nào đáng tin. Gộp/tham chiếu chéo để lại **L6** (soát 11 mục governance).
+
+**Một nợ đã ghi, chưa trả:** worker BullMQ gọi `dispatchTenant()` trực tiếp, không qua HTTP ⇒ **không qua ExportGuard** — đúng loại "đường không qua guard" đã thành bài học ở `POST /ai/chat`. Đường HTTP đã ghi vết; đường worker chưa. Ghi vào danh sách cho L7/Reviewer.
+
+**VERIFY L0+L1:** **657 test / 54 suite runInBand** (baseline trước trục C: 606) · typecheck `shared`+`db`+`api` sạch · **driver sống `scripts/verify/verify-governance.mjs` 12/12 trên API :4000 thật** (đã kill+restart server trước khi đo — bài học ②), gồm ca sống chứng minh L0 điều khiển được L1: `data_steward` siết một mã lên `restricted` thì đường xuất dùng mã đó **đóng ngay request sau**, nới lại thì mở lại (đối chứng: không chặn vĩnh viễn).
+
+> **Tự bắt khi chạy driver thật:** driver để lại một dòng `data_asset` cấp tenant (API sổ đăng ký chỉ có PUT, **không có DELETE** override) ⇒ một ca đối chứng của L0 ăn lỗi unique. Chỗ sai là TEST, không phải driver: một đơn vị CÓ override là trạng thái sản phẩm hợp lệ, nên mọi spec chạm sổ đăng ký phải tự dựng trạng thái đầu vào. Đã sửa hai spec dọn ở `beforeAll` chứ không chỉ `afterAll`. Đây đúng là loại lỗi mà jest-trong-transaction không bao giờ bắt được — lý do driver sống phải nằm trong repo.
