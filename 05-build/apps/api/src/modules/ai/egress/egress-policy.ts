@@ -1,3 +1,7 @@
+import {
+  DATA_CLASSIFICATIONS, DataClassification, isSensitiveClass, normalizeDataClass,
+} from '@ipms/shared';
+
 /**
  * [Last-mile Lát 2] Egress Policy Engine — pure function, KHÔNG DB.
  * Quyết định 1 request LLM có được RỜI gateway tới `destination` hay không, dựa
@@ -13,7 +17,10 @@
  * vòng ngoài); tenant có thể CHẶN THÊM qua policy tường minh (thu hẹp, không mở rộng).
  */
 
-export type DataClass = 'public' | 'internal' | 'confidential' | 'pii';
+// [Trục C L0] Vựng chuẩn về một mối: 4 mức của Strategic Context §7. `pii` là bí danh
+// TƯƠNG THÍCH NGƯỢC cho các bản ghi ai_egress_policy đã tồn tại — chuẩn hoá tại cửa bằng
+// normalizeDataClass(), KHÔNG để hai vựng sống song song trong logic.
+export type DataClass = DataClassification | 'pii';
 export type EgressDestination = 'mock' | 'anthropic' | 'self_host';
 
 export interface EgressPolicyRow {
@@ -27,7 +34,12 @@ export interface EgressDecision {
   reason: string;
 }
 
-const SENSITIVE: ReadonlySet<DataClass> = new Set(['confidential', 'pii']);
+// Nhạy cảm = rank >= confidential. Suy từ thang dùng chung, không liệt kê tay lần thứ hai
+// (liệt kê tay là chỗ mức mới thêm vào sẽ bị bỏ quên).
+function isSensitive(raw: string): boolean {
+  const c = normalizeDataClass(raw);
+  return c === null ? true : isSensitiveClass(c);   // giá trị lạ ⇒ coi như nhạy cảm (fail-closed)
+}
 
 export function resolveEgress(
   dataClass: DataClass,
@@ -37,7 +49,7 @@ export function resolveEgress(
   if (destination === 'mock') {
     return { allowed: true, reason: 'mock không rời máy — luôn cho phép, 0 chi phí' };
   }
-  if (SENSITIVE.has(dataClass)) {
+  if (isSensitive(dataClass)) {
     return {
       allowed: false,
       reason: `dữ liệu phân loại '${dataClass}' chỉ được phép egress qua self-host — CHƯA triển khai trong hệ thống, chặn cứng tới '${destination}' (không tenant nào override được)`,
@@ -58,5 +70,5 @@ export function resolveEgress(
   };
 }
 
-export const DATA_CLASSES: DataClass[] = ['public', 'internal', 'confidential', 'pii'];
+export const DATA_CLASSES: DataClass[] = [...DATA_CLASSIFICATIONS, 'pii'];
 export const EGRESS_DESTINATIONS: EgressDestination[] = ['mock', 'anthropic', 'self_host'];

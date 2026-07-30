@@ -109,7 +109,17 @@ const EXPECTED: Record<string, string[]> = {
     'tenant:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read',
     'goal:read',
   ],
+  // [Trục C L0] Chủ dữ liệu — vai DUY NHẤT sửa được sổ đăng ký dữ liệu. Không kèm quyền
+  // nghiệp vụ nào: người quyết định dữ liệu được xử lý thế nào không nên là người xử lý nó.
+  data_steward: ['tenant:read', 'org:read', 'datacatalog:read', 'datacatalog:write'],
 };
+
+// [Trục C L0] `datacatalog:read` cấp cho các vai QUẢN TRỊ + kiểm toán — viết dưới dạng
+// VÒNG LẶP đối xứng với seed.ts thay vì rải tay vào 5 mảng: rải tay là chỗ sẽ lệch khi
+// danh sách vai đổi, và snapshot lệch âm thầm thì mất luôn tác dụng đóng đinh.
+for (const r of ['tenant_admin', 'org_admin', 'auditor', 'config_designer', 'config_approver']) {
+  if (!EXPECTED[r].includes('datacatalog:read')) EXPECTED[r].push('datacatalog:read');
+}
 
 /** Quyền tước khỏi tenant_admin ở L0 — mỗi mục kèm vai GIỮ THAY (OWNER_DIGEST trục B L0). */
 const STRIPPED_FROM_TENANT_ADMIN: Array<[string, string]> = [

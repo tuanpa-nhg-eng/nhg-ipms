@@ -1806,3 +1806,28 @@ model ImpersonationSession {
   @@index([tenantId, targetUserId])
   @@map("impersonation_session")
 }
+
+/// [Trục C L0] Sổ đăng ký dữ liệu — nguồn sự thật DUY NHẤT cho "dữ liệu này thuộc nhóm
+/// nào, mức phân loại nào, ai là chủ". tenantId NULL = bản chuẩn cấp tập đoàn; đơn vị
+/// chỉ SIẾT CHẶT được (trigger data_asset_no_loosen, không phải chỉ validator tầng API).
+model DataAsset {
+  id             String  @id @db.Uuid
+  tenantId       String? @map("tenant_id") @db.Uuid
+  code           String
+  groupName      String  @map("group_name")
+  description    String?
+  sourceSystem   String? @map("source_system")
+  ownerRole      String  @map("owner_role") // theo VAI TRÒ/KHỐI, không theo tên người
+  classification String // public|internal|confidential|restricted
+  legalNote      String? @map("legal_note")
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  version   Int       @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@index([tenantId, classification])
+  @@map("data_asset")
+}

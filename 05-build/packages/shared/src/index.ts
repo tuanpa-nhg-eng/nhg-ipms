@@ -60,10 +60,46 @@ export const PERMISSIONS = [
   'notify.self:read', 'notify.self:update',
   // [Trục B L4] Impersonation chỉ-đọc có kiểm soát — cấp cho tenant_admin, KHÔNG org_admin.
   'user:impersonate',
+  // [Trục C L0] Sổ đăng ký dữ liệu. ':read' cấp rộng (mọi vai quản trị cần tra mức phân
+  // loại trước khi xuất dữ liệu); ':write' CHỈ data_steward (B3 + B5).
+  'datacatalog:read', 'datacatalog:write',
 ] as const;
 export type PermissionCode = (typeof PERMISSIONS)[number];
 
 export type ScopeType = 'tenant' | 'org_unit' | 'self';
+
+/**
+ * [Trục C L0] Bốn mức phân loại dữ liệu theo NHG Strategic Context §7.
+ *
+ * ⚠️ LỆCH VỰNG ĐÃ HOÀ GIẢI Ở ĐÂY: lớp AI (`modules/ai/egress/*`) trước đó dùng `pii` làm
+ * mức thứ tư. Strategic Context — văn bản gốc mà cả tập đoàn tuân theo — dùng `restricted`.
+ * Hai vựng song song là mầm drift: một chỗ siết `pii`, chỗ kia siết `restricted`, và dữ
+ * liệu lọt qua khe giữa hai cách gọi. Chuẩn hoá về `restricted`; `pii` giữ làm bí danh
+ * TƯƠNG THÍCH NGƯỢC cho các bản ghi `ai_egress_policy` đã tồn tại, chuẩn hoá tại cửa.
+ */
+export const DATA_CLASSIFICATIONS = ['public', 'internal', 'confidential', 'restricted'] as const;
+export type DataClassification = (typeof DATA_CLASSIFICATIONS)[number];
+
+/** Thứ tự nghiêm ngặt — PHẢI khớp `data_class_rank()` trong migration 20260729100000. */
+const CLASS_RANK: Record<DataClassification, number> = {
+  public: 0, internal: 1, confidential: 2, restricted: 3,
+};
+
+export function dataClassRank(c: DataClassification): number {
+  return CLASS_RANK[c];
+}
+
+/** `pii` (vựng cũ của lớp AI) ⇒ `restricted`. Giá trị lạ trả về null — fail-closed ở nơi gọi. */
+export function normalizeDataClass(raw: string): DataClassification | null {
+  const v = String(raw ?? '').trim().toLowerCase();
+  if (v === 'pii') return 'restricted';
+  return (DATA_CLASSIFICATIONS as readonly string[]).includes(v) ? (v as DataClassification) : null;
+}
+
+/** Mức nhạy cảm — không rời hạ tầng do NHG kiểm soát (Strategic Context §9.3). */
+export function isSensitiveClass(c: DataClassification): boolean {
+  return dataClassRank(c) >= CLASS_RANK.confidential;
+}
 
 /**
  * [Trục B L4 — J11] Danh sách TƯỜNG MINH quyền được giữ khi đang đóng vai (chỉ đọc
@@ -86,6 +122,8 @@ export const IMPERSONATION_READ_WHITELIST: readonly PermissionCode[] = [
   'flag:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read', 'evidence:read',
   'checkin:read', 'review:read', 'config:read', 'taskcell:read', 'taskdict:read',
   'tenant.config:read', 'settings.self:read', 'access.self:read', 'notify.self:read',
+  // [Trục C L0] tra sổ đăng ký dữ liệu — chỉ đọc, an toàn trong phiên đóng vai
+  'datacatalog:read',
 ];
 
 /** JWT claims chuẩn nội bộ — map sẵn theo Entra ID để cắm SSO sau. */

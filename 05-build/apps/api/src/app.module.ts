@@ -86,6 +86,9 @@ import { AdminRolesController } from './modules/admin/admin-roles.controller';
 import { AdminRolesService } from './modules/admin/admin-roles.service';
 import { TenantConfigController } from './modules/admin/tenant-config.controller';
 import { TenantConfigService } from './modules/admin/tenant-config.service';
+// [Trục C L0] Sổ đăng ký dữ liệu
+import { DataCatalogController } from './modules/datacatalog/datacatalog.controller';
+import { DataCatalogService } from './modules/datacatalog/datacatalog.service';
 import { MeController } from './modules/me/me.controller';
 import { MeService } from './modules/me/me.service';
 import { ImpersonationController } from './modules/admin/impersonation.controller';
@@ -106,6 +109,7 @@ import { ImpersonationService } from './modules/admin/impersonation.service';
     AuditController, OverviewController,
     // [Trục B — L1] quản trị tenant/org
     AdminUsersController, AdminRolesController, TenantConfigController, MeController,
+    DataCatalogController,
     ImpersonationController,
   ],
   providers: [
@@ -146,6 +150,7 @@ import { ImpersonationService } from './modules/admin/impersonation.service';
     DictionaryService,
     TaskLoopService,
     AdminUsersService, AdminRolesService, TenantConfigService, MeService, ImpersonationService,
+    DataCatalogService,
     // Guard pipeline Spec Config Studio §7: Jwt → Tenant → Permission (RBAC) → Policy (ABAC #2)
     { provide: APP_GUARD, useClass: JwtGuard },
     { provide: APP_GUARD, useClass: TenantGuard },

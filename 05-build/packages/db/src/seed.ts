@@ -66,7 +66,15 @@ const PERMISSIONS = [
   'notify.self:read', 'notify.self:update',
   // [Trục B L4] Impersonation chỉ-đọc — cấp cho tenant_admin, KHÔNG org_admin.
   'user:impersonate',
+  // [Trục C L0] Sổ đăng ký dữ liệu — ':read' cho vai quản trị, ':write' CHỈ data_steward.
+  'datacatalog:read', 'datacatalog:write',
 ];
+
+// ⚠️ NỢ KỸ THUẬT (phát hiện khi làm trục C L0): danh sách trên là BẢN SAO TAY của
+// `PERMISSIONS` trong `packages/shared/src/index.ts`. Thêm quyền mà quên một trong hai chỗ
+// thì seed ném `permissionId: undefined` ở bước 2 — thông báo lỗi KHÔNG chỉ ra quyền nào
+// thiếu, phải dò tay (đã mất một vòng khi thêm datacatalog:*). Nên nhập một mối: seed
+// import thẳng từ @ipms/shared. Không làm trong L0 để không trộn refactor vào lát này.
 
 // [Trục B L0] Quyền cá nhân — MỌI role đều có (đúng khuôn taskdict:read đã dùng ở Go-live Từ điển).
 const SELF_PERMISSIONS = [
@@ -187,6 +195,10 @@ const GLOBAL_ROLES: Record<string, string[]> = {
   ],
   auditor: ['tenant:read', 'audit:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read'],
   exec_viewer: ['tenant:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read'],
+  // [Trục C L0] Chủ dữ liệu — B3 (nền tảng, nhật ký) + B5 (tuân thủ). Vai DUY NHẤT được
+  // sửa sổ đăng ký dữ liệu. Không kèm quyền nghiệp vụ nào: sổ này quyết định dữ liệu được
+  // xử lý thế nào, nên người giữ nó không nên đồng thời là người xử lý dữ liệu đó.
+  data_steward: ['tenant:read', 'org:read', 'datacatalog:read', 'datacatalog:write'],
 };
 
 // [Go-live Từ điển Tác vụ] Tra cứu Từ điển canonical là tài nguyên tham chiếu TOÀN HÀNG
@@ -200,6 +212,54 @@ for (const perms of Object.values(GLOBAL_ROLES)) {
 for (const perms of Object.values(GLOBAL_ROLES)) {
   for (const p of SELF_PERMISSIONS) if (!perms.includes(p)) perms.push(p);
 }
+
+// [Trục C L0] `datacatalog:read` cấp cho các vai QUẢN TRỊ + kiểm toán: trước khi xuất bất
+// kỳ dữ liệu nào (L1) hay đặt thời hạn lưu trữ (L5), người ta phải tra được mức phân loại.
+// KHÔNG cấp cho vai nghiệp vụ thường (employee/manager) — họ không có việc gì với sổ này.
+// `datacatalog:write` KHÔNG có ở đây: chỉ data_steward, khai tường minh phía trên.
+for (const r of ['tenant_admin', 'org_admin', 'auditor', 'config_designer', 'config_approver']) {
+  const perms = GLOBAL_ROLES[r];
+  if (perms && !perms.includes('datacatalog:read')) perms.push('datacatalog:read');
+}
+
+/**
+ * [Trục C L0] Sổ đăng ký dữ liệu — bản chuẩn CẤP TẬP ĐOÀN (tenant_id NULL).
+ *
+ * Chín nhóm lấy từ NHG Strategic Context §6 (nguồn dữ liệu gốc cần quản trị), giữ nguyên
+ * chủ dữ liệu và mức phân loại đã chốt trong BRD Nền tảng §12. Đơn vị kế thừa bản này và
+ * chỉ SIẾT CHẶT được (trigger data_asset_no_loosen).
+ *
+ * Chủ dữ liệu ghi theo KHỐI, không theo tên người.
+ */
+const GLOBAL_DATA_ASSETS: Array<{
+  code: string; group: string; owner: string;
+  classification: 'public' | 'internal' | 'confidential' | 'restricted';
+  source?: string; desc?: string; legal?: string;
+}> = [
+  { code: 'objective.kpi', group: 'Mục tiêu & chỉ số', owner: 'B1', classification: 'internal',
+    source: 'iPMS (hệ ghi nhận)', desc: 'Cây mục tiêu OKR/KGI/KPI, công thức, định mức' },
+  { code: 'task.dictionary', group: 'Tác vụ & mô tả công việc', owner: 'B1 + OpCo', classification: 'internal',
+    source: 'iPMS (hệ ghi nhận)', desc: 'Từ điển Tác vụ, RACI, luồng vào–ra, chiều AI' },
+  { code: 'review.result', group: 'Kết quả đánh giá cá nhân', owner: 'B1', classification: 'confidential',
+    source: 'iPMS (hệ ghi nhận)', desc: 'Điểm, nhận xét, cân chỉnh, kết quả chốt kỳ',
+    legal: 'Dữ liệu cá nhân — Nghị định 13' },
+  { code: 'payroll.reward', group: 'Lương thưởng, kỷ luật', owner: 'B1 + B2', classification: 'restricted',
+    source: 'Hệ nhân sự – tiền lương', desc: 'Bảng lương, quỹ thưởng, hồ sơ kỷ luật',
+    legal: 'Dữ liệu cá nhân nhạy cảm — không đưa vào AI dưới bất kỳ hình thức nào' },
+  { code: 'hr.profile', group: 'Hồ sơ nhân sự, chức danh, đơn vị', owner: 'B1', classification: 'confidential',
+    source: 'Hệ nhân sự', desc: 'Danh sách nhân sự, chức danh, phòng ban, quan hệ quản lý',
+    legal: 'Dữ liệu cá nhân — Nghị định 13' },
+  { code: 'finance.metric', group: 'Số liệu tài chính phục vụ chỉ số', owner: 'B2', classification: 'confidential',
+    source: 'Hệ tài chính – kế toán', desc: 'Doanh thu, chi phí, dòng tiền ở mức phục vụ KPI' },
+  { code: 'opco.operational', group: 'Dữ liệu vận hành ngành', owner: 'OpCo', classification: 'restricted',
+    source: 'Hệ nghiệp vụ của OpCo', desc: 'Tuyển sinh, học vụ, khám chữa bệnh',
+    legal: 'Dữ liệu người học/người bệnh — không rời hạ tầng NHG' },
+  { code: 'system.log', group: 'Nhật ký hệ thống & AI usage', owner: 'B3', classification: 'internal',
+    source: 'iPMS', desc: 'Nhật ký vận hành, lượt gọi AI, chi phí' },
+  { code: 'audit.log', group: 'Nhật ký kiểm toán', owner: 'B0', classification: 'confidential',
+    source: 'iPMS (append-only)', desc: 'Vết mọi thao tác nhạy cảm',
+    legal: 'Không đưa vào AI; thời hạn lưu trữ dài hơn dữ liệu nghiệp vụ' },
+];
 
 async function main() {
   // 1. Permission catalog
@@ -228,6 +288,23 @@ async function main() {
         where: { roleId_permissionId: { roleId: role.id, permissionId: permIds[p] } },
         update: {},
         create: { roleId: role.id, permissionId: permIds[p] },
+      });
+    }
+  }
+
+  // 2a. [Trục C L0] Sổ đăng ký dữ liệu — bản chuẩn cấp tập đoàn. Idempotent theo `code`;
+  // KHÔNG đè bản đã có (data_steward có thể đã chỉnh mô tả/ghi chú pháp lý), chỉ tạo mới.
+  for (const a of GLOBAL_DATA_ASSETS) {
+    const existing = await prisma.dataAsset.findFirst({
+      where: { tenantId: null, code: a.code, deletedAt: null },
+    });
+    if (!existing) {
+      await prisma.dataAsset.create({
+        data: {
+          id: uuidv7(), tenantId: null, code: a.code, groupName: a.group,
+          ownerRole: a.owner, classification: a.classification,
+          sourceSystem: a.source ?? null, description: a.desc ?? null, legalNote: a.legal ?? null,
+        },
       });
     }
   }
@@ -396,6 +473,8 @@ async function main() {
     // [Trục B — L0] orgadmin@ — quản trị NGƯỜI trong phạm vi MỘT phòng (scope org_unit).
     // Cần từ L0 để test ma trận chứng minh được bất biến J1② (scope cấp ⊆ scope người cấp)
     // ngay khi API quản trị lên ở L1, thay vì chỉ chứng minh trên tenant_admin scope tenant.
+    // [Trục C L0] Chủ dữ liệu — vai DUY NHẤT sửa được sổ đăng ký dữ liệu.
+    await seedStudioUser('steward', 'data_steward');
     await seedStudioUser('orgadmin', 'org_admin', { scopeType: 'org_unit', scopeId: dept.id }, dept.id);
 
     // [F53] SoD mặc định fail-closed: config:write ⟂ config:publish

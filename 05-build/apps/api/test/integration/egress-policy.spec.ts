@@ -143,7 +143,10 @@ describe('[Last-mile Lát 2] Egress Policy Engine — ai-gateway thật', () => 
     const ok = await api().get('/api/v1/ai/egress-policies')
       .set({ Authorization: `Bearer ${designerCtx.token}`, 'X-Tenant-Id': tenantId });
     expect(ok.status).toBe(200);
-    expect(ok.body.dataClasses).toEqual(['public', 'internal', 'confidential', 'pii']);
+    // [Trục C L0] Vựng chuẩn 4 mức của Strategic Context §7 + `pii` giữ làm BÍ DANH tương
+    // thích ngược (các bản ghi ai_egress_policy đã tồn tại dùng 'pii'). Cả hai cùng bị
+    // resolveEgress coi là nhạy cảm — data-classification.spec.ts đóng đinh điều đó.
+    expect(ok.body.dataClasses).toEqual(['public', 'internal', 'confidential', 'restricted', 'pii']);
     expect(ok.body.destinations).toEqual(['mock', 'anthropic', 'self_host']);
     // [Fix — verify sống bắt được] policies PHẢI là mảng thật (đã có bug: quên await
     // trong controller khiến JSON.stringify(Promise) ⇒ "{}", che giấu vì trước đó
