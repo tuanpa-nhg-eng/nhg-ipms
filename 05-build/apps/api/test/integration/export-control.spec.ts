@@ -23,7 +23,6 @@ import { AppModule } from '../../src/app.module';
 import { getJwtSecret } from '../../src/common/auth/jwt.guard';
 import { RequirePermission } from '../../src/common/auth/decorators';
 import { looksLikeEgress } from '../../src/common/export/export-surface';
-import { grantExtraPermission } from '../helpers/grant-permission';
 
 jest.setTimeout(180_000);
 
@@ -49,6 +48,8 @@ describe('[Trục C L1] Kiểm soát xuất dữ liệu', () => {
   let app: INestApplication;
   let owner: PrismaClient;
   let hr: Ctx;        // hrbp — payroll:export + integration:run
+  let admin: Ctx;     // tenant_admin — người CẤP vai `export_officer` (không tự xuất được)
+  let emp: Ctx;       // employee — ca đối chứng: có trần mà không có đường xuất
   let auditorC: Ctx;  // auditor — vai DUY NHẤT đọc được sổ vết xuất ở L1
   let steward: Ctx;   // data_steward — siết mức phân loại
   let t2aud: Ctx;     // auditor bên T2 — ca cô lập tenant
@@ -85,6 +86,8 @@ describe('[Trục C L1] Kiểm soát xuất dữ liệu', () => {
     // trạng thái đầu vào, không dựa vào việc DB chưa có override nào của đơn vị.
     await owner.dataAsset.deleteMany({ where: { tenantId: { not: null } } }).catch(() => {});
     hr = await ctxFor('H.01', 'hr@');
+    admin = await ctxFor('H.01', 'admin@');
+    emp = await ctxFor('H.01', 'emp1@');
     auditorC = await ctxFor('H.01', 'auditor@');
     steward = await ctxFor('H.01', 'steward@');
     t2aud = await ctxFor('T2.TEST', 'auditor@');
@@ -152,10 +155,36 @@ describe('[Trục C L1] Kiểm soát xuất dữ liệu', () => {
   });
 
   // ═══════════ ① đường xuất hợp lệ sinh vết đủ bốn thông tin ═══════════
-  describe('sau khi B1 cấp `export:confidential` cho đúng người', () => {
+  /**
+   * [Trục C L1 — quyết định chủ dự án 30/07 "giữ nguyên + B1 cấp cho 1–2 người"]
+   *
+   * Nhóm này cấp quyền QUA ĐÚNG ĐƯỜNG SẢN PHẨM — `POST /admin/users/:id/roles` với vai
+   * `export_officer` — chứ không dựng vai bằng owner connection. Đó là điểm cốt yếu: nếu chỉ
+   * test được bằng cách sửa DB thì quyết định trên KHÔNG thực hiện được trên giao diện, và
+   * lát này giao cho B1 một việc họ không làm được.
+   */
+  describe('sau khi B1 cấp vai `export_officer` cho đúng người (qua API quản trị thật)', () => {
     beforeAll(async () => {
-      const undo = await grantExtraPermission(owner, hr.id, hr.userId, 'export:confidential');
-      cleanups.push(undo);
+      // Đăng ký thu hồi TRƯỚC khi cấp (bài học trục B ③) — chưa biết userRoleId nên đóng
+      // biến để cleanup đọc giá trị mới nhất.
+      let userRoleId: string | null = null;
+      cleanups.push(async () => {
+        if (userRoleId) {
+          await request(app.getHttpServer())
+            .delete(`/api/v1/admin/users/${hr.userId}/roles/${userRoleId}`).set(H(admin));
+        }
+      });
+      const r = await request(app.getHttpServer())
+        .post(`/api/v1/admin/users/${hr.userId}/roles`).set(H(admin))
+        .send({ roleCode: 'export_officer', scopeType: 'tenant' })
+        .expect(201);
+      userRoleId = r.body?.id ?? r.body?.userRoleId ?? null;
+      expect(userRoleId).toBeTruthy();
+    });
+
+    it('vai vừa cấp hiện trong effective-access của người nhận (B1 kiểm chứng được)', async () => {
+      const r = await api().get(`/api/v1/admin/users/${hr.userId}/effective-access`).set(H(admin)).expect(200);
+      expect(JSON.stringify(r.body)).toContain('export:confidential');
     });
 
     it('xuất sang OneOffice: 200 + đúng MỘT bản ghi export_log đủ bốn thông tin', async () => {
@@ -201,6 +230,56 @@ describe('[Trục C L1] Kiểm soát xuất dữ liệu', () => {
       await expect(
         owner.exportLog.delete({ where: { id: row!.id } }),
       ).rejects.toThrow(/append-only/);
+    });
+  });
+
+  // ═══════════ ngoại lệ J1① cho `export_officer` KHÔNG mở đường leo thang ═══════════
+  /**
+   * `tenant_admin` gán được vai này dù không giữ `export:confidential`. Ba ca dưới là ba chốt
+   * độc lập giữ cho ngoại lệ đó không thành cửa sau — mất một vẫn còn hai.
+   */
+  describe('ngoại lệ J1① cho vai uỷ nhiệm — ba chốt chống leo thang', () => {
+    it('① tenant_admin KHÔNG tự gán vai này cho chính mình (J1③)', async () => {
+      const r = await api().post(`/api/v1/admin/users/${admin.userId}/roles`).set(H(admin))
+        .send({ roleCode: 'export_officer', scopeType: 'tenant' });
+      expect([409, 403]).toContain(r.status);
+    });
+
+    it('② sai scope thì KHÔNG được miễn trừ — rơi về J1① như mọi vai khác', async () => {
+      const r = await api().post(`/api/v1/admin/users/${emp.userId}/roles`).set(H(admin))
+        .send({ roleCode: 'export_officer', scopeType: 'self' })
+        .expect(403);
+      expect(String(r.body?.error?.message ?? '')).toContain('J1①');
+    });
+
+    /**
+     * ③ Ca quan trọng nhất: quyền này NÂNG TRẦN, không phải quyền hành động. Người chỉ có nó
+     * vẫn không xuất được gì vì mọi đường xuất còn gác một quyền nghiệp vụ. Nếu ngày nào ca
+     * này đỏ (emp1 xuất được), nghĩa là ngoại lệ J1① đã thành đường phát năng lực thật.
+     */
+    it('③ người CHỈ có trần xuất vẫn không xuất được gì — thiếu quyền nghiệp vụ của đường xuất', async () => {
+      let userRoleId: string | null = null;
+      cleanups.push(async () => {
+        if (userRoleId) {
+          await request(app.getHttpServer())
+            .delete(`/api/v1/admin/users/${emp.userId}/roles/${userRoleId}`).set(H(admin));
+        }
+      });
+      const g = await api().post(`/api/v1/admin/users/${emp.userId}/roles`).set(H(admin))
+        .send({ roleCode: 'export_officer', scopeType: 'tenant' })
+        .expect(201);
+      userRoleId = g.body?.id ?? g.body?.userRoleId ?? null;
+
+      // 403 vì PermissionGuard (thiếu payroll:export) — chặn TRƯỚC cả ExportGuard
+      await api().get(`/api/v1/export/payroll?cycle=${cycleId}`).set(H(emp)).expect(403);
+      await api().post('/api/v1/integrations/outbox/dispatch').set(H(emp)).send({}).expect(403);
+    });
+
+    it('tenant_admin KHÔNG gán được `hrbp` — không tự dựng được người xuất từ đầu', async () => {
+      const r = await api().post(`/api/v1/admin/users/${emp.userId}/roles`).set(H(admin))
+        .send({ roleCode: 'hrbp', scopeType: 'tenant' })
+        .expect(403);
+      expect(String(r.body?.error?.message ?? '')).toContain('J1①');
     });
   });
 

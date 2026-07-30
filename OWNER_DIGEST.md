@@ -629,3 +629,25 @@ Bảng `payroll.reward` (restricted) **không** phải mã của đường xuấ
 **VERIFY L0+L1:** **657 test / 54 suite runInBand** (baseline trước trục C: 606) · typecheck `shared`+`db`+`api` sạch · **driver sống `scripts/verify/verify-governance.mjs` 12/12 trên API :4000 thật** (đã kill+restart server trước khi đo — bài học ②), gồm ca sống chứng minh L0 điều khiển được L1: `data_steward` siết một mã lên `restricted` thì đường xuất dùng mã đó **đóng ngay request sau**, nới lại thì mở lại (đối chứng: không chặn vĩnh viễn).
 
 > **Tự bắt khi chạy driver thật:** driver để lại một dòng `data_asset` cấp tenant (API sổ đăng ký chỉ có PUT, **không có DELETE** override) ⇒ một ca đối chứng của L0 ăn lỗi unique. Chỗ sai là TEST, không phải driver: một đơn vị CÓ override là trạng thái sản phẩm hợp lệ, nên mọi spec chạm sổ đăng ký phải tự dựng trạng thái đầu vào. Đã sửa hai spec dọn ở `beforeAll` chứ không chỉ `afterAll`. Đây đúng là loại lỗi mà jest-trong-transaction không bao giờ bắt được — lý do driver sống phải nằm trong repo.
+
+### ✅ Chủ dự án chốt 30/07: **hướng 1 — giữ nguyên, B1 cấp cho 1–2 người**
+
+Thực hiện xong. Nhưng kiểm để triển khai thì lộ ra hướng 1 **chưa chạy được** như tôi mô tả, và chỗ tắc nằm ở mô hình quyền chứ không ở lát L1:
+
+- Quyền chỉ đến với người **qua một vai** (`user_role → role_permission`) — không có bảng "cấp quyền trực tiếp", và API quản trị **không có** endpoint tạo vai / gắn quyền vào vai lúc chạy.
+- `GET /admin/roles` chỉ liệt kê vai mà **chính người gọi giữ đủ quyền**, và J1① chặn gán vai chứa quyền mình không có. `tenant_admin` không giữ `export:confidential` ⇒ không thấy vai nào chứa nó, không gán được.
+
+Tức là "B1 cấp cho 1–2 người" nếu để nguyên **chỉ làm được bằng sửa DB tay** — không vết `user_role`, không audit, không ai rà được. Đúng thứ trục C tồn tại để loại bỏ.
+
+**Đã dựng phần tối thiểu để nó thành một cú bấm trên màn Người dùng & Vai trò:** vai `export_officer` mang **đúng một quyền** `export:confidential`, **không gán sẵn cho ai**, cộng một ngoại lệ hẹp của J1① cho phép `tenant_admin` gán vai đó (cùng khuôn ngoại lệ `employee` đã có, nhưng ép `scopeType='tenant'` thay vì `'self'` — vì trần xuất không gắn với bản ghi nào).
+
+**Ba chốt độc lập giữ cho ngoại lệ đó không thành cửa sau** — mất một vẫn còn hai, mỗi chốt có test riêng + ca sống trong driver:
+1. `export:confidential` là quyền **NÂNG TRẦN**, không phải quyền hành động: tự nó không gọi được endpoint nào. Muốn xuất thật vẫn phải có quyền nghiệp vụ của đường xuất (`payroll:export` = hrbp) — thứ `tenant_admin` không có và **không gán được** (vai `hrbp` mang cả tá quyền ghi mà nó không giữ ⇒ J1① chặn như thường). Driver đo: gán vai này cho `emp1` thì `emp1` vẫn 403.
+2. J1③ chặn tự gán ⇒ `tenant_admin` không tự thành người xuất.
+3. Mọi lần gán/từ chối vào `audit_log`, mọi lần xuất vào `export_log` — B0 rà được cả hai đầu.
+
+Kèm hai bất biến mới đóng đinh trong `rbac-matrix.spec`: `export:confidential` **chỉ** thuộc `export_officer` (không vai nghiệp vụ nào) · `export_officer` **không mang quyền năng lực nào khác** — thêm một quyền vào vai này là biến ngoại lệ J1① thành leo thang thật, và test sẽ đỏ.
+
+**Việc của B1:** vào màn Người dùng & Vai trò → chọn người (đề xuất: 1–2 người đang giữ vai `hrbp` phụ trách chuyển dữ liệu sang hệ lương) → gán vai **"Cán bộ xuất dữ liệu" (`export_officer`)**, phạm vi Toàn đơn vị. Thu hồi cũng một cú bấm. Không cần B3 can thiệp DB.
+
+**VERIFY:** driver sống **18/18** (thêm 6 check cho đường cấp quyền, gồm 3 ca đối chứng chống leo thang) · full suite xanh sau khi thêm vai + ngoại lệ.

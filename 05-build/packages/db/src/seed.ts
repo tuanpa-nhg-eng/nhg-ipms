@@ -207,6 +207,22 @@ const GLOBAL_ROLES: Record<string, string[]> = {
   // xuất của mình. Là quyền ĐỌC nên không phá bất biến "auditor không giữ quyền ghi nào".
   auditor: ['tenant:read', 'audit:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read', 'exportlog:read'],
   exec_viewer: ['tenant:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read'],
+  /**
+   * [Trục C L1 — chủ dự án chốt 30/07: "giữ nguyên + B1 cấp cho 1–2 người"]
+   *
+   * Vai CHUYÊN TRÁCH chỉ mang `export:confidential`, KHÔNG gán sẵn cho ai. Vì sao phải có vai
+   * này thay vì "cấp quyền lẻ cho một người": quyền chỉ đến với người QUA MỘT VAI
+   * (`user_role → role_permission`) — không có bảng "quyền cấp trực tiếp", và API không có
+   * đường tạo vai/gắn quyền lúc chạy. Không có vai này thì quyết định trên chỉ thực hiện được
+   * bằng sửa DB tay, tức không có vết `user_role`, không có audit, không ai rà được.
+   *
+   * Vai này TỰ NÓ không xuất được gì: nó chỉ mở TRẦN phân loại. Muốn xuất thật vẫn phải có
+   * quyền nghiệp vụ của đường xuất (`payroll:export` = hrbp). Nghĩa là gán vai này cho một
+   * nhân viên thường không tạo ra người xuất dữ liệu — nó chỉ nâng trần cho người ĐÃ có
+   * đường xuất. Đó là lý do nó an toàn để `tenant_admin` gán, xem allowlist trong
+   * `admin-roles.service.ts`.
+   */
+  export_officer: ['export:confidential'],
   // [Trục C L0] Chủ dữ liệu — B3 (nền tảng, nhật ký) + B5 (tuân thủ). Vai DUY NHẤT được
   // sửa sổ đăng ký dữ liệu. Không kèm quyền nghiệp vụ nào: sổ này quyết định dữ liệu được
   // xử lý thế nào, nên người giữ nó không nên đồng thời là người xử lý dữ liệu đó.

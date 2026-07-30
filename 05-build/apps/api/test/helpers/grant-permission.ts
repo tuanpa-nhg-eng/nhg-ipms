@@ -4,10 +4,14 @@ import { PrismaClient, uuidv7 } from '@ipms/db';
  * [Trục C L1] Cấp một quyền BỔ SUNG cho đúng một người, bằng một vai riêng TRONG tenant.
  *
  * Vì sao test cần cái này: `export:confidential` cố ý KHÔNG nằm trong bộ mặc định của bất kỳ
- * vai toàn cục nào (kế hoạch trục C §4 L1). Nghĩa là "hrbp xuất được sang OneOffice" không
- * còn là hệ quả của việc mang vai hrbp — phải có người CẤP TƯỜNG MINH. Helper này mô phỏng
- * đúng động tác đó, không phải lách nó: nó tạo vai tenant-scoped rồi gán, đúng đường mà màn
- * Người dùng & Vai trò (trục B L2) dùng.
+ * vai NGHIỆP VỤ nào (kế hoạch trục C §4 L1). Nghĩa là "hrbp xuất được sang OneOffice" không
+ * còn là hệ quả của việc mang vai hrbp — phải có người CẤP TƯỜNG MINH.
+ *
+ * ⚠️ Đây là đường TẮT dùng cho spec nào KHÔNG kiểm chính việc cấp quyền (vd `review-loop.spec`
+ * chỉ cần vòng đánh giá chạy trọn tới bước xuất). Đường SẢN PHẨM thật là gán vai
+ * `export_officer` qua `POST /admin/users/:id/roles` — `export-control.spec` dùng đúng đường
+ * đó, vì nếu quyết định "B1 cấp cho 1–2 người" chỉ test được bằng sửa DB thì nó không thực
+ * hiện được trên giao diện. Đừng dùng helper này để "chứng minh" luồng cấp quyền chạy.
  *
  * Vai tạo ra mang `tenantId` khác NULL nên KHÔNG lọt vào snapshot `rbac-matrix.spec` (test đó
  * chỉ soi vai toàn cục) — không có chuyện test này làm test kia đỏ theo.

@@ -197,6 +197,93 @@ async function main() {
     return leaks.length === 0 ? true : leaks.join(' · ');
   });
 
+  // ═══ đường CẤP QUYỀN của B1 — quyết định 30/07 phải làm được từ giao diện ═══
+  group('Cấp trần xuất cho 1–2 người — qua API quản trị, KHÔNG sửa DB tay');
+
+  /**
+   * Tìm theo `?q=` chứ không quét trang đầu của `/admin/users`: H.01 đã có hàng chục tài khoản
+   * (seed persona + demo + rác của các phiên test), tài khoản cần tìm KHÔNG chắc nằm trong
+   * trang đầu — bản đầu của driver quét trang đầu và ngã ở đúng chỗ đó.
+   */
+  async function findUser(emailPrefix) {
+    const r = await req('GET', `/admin/users?q=${encodeURIComponent(emailPrefix + '@' + DOM)}`, { ...admin });
+    const list = Array.isArray(r.json) ? r.json : (r.json?.entries ?? r.json?.items ?? r.json?.data ?? []);
+    const hit = list.find((u) => u.email === `${emailPrefix}@${DOM}`);
+    if (!hit) throw new Error(`không thấy tài khoản seed ${emailPrefix}@ qua /admin/users?q= (status ${r.status})`);
+    return hit;
+  }
+  const adminUser = await findUser('admin');
+  const hrUser = await findUser('hr');
+  const empUser = await findUser('emp1');
+
+  await check('`export_officer` XUẤT HIỆN trong /admin/roles của tenant_admin (J4: UI thấy đúng cái API cho)', async () => {
+    const r = await req('GET', '/admin/roles', { ...admin });
+    if (r.status !== 200) return is(r, 200);
+    const roles = Array.isArray(r.json) ? r.json : (r.json?.entries ?? []);
+    const eo = roles.find((x) => x.code === 'export_officer');
+    if (!eo) return 'không thấy vai export_officer — B1 sẽ không cấp được từ giao diện';
+    if (eo.tenantOnly !== true) return `thiếu cờ tenantOnly (FE phải khoá scope): ${JSON.stringify(eo)}`;
+    // Quyền CÁ NHÂN (`*.self:*` + tra Từ điển) có ở MỌI vai theo thiết kế trục B — trừ chúng
+    // ra thay vì đòi vai này rỗng tuyệt đối. Cái phải bằng rỗng là quyền NĂNG LỰC: nếu vai
+    // uỷ nhiệm mang thêm dù một quyền gọi được endpoint, ngoại lệ J1① thành đường leo thang.
+    const SELF = ['taskdict:read', 'settings.self:read', 'settings.self:update',
+      'access.self:read', 'notify.self:read', 'notify.self:update'];
+    const extra = (eo.permissions ?? []).filter((p) => p !== 'export:confidential' && !SELF.includes(p));
+    return extra.length === 0 ? true : `vai mang quyền NĂNG LỰC ngoài trần xuất: ${JSON.stringify(extra)}`;
+  });
+
+  await check('tenant_admin KHÔNG tự gán vai đó cho chính mình (J1③)', async () => {
+    const r = await req('POST', `/admin/users/${adminUser.appUserId}/roles`,
+      { ...admin, body: { roleCode: 'export_officer', scopeType: 'tenant' } });
+    return is(r, 409, 403);
+  });
+
+  await check('Sai scope (self) KHÔNG được miễn trừ — rơi về J1① như mọi vai khác', async () => {
+    const r = await req('POST', `/admin/users/${empUser.appUserId}/roles`,
+      { ...admin, body: { roleCode: 'export_officer', scopeType: 'self' } });
+    if (r.status !== 403) return is(r, 403);
+    return msgOf(r).includes('J1①') ? true : `403 nhưng không nêu J1①: ${msgOf(r)}`;
+  });
+
+  await check('B1 cấp cho hrbp ⇒ cổng xuất MỞ ngay (không còn 403 vì thiếu export:confidential)', async () => {
+    // hoàn nguyên TRƯỚC khi cấp
+    let userRoleId = null;
+    cleanup.push(async () => {
+      if (userRoleId) await req('DELETE', `/admin/users/${hrUser.appUserId}/roles/${userRoleId}`, { ...admin });
+    });
+    const g = await req('POST', `/admin/users/${hrUser.appUserId}/roles`,
+      { ...admin, body: { roleCode: 'export_officer', scopeType: 'tenant' } });
+    if (![200, 201].includes(g.status)) return `cấp vai: ${is(g, 200, 201)}`;
+    userRoleId = g.json?.id ?? g.json?.userRoleId ?? null;
+    if (!userRoleId) return `cấp xong nhưng không trả id userRole: ${JSON.stringify(g.json).slice(0, 140)}`;
+
+    const cycles = await req('GET', '/review-cycles', { ...hr });
+    const cid = (cycles.json?.entries ?? cycles.json ?? [])[0]?.id;
+    const x = await req('GET', `/export/payroll?cycle=${cid ?? '00000000-0000-0000-0000-000000000000'}`, { ...hr });
+    // 200 nếu kỳ tồn tại, 422 nếu không — cả hai đều nghĩa là đã qua ExportGuard. 403 = chưa.
+    if (x.status === 403) return `vẫn 403 sau khi cấp: ${msgOf(x)}`;
+    return [200, 201, 422].includes(x.status) ? true : is(x, 200, 422);
+  });
+
+  await check('Người CHỈ có trần xuất vẫn không xuất được (trần ≠ năng lực)', async () => {
+    let userRoleId = null;
+    cleanup.push(async () => {
+      if (userRoleId) await req('DELETE', `/admin/users/${empUser.appUserId}/roles/${userRoleId}`, { ...admin });
+    });
+    const g = await req('POST', `/admin/users/${empUser.appUserId}/roles`,
+      { ...admin, body: { roleCode: 'export_officer', scopeType: 'tenant' } });
+    if (![200, 201].includes(g.status)) return `cấp vai cho emp1: ${is(g, 200, 201)}`;
+    userRoleId = g.json?.id ?? g.json?.userRoleId ?? null;
+    // 403 ở PermissionGuard vì thiếu payroll:export — chặn TRƯỚC cả ExportGuard
+    return is(await req('GET', '/export/payroll?cycle=x', { ...emp }), 403);
+  });
+
+  await check('tenant_admin KHÔNG gán được `hrbp` — không tự dựng người xuất từ đầu', async () => {
+    const r = await req('POST', `/admin/users/${empUser.appUserId}/roles`,
+      { ...admin, body: { roleCode: 'hrbp', scopeType: 'tenant' } });
+    return is(r, 403);
+  });
+
   await check('Sổ vết xuất KHÔNG có dòng nào sinh trong phiên đóng vai (J11 còn nguyên)', async () => {
     const r = await req('GET', '/export-log?limit=200', { ...auditor });
     const bad = (r.json?.entries ?? []).filter((e) => e.onBehalfOfUserId);

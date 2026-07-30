@@ -114,6 +114,11 @@ const EXPECTED: Record<string, string[]> = {
   // [Trục C L0] Chủ dữ liệu — vai DUY NHẤT sửa được sổ đăng ký dữ liệu. Không kèm quyền
   // nghiệp vụ nào: người quyết định dữ liệu được xử lý thế nào không nên là người xử lý nó.
   data_steward: ['tenant:read', 'org:read', 'datacatalog:read', 'datacatalog:write'],
+  // [Trục C L1] Vai uỷ nhiệm TRẦN XUẤT — đúng MỘT quyền, không gán sẵn cho ai. Thêm bất kỳ
+  // quyền nào vào đây là biến nó từ "nâng trần" thành "vai có năng lực", và khi đó ngoại lệ
+  // J1① trong admin-roles.service (cho phép tenant_admin gán vai này) trở thành đường leo
+  // thang thật. Test dưới đóng đinh đúng điều đó.
+  export_officer: ['export:confidential'],
 };
 
 // [Trục C L0] `datacatalog:read` cấp cho các vai QUẢN TRỊ + kiểm toán — viết dưới dạng
@@ -217,15 +222,42 @@ describe('[Trục B L0] Ma trận role→permission — J2 không god-account', 
   });
 
   /**
-   * [Trục C L1] Quyền CỐ Ý không thuộc vai nào. Khác hoàn toàn với "quên cấp": nếu nó nằm
-   * trong một vai nghiệp vụ thì "được chạy kỳ đánh giá" tự động kéo theo "được mang dữ liệu
-   * cá nhân ra khỏi hệ" — đúng loại gộp quyền mà trục B vừa đập ở god-account. Ai được xuất
-   * dữ liệu `confidential` là một lần cấp TƯỜNG MINH cho từng người, có vết trong user_role.
+   * [Trục C L1 — quyết định chủ dự án 30/07] `export:confidential` KHÔNG nằm trong vai NGHIỆP
+   * VỤ nào: nếu có, "được chạy kỳ đánh giá" tự động kéo theo "được mang dữ liệu cá nhân ra
+   * khỏi hệ" — đúng loại gộp quyền mà trục B vừa đập ở god-account. Nó chỉ nằm trong đúng một
+   * vai UỶ NHIỆM chuyên trách, không gán sẵn cho ai, để B1 cấp cho 1–2 người qua màn Người
+   * dùng & Vai trò (có vết `user_role` + audit) thay vì sửa DB tay.
    */
-  it('[Trục C L1] `export:confidential` KHÔNG thuộc vai toàn cục nào — cấp tường minh từng người', () => {
+  it('[Trục C L1] `export:confidential` CHỈ thuộc vai `export_officer`, không vai nghiệp vụ nào', () => {
     const holders = Object.entries(actual)
       .filter(([, ps]) => ps.has('export:confidential')).map(([r]) => r);
-    expect(holders).toEqual([]);
+    expect(holders).toEqual(['export_officer']);
+  });
+
+  /**
+   * Bất biến đi KÈM ngoại lệ J1① trong `admin-roles.service.ts`: `tenant_admin` gán được vai
+   * này dù không giữ quyền đó, và điều đó CHỈ an toàn khi vai này thuần "nâng trần" — không
+   * mang quyền gọi được endpoint nào. Thêm một quyền nghiệp vụ vào vai ⇒ tenant_admin bỗng
+   * phát được năng lực nó không có ⇒ leo thang. Đóng đinh ở đây, cạnh ma trận, chứ không chỉ
+   * trong comment của service.
+   */
+  it('[Trục C L1] `export_officer` KHÔNG mang quyền nào ngoài trần xuất (+ quyền cá nhân)', () => {
+    const extra = [...actual['export_officer']]
+      .filter((p) => p !== 'export:confidential' && !SELF.includes(p));
+    expect(extra).toEqual([]);
+  });
+
+  /**
+   * Chốt độc lập thứ hai: người chỉ có `export_officer` vẫn KHÔNG xuất được gì, vì mọi đường
+   * xuất còn gác một quyền nghiệp vụ (`payroll:export`, `integration:run`). Kiểm ở tầng ma
+   * trận: vai này không được đồng thời mang quyền mở đường xuất nào.
+   */
+  it('[Trục C L1] không vai nào vừa mang trần xuất vừa mang quyền mở đường xuất', () => {
+    const EXPORT_ROUTE_PERMS = ['payroll:export', 'integration:run'];
+    const both = Object.entries(actual)
+      .filter(([, ps]) => ps.has('export:confidential') && EXPORT_ROUTE_PERMS.some((p) => ps.has(p)))
+      .map(([r]) => r);
+    expect(both).toEqual([]);
   });
 
   it('[J3] KHÔNG role nào ngoài auditor giữ audit:read', () => {

@@ -41,6 +41,33 @@ import { effectiveScope } from '../../common/auth/scope.util';
  */
 const BASE_ROLE_ALLOWLIST = ['employee'] as const;
 
+/**
+ * [Trục C L1] Ngoại lệ HẸP THỨ HAI của J1① — vai `export_officer` (chỉ mang
+ * `export:confidential`) được `tenant_admin` gán dù chính nó KHÔNG giữ quyền đó.
+ *
+ * Vì sao cần: chủ dự án chốt 30/07 "quyền xuất dữ liệu `confidential` không nằm trong vai
+ * nghiệp vụ nào — B1 cấp cho 1–2 người". Quyền chỉ tới người qua một vai, và J1① tuyệt đối
+ * nghĩa là KHÔNG AI trong hệ gán được vai đó (tenant_admin không giữ `export:confidential`,
+ * và cấp nó cho tenant_admin thì lại là gộp quyền vào bộ mặc định — đúng cái quyết định trên
+ * loại bỏ). Kết quả sẽ là "cấp bằng sửa DB tay", tức không vết, không audit.
+ *
+ * Vì sao ngoại lệ này KHÔNG mở đường leo thang — ba chốt độc lập, mất một vẫn còn hai:
+ *   ① `export:confidential` là quyền NÂNG TRẦN, không phải quyền hành động: tự nó không gọi
+ *      được endpoint nào. Muốn xuất thật vẫn phải có quyền nghiệp vụ của đường xuất
+ *      (`payroll:export` = hrbp) — thứ mà tenant_admin KHÔNG có và KHÔNG gán được (vai `hrbp`
+ *      mang cả tá quyền ghi mà tenant_admin không giữ ⇒ J1① chặn như thường).
+ *   ② J1③ chặn tự gán ⇒ tenant_admin không tự thành người xuất được.
+ *   ③ Mọi lần gán/từ chối đều vào `audit_log` (`admin.role_grant` / `_denied`), và mọi lần
+ *      xuất sau đó vào `export_log` — B0 rà được cả hai đầu.
+ *
+ * Khác BASE_ROLE_ALLOWLIST ở scope: vai sàn `employee` mang quyền GHI nên bị ép
+ * `scopeType='self'` (bài học F184). `export:confidential` không gắn với bản ghi nào — nó là
+ * trần của cả đường xuất — nên scope đúng nghĩa duy nhất là `tenant`, và ép đúng bằng
+ * `tenant` (không để 'self'/'org_unit' lọt: chúng gợi ý một phạm vi không tồn tại trong
+ * ExportGuard, tức nói dối người quản trị về điều họ vừa cấp).
+ */
+const DELEGABLE_ROLE_ALLOWLIST = ['export_officer'] as const;
+
 class GrantViolationError extends Error {
   constructor(public rule: string, public detail: object, public http: 'conflict' | 'forbidden' | 'unprocessable') {
     super('role_grant_violation');
@@ -81,9 +108,13 @@ export class AdminRolesService {
           code: r.code, nameVi: r.nameVi, nameEn: r.nameEn,
           permissions: r.rolePermissions.map((rp) => rp.permission.code),
           selfOnly: (BASE_ROLE_ALLOWLIST as readonly string[]).includes(r.code),
+          // [Trục C L1] Đối xứng với `selfOnly`: vai uỷ nhiệm chỉ có nghĩa ở scope TENANT.
+          // FE phải khoá cứng lựa chọn scope — J4: không hiện thứ mà API sẽ từ chối.
+          tenantOnly: (DELEGABLE_ROLE_ALLOWLIST as readonly string[]).includes(r.code),
         }))
         .filter((r) =>
           (BASE_ROLE_ALLOWLIST as readonly string[]).includes(r.code)
+          || (DELEGABLE_ROLE_ALLOWLIST as readonly string[]).includes(r.code)
           || r.permissions.every((p) => user.permissions.has(p)));
     });
   }
@@ -142,12 +173,20 @@ export class AdminRolesService {
       // dữ liệu của TOÀN TENANT — dựng lại đúng god-account mà cả trục B tồn tại để đập.
       const isBaseRole = (BASE_ROLE_ALLOWLIST as readonly string[]).includes(input.roleCode)
         && input.scopeType === 'self';
+      // [Trục C L1] Ngoại lệ thứ hai — vai uỷ nhiệm trần xuất, ép scope='tenant' (xem ghi chú
+      // ở DELEGABLE_ROLE_ALLOWLIST). Cùng khuôn "ngoại lệ hẹp + ép scope" của F184, không
+      // phát minh cơ chế mới: sai scope thì KHÔNG được miễn trừ, rơi về J1① như mọi vai khác.
+      const isDelegableRole = (DELEGABLE_ROLE_ALLOWLIST as readonly string[]).includes(input.roleCode)
+        && input.scopeType === 'tenant';
       const notOwned = rolePerms.filter((p) => !user.permissions.has(p));
-      if (!isBaseRole && notOwned.length > 0) {
+      if (!isBaseRole && !isDelegableRole && notOwned.length > 0) {
         throw new GrantViolationError(
           `Không cấp được vai '${input.roleCode}' — bạn không giữ: ${notOwned.join(', ')} (J1①)`
           + (BASE_ROLE_ALLOWLIST.includes(input.roleCode as any)
             ? ` — vai sàn chỉ được miễn trừ khi scopeType='self'`
+            : '')
+          + (DELEGABLE_ROLE_ALLOWLIST.includes(input.roleCode as any)
+            ? ` — vai uỷ nhiệm chỉ được miễn trừ khi scopeType='tenant'`
             : ''),
           { role_code: input.roleCode, missing: notOwned, scope_type: input.scopeType }, 'forbidden',
         );
