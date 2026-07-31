@@ -66,6 +66,8 @@ const EXPECTED: Record<string, string[]> = {
     'checkin:read', 'review:read', 'config:read', 'taskcell:read', 'flag:read',
     'task:feedback',
     'user:impersonate',
+    // [Trục C L3] xin + đọc đơn ngoại lệ; KHÔNG duyệt (K5 — duyệt là của data_steward)
+    'exception:request', 'exception:read',
   ],
   org_admin: [
     'tenant:read', 'org:read', 'person:read', 'person:write',
@@ -108,6 +110,8 @@ const EXPECTED: Record<string, string[]> = {
     'strategy:read', 'goal:read',
     // [Trục C L1] đọc sổ vết xuất dữ liệu — B0 giữ, KHÔNG phải người vận hành đường xuất.
     'exportlog:read',
+    // [Trục C L3] rà được MỌI đơn ngoại lệ, kể cả đơn mình không dính vào
+    'exception:read',
   ],
   exec_viewer: [
     'tenant:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read',
@@ -115,7 +119,11 @@ const EXPECTED: Record<string, string[]> = {
   ],
   // [Trục C L0] Chủ dữ liệu — vai DUY NHẤT sửa được sổ đăng ký dữ liệu. Không kèm quyền
   // nghiệp vụ nào: người quyết định dữ liệu được xử lý thế nào không nên là người xử lý nó.
-  data_steward: ['tenant:read', 'org:read', 'datacatalog:read', 'datacatalog:write'],
+  // [Trục C L3] Vai DUY NHẤT duyệt được ngoại lệ — và cố ý KHÔNG có `exception:request`.
+  data_steward: [
+    'tenant:read', 'org:read', 'datacatalog:read', 'datacatalog:write',
+    'exception:approve', 'exception:read',
+  ],
   // [Trục C L1] Vai uỷ nhiệm TRẦN XUẤT — đúng MỘT quyền, không gán sẵn cho ai. Thêm bất kỳ
   // quyền nào vào đây là biến nó từ "nâng trần" thành "vai có năng lực", và khi đó ngoại lệ
   // J1① trong admin-roles.service (cho phép tenant_admin gán vai này) trở thành đường leo
@@ -129,6 +137,8 @@ const EXPECTED: Record<string, string[]> = {
     'system:health', 'integration:status', 'ai:usage_read',
     'flag:read', 'flag:write',
     'exportlog:read_metadata', 'audit:read_metadata',
+    // [Trục C L3] lối ra cho giới hạn L2 cố ý đặt: B3 thấy SỐ ĐẾM, muốn chi tiết thì đi xin
+    'exception:request',
   ],
   // [Trục C L2b — K11] Hỗ trợ kỹ thuật: đúng whitelist chỉ-đọc + `user:impersonate`. Nguồn
   // gốc là `SUPPORT_ROLE_PERMISSIONS` trong @ipms/shared — đối chiếu ba bên như platform_admin.
@@ -335,6 +345,25 @@ describe('[Trục B L0] Ma trận role→permission — J2 không god-account', 
     const holders = Object.entries(actual)
       .filter(([, ps]) => ps.has('user:impersonate')).map(([r]) => r).sort();
     expect(holders).toEqual(['support', 'tenant_admin']);
+  });
+
+  /**
+   * [Trục C L3 — K5 ở tầng ma trận] Bất biến "người xin ≠ người duyệt" được thực thi trên
+   * TỪNG ĐƠN ở service, nhưng nếu một vai giữ CẢ HAI quyền thì bất biến đó chỉ còn là "đừng
+   * bấm nhầm nút" — một người xin cho đồng nghiệp rồi nhờ đồng nghiệp xin lại cho mình là
+   * lách hợp lệ hoàn toàn. Tách ở tầng vai mới là chỗ chặn thật.
+   */
+  it('[K5] không role nào giữ đồng thời `exception:request` và `exception:approve`', () => {
+    const both = Object.entries(actual)
+      .filter(([, ps]) => ps.has('exception:request') && ps.has('exception:approve'))
+      .map(([r]) => r);
+    expect(both).toEqual([]);
+  });
+
+  it('[K5] `exception:approve` CHỈ thuộc data_steward (B5 tuân thủ), không vai vận hành nào', () => {
+    const holders = Object.entries(actual)
+      .filter(([, ps]) => ps.has('exception:approve')).map(([r]) => r);
+    expect(holders).toEqual(['data_steward']);
   });
 
   it('[J3] KHÔNG role nào ngoài auditor giữ audit:read', () => {

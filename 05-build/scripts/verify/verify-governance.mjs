@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * DRIVER SỐNG — TRỤC C "Lớp bảo vệ niềm tin"
- *   L0 sổ đăng ký dữ liệu · L1 kiểm soát xuất · L2 quản trị nền tảng · L2b vai `support`
+ *   L0 sổ đăng ký · L1 kiểm soát xuất · L2 quản trị nền tảng · L2b vai `support` ·
+ *   L3 ngoại lệ có thời hạn
  *
  *   node scripts/verify/verify-governance.mjs
  *
@@ -68,7 +69,7 @@ const msgOf = (r) => String(r.json?.error?.message ?? r.json?.message ?? '');
 
 // ══════════════════════════════════════════════════════════════════════
 async function main() {
-  console.log(`\n${c.y}DRIVER SỐNG — TRỤC C L0 · L1 · L2 · L2b${c.x}`);
+  console.log(`\n${c.y}DRIVER SỐNG — TRỤC C L0 · L1 · L2 · L2b · L3${c.x}`);
   console.log(`${c.d}${BASE} · tenant ${TENANT}${c.x}`);
 
   const admin = await login('admin');
@@ -526,6 +527,124 @@ async function main() {
     } finally {
       await req('DELETE', '/admin/impersonation/current', { ...imp });
     }
+  });
+
+  // ═══ L3 — ngoại lệ chính sách có thời hạn ═══
+  group('L3 — ngoại lệ có hạn: nới được, nhưng có người duyệt và tự rụng');
+
+  const steward2 = await login('steward');
+  const EXC_REASON = 'Điều tra sự cố xuất dữ liệu đơn vị H.01 báo tối qua, cần xem sổ vết chi tiết';
+
+  /**
+   * Ca lõi: `platform_admin` bị L2 chặn ở sổ vết CHI TIẾT (chỉ được số đếm). Đây là lối ra mà
+   * L2 đã hẹn — và nó phải chạy được thật, không chỉ tồn tại trong tài liệu.
+   */
+  await check('[K5] Xin → duyệt bởi NGƯỜI KHÁC → quyền mở ngay; người xin tự duyệt thì bị chặn', async () => {
+    const before = await req('GET', '/export-log', { ...plat });
+    if (before.status !== 403) return `platform@ đã đọc được sổ vết TRƯỚC khi có ngoại lệ: ${is(before, 403)}`;
+
+    const asked = await req('POST', '/policy-exceptions', {
+      ...admin,
+      body: {
+        granteeUserId: uid('platform'), permissionCode: 'exportlog:read',
+        reason: EXC_REASON, requestedHours: 4,
+      },
+    });
+    if (![200, 201].includes(asked.status)) return `xin: ${is(asked, 200, 201)}`;
+    const excId = asked.json.id;
+    cleanup.push(async () => { await req('POST', `/policy-exceptions/${excId}/revoke`, { ...steward2, body: {} }); });
+
+    // chưa duyệt thì chưa có quyền
+    const pending = await req('GET', '/export-log', { ...plat });
+    if (pending.status !== 403) return `đơn còn pending mà quyền đã mở: ${is(pending, 403)}`;
+
+    // [K5] người xin tự duyệt → chặn
+    const selfApprove = await req('POST', `/policy-exceptions/${excId}/decide`, { ...admin, body: { approve: true, hours: 4 } });
+    if (selfApprove.status !== 403) return `người xin tự duyệt được: ${is(selfApprove, 403)}`;
+
+    const ok = await req('POST', `/policy-exceptions/${excId}/decide`, { ...steward2, body: { approve: true, hours: 4 } });
+    if (![200, 201].includes(ok.status)) return `duyệt: ${is(ok, 200, 201)}`;
+
+    const after = await req('GET', '/export-log', { ...plat });
+    return is(after, 200);
+  });
+
+  await check('[K4] Ngoại lệ nới ĐÚNG MỘT quyền — không lan sang bề mặt nghiệp vụ nào', async () => {
+    const leaks = [];
+    for (const u of ['/reviews', '/persons', '/goals', '/audit-logs', '/data-catalog']) {
+      const r = await req('GET', u, { ...plat });
+      if (r.status < 400) leaks.push(`${u} → ${r.status}`);
+    }
+    return leaks.length === 0 ? true : `RÒ: ${leaks.join(' · ')}`;
+  });
+
+  await check('[K4] Mỗi lần dùng ngoại lệ để lại vết đếm được (B0 rà được)', async () => {
+    const list = await req('GET', '/policy-exceptions', { ...auditor });
+    if (list.status !== 200) return `auditor đọc sổ ngoại lệ: ${is(list, 200)}`;
+    const active = (list.json?.entries ?? []).find((e) => e.permissionCode === 'exportlog:read' && e.status === 'approved');
+    if (!active) return 'không thấy đơn đang hiệu lực trong sổ';
+    if (!(active.usedCount > 0)) return `usedCount = ${active.usedCount} sau khi đã dùng`;
+    return active.approver?.email?.startsWith('steward@')
+      ? true : `người duyệt ghi sai: ${JSON.stringify(active.approver)}`;
+  });
+
+  await check('[K3] `export:confidential` KHÔNG nới được bằng ngoại lệ (422, không tạo đơn)', async () => {
+    const r = await req('POST', '/policy-exceptions', {
+      ...admin,
+      body: {
+        granteeUserId: uid('hr'), permissionCode: 'export:confidential',
+        reason: EXC_REASON, requestedHours: 2,
+      },
+    });
+    if (r.status !== 422) return is(r, 422);
+    return msgOf(r).includes('ngoại lệ') ? true : `chặn đúng nhưng thông báo không nêu lý do: ${msgOf(r)}`;
+  });
+
+  await check('[J3] `audit:read` KHÔNG nới được bằng ngoại lệ', async () => {
+    const r = await req('POST', '/policy-exceptions', {
+      ...admin,
+      body: {
+        granteeUserId: uid('platform'), permissionCode: 'audit:read',
+        reason: EXC_REASON, requestedHours: 2,
+      },
+    });
+    return is(r, 422);
+  });
+
+  await check('[K4] Xin quá trần cứng 72h → chặn ngay ở cửa', async () => {
+    const r = await req('POST', '/policy-exceptions', {
+      ...admin,
+      body: {
+        granteeUserId: uid('platform'), permissionCode: 'review:read',
+        reason: EXC_REASON, requestedHours: 100,
+      },
+    });
+    return is(r, 400, 422);
+  });
+
+  await check('[K5] Vai vận hành KHÔNG duyệt được, vai duyệt KHÔNG xin được', async () => {
+    const platApprove = await req('POST', '/policy-exceptions/00000000-0000-0000-0000-000000000000/decide',
+      { ...plat, body: { approve: true } });
+    if (platApprove.status !== 403) return `platform@ duyệt được: ${is(platApprove, 403)}`;
+    const stewardAsk = await req('POST', '/policy-exceptions', {
+      ...steward2,
+      body: {
+        granteeUserId: uid('platform'), permissionCode: 'review:read',
+        reason: EXC_REASON, requestedHours: 2,
+      },
+    });
+    return is(stewardAsk, 403);
+  });
+
+  await check('Thu hồi sớm → quyền mất NGAY, không chờ hết hạn', async () => {
+    const list = await req('GET', '/policy-exceptions?status=approved', { ...auditor });
+    const active = (list.json?.entries ?? []).find((e) => e.permissionCode === 'exportlog:read');
+    if (!active) return 'không có đơn đang hiệu lực để thu hồi';
+    const r = await req('POST', `/policy-exceptions/${active.id}/revoke`,
+      { ...steward2, body: { note: 'Driver dọn — sự cố đã đóng' } });
+    if (![200, 201].includes(r.status)) return `thu hồi: ${is(r, 200, 201)}`;
+    const after = await req('GET', '/export-log', { ...plat });
+    return is(after, 403);
   });
 
   // ── dọn dẹp ──

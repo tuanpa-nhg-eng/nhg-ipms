@@ -4,7 +4,21 @@ import {
 import { Reflector } from '@nestjs/core';
 import { effectiveImpersonationPermissions } from '@ipms/shared';
 import { PrismaService } from '../../prisma.service';
+import { PolicyExceptionService } from '../../modules/policy-exception/policy-exception.service';
 import { IMPERSONATION_EXIT_EXEMPT_KEY, PERMISSION_KEY, PUBLIC_KEY, RequestUser } from './decorators';
+
+/**
+ * [Trục C L3 — K4] Vai TẠM còn hiệu lực hay không được quyết ĐÚNG TẠI ĐÂY, mỗi request.
+ *
+ * Đây là chỗ bất biến "hết hạn là hết" thực sự sống. Cách làm sai hiển nhiên là để một job
+ * nền quét và soft-delete các vai hết hạn: khi đó giữa mốc hết hạn và lần job chạy kế tiếp
+ * là một khoảng thời gian quyền vẫn dùng được, và độ dài khoảng đó phụ thuộc vào việc job có
+ * còn sống hay không — tức bất biến an ninh phụ thuộc vào sức khoẻ của một tiến trình nền.
+ * Lọc ở cửa thì job dọn chỉ còn là dọn dẹp, hỏng cũng không mở ra quyền nào.
+ */
+const notExpired = () => ({
+  OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+});
 
 /**
  * PermissionGuard — RBAC fail-closed:
@@ -20,7 +34,11 @@ import { IMPERSONATION_EXIT_EXEMPT_KEY, PERMISSION_KEY, PUBLIC_KEY, RequestUser 
  */
 @Injectable()
 export class PermissionGuard implements CanActivate {
-  constructor(private reflector: Reflector, private prisma: PrismaService) {}
+  constructor(
+    private reflector: Reflector,
+    private prisma: PrismaService,
+    private exceptions: PolicyExceptionService,
+  ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
     if (this.reflector.getAllAndOverride<boolean>(PUBLIC_KEY, [ctx.getHandler(), ctx.getClass()])) {
@@ -54,7 +72,7 @@ export class PermissionGuard implements CanActivate {
     const userId: string = req.ipmsClaims.sub;
     const impSid: string | undefined = req.ipmsClaims.imp_sid;
 
-    const { status, sessionLive, permissions, scopes } = await this.prisma.withTenant(tenantId, async (tx) => {
+    const { status, sessionLive, permissions, scopes, usedExceptionIds } = await this.prisma.withTenant(tenantId, async (tx) => {
       // [J8] status hiện tại của tài khoản — token có hợp lệ hay không phụ thuộc CÁI NÀY,
       // không phụ thuộc claim trong JWT (JWT không mang status, và không nên mang: đổi
       // status phải có hiệu lực NGAY, không đợi token cũ tự hết hạn rồi phát lại).
@@ -76,11 +94,17 @@ export class PermissionGuard implements CanActivate {
         : true;
 
       // [F4] lọc cả role đã soft-delete — thu hồi role phải có hiệu lực ngay
+      // [Trục C L3 — K4] …và lọc cả vai TẠM đã hết hạn, xem ghi chú ở `notExpired`.
       const roles = await tx.userRole.findMany({
-        where: { appUserId: userId, deletedAt: null, role: { deletedAt: null } },
-        select: { roleId: true, scopeType: true, scopeId: true },
+        where: { appUserId: userId, deletedAt: null, role: { deletedAt: null }, ...notExpired() },
+        select: { roleId: true, scopeType: true, scopeId: true, policyExceptionId: true },
       });
-      if (roles.length === 0) return { status, sessionLive, permissions: new Set<string>(), scopes: [] as any[] };
+      if (roles.length === 0) {
+        return {
+          status, sessionLive, permissions: new Set<string>(), scopes: [] as any[],
+          usedExceptionIds: [] as string[],
+        };
+      }
       const rp = await tx.rolePermission.findMany({
         where: { roleId: { in: roles.map((r) => r.roleId) } },
         select: { roleId: true, permission: { select: { code: true } } },
@@ -93,7 +117,13 @@ export class PermissionGuard implements CanActivate {
       const scopes = roles
         .filter((r) => grantingRoleIds.has(r.roleId))
         .map((r) => ({ scopeType: (r.scopeType as any) ?? null, scopeId: r.scopeId ?? null }));
-      return { status, sessionLive, permissions, scopes };
+      // [Trục C L3] Quyền này có đang đi bằng một NGOẠI LỆ không? Chỉ tính vai cấp ĐÚNG
+      // permission đang được yêu cầu — người giữ một ngoại lệ `exportlog:read` mà gọi
+      // `GET /goals` (quyền vai thường) thì đó không phải một lần "dùng ngoại lệ".
+      const usedExceptionIds = roles
+        .filter((r) => grantingRoleIds.has(r.roleId) && r.policyExceptionId)
+        .map((r) => r.policyExceptionId!);
+      return { status, sessionLive, permissions, scopes, usedExceptionIds };
     });
 
     // [J8] Tài khoản không tồn tại (đã xoá) hoặc status khác 'active' (disabled) → 401
@@ -124,6 +154,15 @@ export class PermissionGuard implements CanActivate {
     if (!effectivePermissions.has(required)) {
       throw new ForbiddenException(`Missing permission: ${required}`);
     }
+    // [Trục C L3 — K4] Ghi vết SAU khi đã cho qua, và chỉ khi quyền thực sự đi bằng ngoại lệ.
+    // Trong phiên đóng vai thì bỏ qua: quyền hữu hiệu lúc đó do whitelist J11 quyết, và một
+    // dòng "đã dùng ngoại lệ" mang tên người BỊ đóng vai sẽ là vết sai người (bài học F188).
+    if (usedExceptionIds.length > 0 && !req.ipmsClaims.act) {
+      await this.exceptions.recordUse(
+        tenantId, usedExceptionIds, userId, `${req.method} ${req.route?.path ?? req.url}`,
+      );
+    }
+
     const user: RequestUser = { claims: req.ipmsClaims, tenantId, permissions: effectivePermissions, scopes };
     req.ipmsUser = user;
     // [Lát 4c] PolicyGuard (tầng ABAC đứng sau) cần biết permission đang yêu cầu

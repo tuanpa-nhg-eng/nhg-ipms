@@ -243,6 +243,12 @@ model UserRole {
   revokedBy String?   @map("revoked_by") @db.Uuid
   version   Int      @default(1)
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  /// [Trục C L3 — K4] Vai TẠM: hết hạn là tự rụng, kiểm TẠI CỬA mỗi request
+  /// (`PermissionGuard`), job dọn chỉ là dọn dẹp. NULL = vai thường, không hạn.
+  /// Trigger `user_role_no_extend` chặn kéo dài kể cả bằng UPDATE thẳng vào DB.
+  expiresAt DateTime? @map("expires_at") @db.Timestamptz(6)
+  /// Ngoại lệ đã sinh ra vai tạm này — truy ngược "ai duyệt cho người này quyền lạ đó".
+  policyExceptionId String? @map("policy_exception_id") @db.Uuid
 
   tenant  Tenant  @relation(fields: [tenantId], references: [id])
   appUser AppUser @relation(fields: [appUserId], references: [id])
@@ -250,6 +256,37 @@ model UserRole {
 
   @@index([tenantId, appUserId])
   @@map("user_role")
+}
+
+/// [Trục C L3] Ngoại lệ chính sách CÓ THỜI HẠN — đường nới quyền hợp lệ duy nhất.
+/// K4: trần 72h (đơn vị hạ được, không nâng), không gia hạn (trigger chặn), hết hạn tự rụng.
+/// K5: người duyệt ≠ người xin ≠ người nhận. Mỗi lần DÙNG → audit + đếm (nối cờ rủi ro L4).
+model PolicyException {
+  id              String @id @db.Uuid
+  tenantId        String @map("tenant_id") @db.Uuid
+  requesterUserId String @map("requester_user_id") @db.Uuid
+  granteeUserId   String @map("grantee_user_id") @db.Uuid
+  permissionCode  String @map("permission_code")
+  scopeType       String @default("tenant") @map("scope_type")
+  scopeId         String? @map("scope_id") @db.Uuid
+  reason          String
+  requestedAt     DateTime @default(now()) @map("requested_at") @db.Timestamptz(6)
+  /// Do NGƯỜI DUYỆT chốt lúc duyệt ⇒ NULL khi còn `pending`.
+  expiresAt       DateTime? @map("expires_at") @db.Timestamptz(6)
+  status          String @default("pending") // pending|approved|rejected|revoked|expired
+  approverUserId  String? @map("approver_user_id") @db.Uuid
+  decidedAt       DateTime? @map("decided_at") @db.Timestamptz(6)
+  decisionNote    String? @map("decision_note")
+  usedCount       Int @default(0) @map("used_count")
+  lastUsedAt      DateTime? @map("last_used_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version   Int      @default(1)
+
+  @@index([tenantId, status])
+  @@index([granteeUserId])
+  @@map("policy_exception")
 }
 
 model AuditLog {

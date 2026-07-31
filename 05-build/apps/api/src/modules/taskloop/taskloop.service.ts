@@ -8,6 +8,7 @@ import type { RequestUser } from '../../common/auth/decorators';
 import { effectiveScope } from '../../common/auth/scope.util';
 import { CellPayload, evaluateQualityGate, resolveKpiRef } from '../library/quality-gate';
 import { assertKpiRefExists } from '../library/kpi-guard';
+import { activeUserRoleWhere } from '../../common/auth/user-role.where';
 
 /** Marker SoD violation trong tx — audit incident ghi NGOÀI tx (chuẩn F48). */
 class SodViolationError extends Error {
@@ -328,7 +329,7 @@ export class TaskLoopService {
       // [F131c] fail-fast: assignee phải CÓ QUYỀN SOẠN (taskcell:author qua role/grant 4j) —
       // giao nhầm người không quyền → phiếu kẹt draft + cell kẹt reopened vĩnh viễn
       const assigneeRoles = await tx.userRole.findMany({
-        where: { appUserId: input.assigneeId, deletedAt: null, role: { deletedAt: null } },
+        where: { appUserId: input.assigneeId, ...activeUserRoleWhere() },
         select: { roleId: true },
       });
       const assigneePerms = assigneeRoles.length > 0

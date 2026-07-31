@@ -6,6 +6,7 @@ import { uuidv7 } from '@ipms/db';
 import { PrismaService } from '../../prisma.service';
 import type { RequestUser } from '../../common/auth/decorators';
 import { effectiveScope } from '../../common/auth/scope.util';
+import { activeUserRoleWhere } from '../../common/auth/user-role.where';
 
 /**
  * [Lát 4j] Ủy quyền phân cấp (Spec Task Dictionary §3.A + §4.4 + §5):
@@ -134,7 +135,7 @@ export class AuthoringService {
       });
       if (sodRules.length > 0) {
         const granteeRoles = await tx.userRole.findMany({
-          where: { appUserId: input.granteeId, deletedAt: null, role: { deletedAt: null } },
+          where: { appUserId: input.granteeId, ...activeUserRoleWhere() },
           select: { roleId: true },
         });
         const rps = granteeRoles.length > 0

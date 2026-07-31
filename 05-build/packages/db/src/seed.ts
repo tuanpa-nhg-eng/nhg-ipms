@@ -11,85 +11,21 @@ import { KPI_DICTIONARY_EXT } from './kpi-dictionary-ext.data';
 
 const prisma = new PrismaClient(); // DATABASE_URL = owner
 
-// Catalog permission Phase 0 (mở rộng dần theo TDD §8.3)
-const PERMISSIONS = [
-  'tenant:read',
-  'org:read', 'org:write',
-  'person:read', 'person:write',
-  'user:read', 'user:write', 'role:assign',
-  'audit:read',
-  'flag:read', 'flag:write',
-  // Phase 1 — KPI & Scorecard
-  'kpi:read', 'kpi:write', 'kpi:approve',
-  'scorecard:read', 'scorecard:write',
-  // Phase 1 — Strategy & Goal
-  'strategy:read', 'strategy:write',
-  'goal:read', 'goal:write',
-  // Phase 1 — Evidence & Integration
-  'evidence:read', 'evidence:write', 'evidence:verify',
-  'integration:run',
-  // Phase 2 — Check-in, Review, Calibration, Payroll
-  'checkin:read', 'checkin:write', 'checkin:review',
-  'review:read', 'review:write', 'review:manage', 'rating:approve',
-  'calibration:run',
-  'payroll:export',
-  // Phase 3 — Configuration Studio
-  'config:read', 'config:write', 'config:publish',
-  'brand:write',
-  'org:design',
-  'derivation:run',
-  'taskcell:read', 'taskcell:write',
-  'process:design',
-  'integration:connect', 'integration:bind',
-  // Phase 3 lát 4a — ai-gateway + MCP + eval harness
-  'ai:invoke', 'ai:eval',
-  // Phase 3 lát 4f — BU Authoring Gate (Spec_BU_Authoring_Gate §4 + §6.5)
-  'taskcell:author', 'kpi:propose',
-  'library:submit', 'library:curate', 'library:publish', 'library:deprecate',
-  'library:import', 'library:import:canonical',
-  // Phase 3 lát 4j–4k — Từ điển Tác vụ hoàn thiện (Spec Task Dictionary §5)
-  'taskcell:delegate', 'taskcell:approve', 'task:reopen', 'task:feedback',
-  // Go-live Từ điển Tác vụ — tra cứu canonical toàn hàng (read-only, mọi persona)
-  'taskdict:read',
-  // AI inline assist — gợi ý inline (chỉ đọc + đẻ ai_suggestion PENDING); tách khỏi ai:invoke
-  'ai:assist',
-  // [Learning Loop L1] duyệt golden case từ tín hiệu học — SoD trên thước đo
-  'ai:eval:curate',
-  // [Trục B L0] Quản trị tenant (tầng ②) + tuỳ chọn cá nhân (tầng ③).
-  // Đồng bộ với packages/shared/src/index.ts — rbac-matrix.spec đóng đinh hai catalog khớp nhau.
-  'user:invite', 'user:deactivate',
-  'role:read', 'role:revoke',
-  'orgunit:update', 'orgunit:archive',
-  'tenant.config:read', 'tenant.config:update',
-  'settings.self:read', 'settings.self:update',
-  'access.self:read',
-  'notify.self:read', 'notify.self:update',
-  // [Trục B L4] Impersonation chỉ-đọc — cấp cho tenant_admin, KHÔNG org_admin.
-  'user:impersonate',
-  // [Trục C L0] Sổ đăng ký dữ liệu — ':read' cho vai quản trị, ':write' CHỈ data_steward.
-  'datacatalog:read', 'datacatalog:write',
-  // [Trục C L1] Kiểm soát xuất dữ liệu — 'export:confidential' KHÔNG cấp cho vai nào (quyết
-  // định của B1 trên từng người); 'exportlog:read' chỉ auditor ở L1, platform_admin ở L2.
-  'export:confidential', 'exportlog:read',
-  // [Trục C L2] Quản trị nền tảng (tầng ①) — chỉ metadata + hai hành động vận hành.
-  'tenant:list', 'tenant:create',
-  'system:health', 'integration:status', 'ai:usage_read', 'audit:read_metadata',
-  // [L2 — tự bắt] tách khỏi `exportlog:read`: tầng nền tảng chỉ được SỐ ĐẾM, không đọc sổ
-  // vết chi tiết của đơn vị (ca quét K9 bắt được `platform@` đọc `GET /export-log` của H.01).
-  'exportlog:read_metadata',
-];
-
-// ⚠️ NỢ KỸ THUẬT (phát hiện khi làm trục C L0): danh sách trên là BẢN SAO TAY của
-// `PERMISSIONS` trong `packages/shared/src/index.ts`. Thêm quyền mà quên một trong hai chỗ
-// thì seed ném `permissionId: undefined` ở bước 2 — thông báo lỗi KHÔNG chỉ ra quyền nào
-// thiếu, phải dò tay (đã mất một vòng khi thêm datacatalog:*). Nên nhập một mối: seed
-// import thẳng từ @ipms/shared. Không làm trong L0 để không trộn refactor vào lát này.
-//
-// [L1 — trả tiền lần hai, VẪN CHƯA GỘP] Thêm export:confidential + exportlog:read phải sửa
-// đúng hai chỗ lần nữa. Không gộp ở L1 vì `packages/db` HIỆN KHÔNG phụ thuộc `@ipms/shared`
-// — gộp là thêm một cạnh vào đồ thị build workspace (ảnh hưởng thứ tự prisma generate),
-// không phải sửa một dòng import. Việc đó xứng đáng một lát riêng có chạy full suite cho
-// mục đích đó, không nhét vào lát export control.
+/**
+ * [Trục C L3 — NỢ KỸ THUẬT ĐÃ TRẢ] Catalog permission nhập MỘT MỐI với `@ipms/shared`.
+ *
+ * Trước lát này, đây là một BẢN SAO TAY của `PERMISSIONS` trong `packages/shared/src/index.ts`.
+ * Nó đã cắn ĐÚNG BA LẦN — `datacatalog:*` (L0), `export:confidential`+`exportlog:read` (L1),
+ * `exception:*` (L3) — và mỗi lần đều theo cùng một kịch bản: seed ném
+ * `Argument `permissionId` is missing` KHÔNG kèm tên quyền nào, phải dò tay để biết đã quên gì.
+ *
+ * Hai lần trước hoãn với lý do "gộp là thêm một cạnh vào đồ thị build, xứng một lát riêng".
+ * Cạnh đó hoá ra là: một dòng `"@ipms/shared": "workspace:*"` trong package.json + một dòng
+ * import — pnpm tự xếp thứ tự build theo phụ thuộc, `prisma generate` không liên quan (nó
+ * sinh `@prisma/client`, không đọc file này). Cái giá thật của việc hoãn lớn hơn cái giá của
+ * việc làm, và đó chính là lý do ghi lại con số ba lần ở đây.
+ */
+import { PERMISSIONS, EXCEPTION_GRANTABLE_PERMISSIONS } from '@ipms/shared';
 
 // [Trục B L0] Quyền cá nhân — MỌI role đều có (đúng khuôn taskdict:read đã dùng ở Go-live Từ điển).
 const SELF_PERMISSIONS = [
@@ -152,6 +88,8 @@ const GLOBAL_ROLES: Record<string, string[]> = {
     'task:feedback',
     // [Trục B L4] Impersonation CHỈ ĐỌC có kiểm soát — không cần Entra, đã kéo vào phạm vi
     'user:impersonate',
+    // [Trục C L3] xin + đọc đơn ngoại lệ; KHÔNG duyệt (K5 — duyệt là việc của data_steward)
+    'exception:request', 'exception:read',
     // KHÔNG có 'audit:read' (J3 — người quản trị không đọc vết của chính mình)
     // KHÔNG có 'flag:write' (tầng ① Platform Admin — lộ trình B1)
   ],
@@ -211,7 +149,9 @@ const GLOBAL_ROLES: Record<string, string[]> = {
   // [Trục C L1] `exportlog:read` — B0 đọc sổ vết xuất dữ liệu. Đặt ở auditor chứ không ở
   // tenant_admin/hrbp theo đúng tinh thần J3: người vận hành đường xuất không tự soát vết
   // xuất của mình. Là quyền ĐỌC nên không phá bất biến "auditor không giữ quyền ghi nào".
-  auditor: ['tenant:read', 'audit:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read', 'exportlog:read'],
+  // [Trục C L3] `exception:read` — B0 rà được MỌI đơn ngoại lệ, kể cả đơn mình không xin và
+  // không duyệt. Vẫn là quyền ĐỌC ⇒ không phá bất biến "auditor không giữ quyền ghi nào".
+  auditor: ['tenant:read', 'audit:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read', 'exportlog:read', 'exception:read'],
   exec_viewer: ['tenant:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read'],
   /**
    * [Trục C L1 — chủ dự án chốt 30/07: "giữ nguyên + B1 cấp cho 1–2 người"]
@@ -245,6 +185,8 @@ const GLOBAL_ROLES: Record<string, string[]> = {
     'system:health', 'integration:status', 'ai:usage_read',
     'flag:read', 'flag:write',
     'exportlog:read_metadata', 'audit:read_metadata',
+    // [Trục C L3] xin được ngoại lệ, KHÔNG duyệt được (K5)
+    'exception:request',
   ],
   /**
    * [Trục C L2b — K11] Hỗ trợ kỹ thuật. BẢN PHẢN CHIẾU của `SUPPORT_ROLE_PERMISSIONS` trong
@@ -268,7 +210,14 @@ const GLOBAL_ROLES: Record<string, string[]> = {
   // [Trục C L0] Chủ dữ liệu — B3 (nền tảng, nhật ký) + B5 (tuân thủ). Vai DUY NHẤT được
   // sửa sổ đăng ký dữ liệu. Không kèm quyền nghiệp vụ nào: sổ này quyết định dữ liệu được
   // xử lý thế nào, nên người giữ nó không nên đồng thời là người xử lý dữ liệu đó.
-  data_steward: ['tenant:read', 'org:read', 'datacatalog:read', 'datacatalog:write'],
+  // [Trục C L3] `exception:approve` đặt Ở ĐÂY, không ở `tenant_admin`: người duyệt một ngoại
+  // lệ dữ liệu phải là người chịu trách nhiệm về dữ liệu (B5 tuân thủ), không phải người vận
+  // hành cần nới. `data_steward` cũng KHÔNG có `exception:request` — vai duy nhất duyệt được
+  // thì không nên đồng thời là vai xin, dù K5 đã chặn tự duyệt trên từng đơn.
+  data_steward: [
+    'tenant:read', 'org:read', 'datacatalog:read', 'datacatalog:write',
+    'exception:approve', 'exception:read',
+  ],
 };
 
 // [Go-live Từ điển Tác vụ] Tra cứu Từ điển canonical là tài nguyên tham chiếu TOÀN HÀNG
@@ -399,6 +348,42 @@ async function main() {
       update: {},
       create: { id: uuidv7(), code, nameVi, nameEn: nameVi, type },
     });
+
+    /**
+     * [Trục C L3 — K4] Vai TẠM cho ngoại lệ có thời hạn: một vai cho mỗi quyền trong
+     * `EXCEPTION_GRANTABLE_PERMISSIONS`, mang ĐÚNG một quyền đó.
+     *
+     * Dựng ở SEED chứ không lúc duyệt đơn, vì `ipms_app` cố ý không có INSERT trên `role` —
+     * tầng ứng dụng không đúc ra vai (cùng họ [F1] "app chỉ ĐỌC feature_flag"). Phát hiện khi
+     * chạy thật ở L3: bản đầu tạo vai lúc duyệt và ăn `permission denied for table role`.
+     * Cách sửa sai là GRANT thêm cho ipms_app; cách đúng là chốt danh sách vai ở đây.
+     *
+     * TENANT-SCOPED, không toàn cục: `GET /admin/roles` chỉ liệt kê vai toàn cục, nên các vai
+     * này KHÔNG lọt vào danh mục `tenant_admin` gán tay được — quyền nới chỉ tới người qua
+     * đúng một đường: một đơn ngoại lệ đã được duyệt.
+     */
+    for (const p of EXCEPTION_GRANTABLE_PERMISSIONS) {
+      const code_ = `exception:${p}`;
+      let r = await prisma.role.findFirst({ where: { tenantId: tenant.id, code: code_ } });
+      if (!r) {
+        r = await prisma.role.create({
+          data: {
+            id: uuidv7(), tenantId: tenant.id, code: code_,
+            nameVi: `Ngoại lệ có hạn — ${p}`, nameEn: `Time-boxed exception — ${p}`,
+          },
+        });
+      }
+      await prisma.rolePermission.upsert({
+        where: { roleId_permissionId: { roleId: r.id, permissionId: permIds[p] } },
+        update: {},
+        create: { roleId: r.id, permissionId: permIds[p] },
+      });
+      // Vai tạm mang ĐÚNG một quyền — dọn mọi quyền thừa nếu ai đó thêm tay (đối xứng với
+      // bước dọn god-account ở trên: upsert chỉ THÊM, không tự siết).
+      await prisma.rolePermission.deleteMany({
+        where: { roleId: r.id, permissionId: { not: permIds[p] } },
+      });
+    }
 
     const root = await prisma.orgUnit.upsert({
       where: { tenantId_code: { tenantId: tenant.id, code: 'ROOT' } },

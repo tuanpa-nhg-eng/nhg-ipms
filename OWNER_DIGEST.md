@@ -710,3 +710,44 @@ Tập quyền **suy ra, không liệt kê tay**: đúng bằng whitelist chỉ-�
 **VERIFY L2b:** **719 test / 56 suite** (baseline 687, +32) · typecheck `shared`+`db`+`api`+`web` sạch · `next build` PASS · driver sống **34/34** trên API :4000 **đã kill+restart** (+9 check cho L2b: quét 22 bề mặt ghi → 403 hết, bốn persona đóng vai được, J12②/J12⑤/J1⑤ hai chiều, và ca đối chứng `admin@ → emp1@`).
 
 **Việc kế tiếp:** L3 — ngoại lệ chính sách có thời hạn (K4 trần 72h, K5 người xin ≠ người duyệt).
+
+---
+
+## Trục C — L3 · **31/07/2026 · Ngoại lệ chính sách có thời hạn — đường nới quyền hợp lệ duy nhất**
+
+**Tóm tắt cho người bận:** từ nay khi một bất biến chặn đúng người vào đúng lúc cần, có một đường đi hợp lệ: xin → người khác duyệt → quyền mở trong tối đa 72 giờ → tự rụng. Không ai gia hạn được, kể cả sửa thẳng DB. Mỗi lần dùng đều để lại vết đếm được.
+
+**Vì sao lát này đáng làm thay vì "cứ để chặt":** mọi bất biến của trục C đúng cho ngày thường và sai cho một ca sự cố lúc 2 giờ sáng. Hệ không có đường nới hợp lệ thì người ta nới bằng đường không hợp lệ — cấp vai thẳng trong DB, hoặc mượn tài khoản người khác. Cả hai đều không để lại vết đọc được, tức mất luôn thứ mà cả trục này dựng lên để có.
+
+### Bốn chốt, mỗi chốt đặt ở đúng tầng
+
+| Bất biến | Thực thi ở đâu | Vì sao ở đó |
+|---|---|---|
+| Trần 72 giờ (đơn vị **hạ** được, không nâng) | service + validator cấu hình | chính sách, đổi theo đơn vị |
+| **Không gia hạn** | **trigger DB** | phải sống lâu hơn mọi bản deploy — đây là chỗ "72 giờ" biến thành vĩnh viễn nếu để hở |
+| **Hết hạn là hết** | `PermissionGuard`, mỗi request | job dọn hỏng cũng không mở ra quyền nào |
+| Người xin ≠ người duyệt ≠ người nhận (K5) | service, ba vế | thiếu vế "người duyệt ≠ người nhận" thì nhờ người khác đứng tên xin hộ là lách xong |
+
+**Kiểm tại cửa, không tin job dọn** — đây là điểm tôi muốn chủ dự án để ý nhất. Cách làm hiển nhiên là để một job nền quét và gỡ vai hết hạn; khi đó giữa mốc hết hạn và lần job chạy kế tiếp luôn có một khoảng quyền vẫn dùng được, dài ngắn tuỳ job còn sống hay không — tức một bất biến an ninh phụ thuộc sức khoẻ của một tiến trình nền. Test chứng minh điều ngược lại: rút hạn xuống 2,5 giây, chờ thật, **không gọi job nào**, quyền mất — và hàng `user_role` vẫn nằm nguyên đó chưa ai dọn.
+
+**Ngoại lệ mở quyền ĐỌC, không mở đường XUẤT và không mở quyền GHI.** Không phải "cho chắc": hết hạn thu hồi được một quyền đọc, nhưng không thu hồi được một tệp đã rời hệ hay một bản ghi đã hỏng. Bất đối xứng về khả năng hoàn tác là toàn bộ lý do. Nên `export:confidential` (K3) và `audit:read` (J3) **không** nới được — có ca kiểm cho cả hai.
+
+**Ai duyệt:** `data_steward` (B5 tuân thủ) — vai **duy nhất** giữ `exception:approve`, và cố ý **không** có `exception:request`. Người vận hành cần nới (B3 nền tảng, quản trị đơn vị) chỉ xin được. Ma trận RBAC có test đóng đinh: không vai nào giữ đồng thời hai quyền đó — vì nếu có, K5 chỉ còn là "đừng bấm nhầm nút".
+
+**Lối ra mà L2 đã hẹn nay chạy thật:** `platform_admin` bị L2 giới hạn ở số đếm; muốn xem sổ vết chi tiết một sự cố thì đi qua đúng đường này. Driver sống chứng minh trọn vòng trên API thật.
+
+### Hai phát hiện khi chạy thật
+
+① **`ipms_app` KHÔNG có quyền INSERT vào `role`.** Bản đầu tạo vai tạm lúc duyệt đơn và ăn `permission denied for table role`. Đó không phải thiếu sót cấu hình mà là một bất biến có từ Phase 0: tầng ứng dụng không đúc ra vai và quyền (cùng họ [F1] "app chỉ ĐỌC feature_flag"). **Cách sửa sai mà tôi đã loại: `GRANT INSERT ON role`** — nó biến "một request bất kỳ đúc được một vai mang quyền bất kỳ" thành chuyện có thể xảy ra. Cách chọn: seed dựng sẵn đúng một vai cho mỗi quyền trong allowlist; thiếu vai thì fail-closed 422, không có đường "tự tạo cho tiện". Các vai này tenant-scoped nên **không lọt vào danh mục `tenant_admin` gán tay được**.
+
+② **Một lỗi thật trong báo cáo unit economics, không liên quan L3, lộ ra vì DB dev vượt ngưỡng.** `GET /ai/economics` lấy 10.000 dòng mới nhất **rồi mới** loại traffic eval. Dưới ngưỡng thì hai cách cho kết quả giống hệt nhau — nên lỗi ngủ yên từ trục AI. Vượt ngưỡng thì mẫu bão hoà: mỗi dòng eval mới **đẩy một dòng người dùng thật ra khỏi mẫu**, và con số "calls" **tụt xuống** khi hệ chạy eval nhiều hơn. DB dev đang có 11.287 dòng/30 ngày, **8.765 trong đó là eval** — tức báo cáo đang đếm thiếu hành vi người dùng thật, đúng con số PRD §16 dùng để quyết "có bật live không". Đã chuyển phép lọc vào truy vấn (giữ lớp lọc trong bộ nhớ làm lưới chắn thứ hai).
+
+### Nợ kỹ thuật đã trả
+
+`packages/db/src/seed.ts` **hết chép tay `PERMISSIONS`** — nay import thẳng từ `@ipms/shared`. Món này đã cắn đúng ba lần (L0, L1, L3), mỗi lần cùng một kịch bản: seed ném `Argument 'permissionId' is missing` không kèm tên quyền, phải dò tay. Hai lần trước hoãn với lý do "thêm một cạnh vào đồ thị build, xứng một lát riêng"; cạnh đó hoá ra là **một dòng trong package.json + một dòng import**. Ghi lại vì bài học không nằm ở kỹ thuật mà ở ước lượng: cái giá của việc hoãn đã lớn hơn cái giá của việc làm từ lần thứ hai.
+
+Cũng gom về một mối: mệnh đề "vai còn hiệu lực" (`activeUserRoleWhere`) — có **bảy** chỗ trong API đọc `user_role` để suy ra quyền; thêm cột `expires_at` mà chỉ nhớ ở sáu chỗ thì chỗ thứ bảy hoặc chặn oan, hoặc coi vai đã hết hạn là còn hiệu lực.
+
+**VERIFY L3:** **761 test / 58 suite** (baseline 719, +42) · typecheck `shared`+`db`+`api`+`web` sạch · `next build` PASS · driver sống **42/42** trên API :4000 đã kill+restart, **chạy hai vòng liên tiếp cùng kết quả** (+8 check cho L3).
+
+**Việc kế tiếp:** L4 — cờ rủi ro sinh tự động + luồng sự cố + dashboard bốn khối.

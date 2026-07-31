@@ -42,7 +42,24 @@ export class EconomicsService {
     const since = new Date(Date.now() - WINDOW_DAYS * 86_400_000);
     const { rows: rawRows, prices } = await this.prisma.withTenant(user.tenantId, async (tx) => ({
       rows: await tx.aiInteraction.findMany({
-        where: { at: { gte: since } },
+        // [F163 — vá lần hai, tự bắt khi chạy L3] Lọc traffic eval NGAY TRONG TRUY VẤN, không
+        // chỉ ở bộ nhớ sau khi đã `take`.
+        //
+        // Bản đầu lọc sau: `take: SAMPLE_CAP` lấy 10.000 dòng MỚI NHẤT rồi mới bỏ eval. Chừng
+        // nào tổng số dòng còn dưới trần thì hai cách cho kết quả giống hệt nhau — nên lỗi ngủ
+        // yên rất lâu. Vượt trần thì mẫu bão hoà: mỗi dòng eval mới ĐẨY một dòng người dùng
+        // thật ra khỏi mẫu, và con số "calls" TỤT XUỐNG khi hệ thống chạy eval nhiều hơn. DB
+        // dev hiện có 11.287 dòng / 8.765 trong đó là eval — tức mẫu gần như toàn eval và
+        // báo cáo unit economics đang ĐẾM THIẾU hành vi người dùng thật.
+        //
+        // Đây đúng là con số PRD §16 dùng để quyết "có bật live không", nên sai lệch theo
+        // hướng đếm thiếu còn nguy hiểm hơn đếm thừa. `toolName` NULL (hầu hết traffic thật)
+        // phải được GIỮ — điều kiện NOT trên cột nullable trong SQL loại luôn NULL, nên viết
+        // tường minh hai nhánh.
+        where: {
+          at: { gte: since },
+          OR: [{ toolName: null }, { NOT: { toolName: { startsWith: 'eval:' } } }],
+        },
         select: {
           agent: true, toolName: true, model: true, status: true,
           tokensIn: true, tokensOut: true, costUsd: true, latencyMs: true,
@@ -53,9 +70,9 @@ export class EconomicsService {
       prices: await tx.aiModelPrice.findMany({ where: { deletedAt: null } }),
     }));
 
-    // [F163] LOẠI traffic eval replay (toolName 'eval:*') — chạy golden suite trong
-    // CI/dev không phải hành vi người dùng; đếm vào calls/tháng làm projection
-    // "chi phí nếu bật live" sai lệch hàng chục lần — đúng con số quyết định PRD §16.
+    // [F163] Lớp thứ hai của cùng một luật — giữ lại có chủ đích. Truy vấn ở trên là chỗ
+    // quyết định (nó ảnh hưởng cả MẪU), còn dòng này là lưới chắn cho trường hợp ai đó sửa
+    // `where` mà quên: thà lọc hai lần còn hơn để traffic CI lọt vào con số chi phí.
     const rows = rawRows.filter((r) => !r.toolName?.startsWith('eval:'));
 
     const priceRows = dedupeModelPrices(prices).map((p) => ({

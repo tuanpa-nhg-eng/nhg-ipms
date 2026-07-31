@@ -71,6 +71,11 @@ export const PERMISSIONS = [
   //  · 'exportlog:read' — đọc sổ nhật ký xuất. Cấp cho `auditor` (B0) ở L1; `platform_admin`
   //    nhận ở L2. KHÔNG cấp cho vai vận hành: người xuất không tự soát vết xuất của mình.
   'export:confidential', 'exportlog:read',
+  // [Trục C L3] Ngoại lệ chính sách có thời hạn. Ba quyền TÁCH nhau vì K5 (người xin ≠
+  // người duyệt) chỉ có nghĩa khi hai việc đó là hai quyền khác nhau — gộp lại thì bất biến
+  // biến thành lời khuyên. `exception:read` tách tiếp: B0 phải rà được đơn mình không xin,
+  // không duyệt.
+  'exception:request', 'exception:approve', 'exception:read',
   // [Trục C L2] Quản trị NỀN TẢNG (tầng ①) — vận hành toàn hệ, KHÔNG đọc nội dung nghiệp vụ.
   // Không quyền nào ở đây chạm được một dòng `review`/`scorecard_item`/`evidence`/`person`:
   // chúng chỉ mở read model metadata (`platform_snapshot`) + hai hành động vận hành
@@ -201,6 +206,10 @@ export const PLATFORM_ADMIN_PERMISSIONS: readonly PermissionCode[] = [
   // KHÔNG phải `exportlog:read` — đó là quyền đọc sổ vết CHI TIẾT trong phạm vi đơn vị
   // (`auditor`/B0). Tầng nền tảng chỉ được số đếm (K1). Xem ghi chú ở catalog phía trên.
   'exportlog:read_metadata', 'audit:read_metadata',
+  // [Trục C L3] XIN được ngoại lệ, KHÔNG duyệt được (K5). Đây là lối ra cho đúng giới hạn mà
+  // L2 cố ý đặt: B3 thấy SỐ LẦN xuất dữ liệu, muốn xem chi tiết một sự cố thì đi xin quyền
+  // đọc có thời hạn và có người duyệt — không phải được cấp sẵn vĩnh viễn.
+  'exception:request',
 ];
 
 /**
@@ -319,6 +328,62 @@ export const MUTUALLY_EXCLUSIVE_ROLES: ReadonlyArray<readonly [string, string]> 
   ['support', 'tenant_admin'],
   ['support', 'org_admin'],
 ];
+
+/**
+ * [Trục C L3 — K4] TRẦN CỨNG thời hạn ngoại lệ: 72 giờ (§6 giả định 1 — đủ cho một ca xử lý
+ * sự cố cuối tuần, ngắn hơn một chu kỳ báo cáo).
+ *
+ * "Cấu hình được XUỐNG thấp hơn, KHÔNG lên cao hơn" (§4 L3). Hằng số này là trần trên của
+ * mọi cấu hình đơn vị — đặt trong MÃ chứ không trong `tenant.settings` để một đơn vị không
+ * tự nới trần của chính mình; xem `resolveExceptionTtlCap()`.
+ */
+export const EXCEPTION_MAX_TTL_HOURS = 72;
+
+/**
+ * Trần hiệu lực cho một đơn vị = min(trần cứng, cấu hình đơn vị nếu có). Viết bằng `min` chứ
+ * không bằng "nếu có cấu hình thì dùng cấu hình": khác biệt lộ ra đúng lúc ai đó đặt
+ * `exceptionMaxTtlHours: 720` — bản `min` bỏ qua, bản kia mở toang trần cứng. Validator ở
+ * `tenant-config.service` cũng chặn giá trị >72, nhưng một giá trị cũ nằm sẵn trong
+ * `tenant.settings` từ trước khi có validator vẫn đọc được — nên chặn ở CẢ HAI đầu.
+ */
+export function resolveExceptionTtlCap(configuredHours?: unknown): number {
+  const n = typeof configuredHours === 'number' && Number.isFinite(configuredHours)
+    ? configuredHours : EXCEPTION_MAX_TTL_HOURS;
+  return Math.max(1, Math.min(EXCEPTION_MAX_TTL_HOURS, Math.floor(n)));
+}
+
+/**
+ * [Trục C L3 — K4] Quyền được phép nới bằng ngoại lệ — ALLOWLIST TƯỜNG MINH, không suy diễn.
+ *
+ * Nguyên tắc đứng sau danh sách: **ngoại lệ mở được quyền ĐỌC, không mở được đường XUẤT và
+ * không mở được quyền GHI.** Lý do không phải "cho chắc" mà là bất đối xứng về khả năng hoàn
+ * tác: một lần đọc sai thẩm quyền là một sự cố có thể điều tra và đóng lại; một lần GHI hoặc
+ * XUẤT sai thẩm quyền để lại dữ liệu hỏng hoặc một tệp đã rời hệ, mà hết hạn ngoại lệ không
+ * thu hồi được. Vì vậy `export:confidential` KHÔNG có ở đây — K3 và bảng trần xuất
+ * (`exportDecision`) không có đường vòng, kể cả có ngoại lệ.
+ *
+ * `audit:read` cũng KHÔNG có: J3 nói người quản trị không đọc vết của chính mình, và một
+ * ngoại lệ 72 giờ do chính tầng quản trị xin là đúng cách lách nó. Vết kiểm toán muốn mở cho
+ * ai thì đó là quyết định của B0 qua vai `auditor`, không qua đơn xin.
+ *
+ * Ca dùng thật đã biết, để danh sách này không phải phỏng đoán:
+ *   · `exportlog:read` — B3 điều tra một sự cố xuất dữ liệu ở một đơn vị (L2 cố ý chỉ cho
+ *     tầng nền tảng SỐ ĐẾM; chi tiết đi qua đây, đúng như ghi chú ở L2)
+ *   · `person:read` / `review:read` / `evidence:read` / `checkin:read` — hỗ trợ hoặc tuân
+ *     thủ cần nhìn một hồ sơ cụ thể ngoài phạm vi thường ngày
+ *   · `datacatalog:read`, `config:read`, `taskcell:read` — tra cứu cấu hình khi xử lý sự cố
+ */
+export const EXCEPTION_GRANTABLE_PERMISSIONS: readonly PermissionCode[] = [
+  'exportlog:read',
+  'person:read', 'review:read', 'evidence:read', 'checkin:read', 'goal:read',
+  'scorecard:read', 'kpi:read', 'strategy:read',
+  'datacatalog:read', 'config:read', 'taskcell:read',
+  'org:read', 'user:read', 'role:read', 'tenant.config:read',
+];
+
+/** Trạng thái một đơn ngoại lệ. `expired` do đường đọc/job suy ra, không ai bấm. */
+export const EXCEPTION_STATUSES = ['pending', 'approved', 'rejected', 'revoked', 'expired'] as const;
+export type ExceptionStatus = (typeof EXCEPTION_STATUSES)[number];
 
 /** JWT claims chuẩn nội bộ — map sẵn theo Entra ID để cắm SSO sau. */
 export interface IpmsJwtClaims {

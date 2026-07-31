@@ -20,6 +20,10 @@ const KEY_WHITELIST = new Map<string, (v: unknown) => boolean>([
   ['reminderThresholdDays', (v) => typeof v === 'number' && v >= 0 && v <= 90],
   ['notifyOnCheckinDue', (v) => typeof v === 'boolean'],
   ['notifyOnReviewFinalized', (v) => typeof v === 'boolean'],
+  // [Trục C L3 — K4] Trần thời hạn ngoại lệ của ĐƠN VỊ. Chặn >72 ngay ở validator, và
+  // `resolveExceptionTtlCap` vẫn `min()` lần nữa lúc đọc — hai đầu, vì một giá trị cũ nằm
+  // sẵn trong `tenant.settings` từ trước khi có validator này vẫn đọc ra được.
+  ['exceptionMaxTtlHours', (v) => typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 72],
 ]);
 
 export type TenantConfigPatch = Record<string, unknown>;

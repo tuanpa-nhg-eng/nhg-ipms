@@ -7,6 +7,7 @@ import { MUTUALLY_EXCLUSIVE_ROLES } from '@ipms/shared';
 import { PrismaService } from '../../prisma.service';
 import type { RequestUser } from '../../common/auth/decorators';
 import { effectiveScope } from '../../common/auth/scope.util';
+import { activeUserRoleWhere } from '../../common/auth/user-role.where';
 
 /**
  * [Trục B L1 — J1] Gán/thu hồi vai trò — đường leo thang quyền kinh điển. Bê nguyên khuôn
@@ -245,7 +246,7 @@ export class AdminRolesService {
         });
         if (sodRules.length > 0) {
           const granteeRoles = await tx.userRole.findMany({
-            where: { appUserId: input.granteeId, deletedAt: null, role: { deletedAt: null } },
+            where: { appUserId: input.granteeId, ...activeUserRoleWhere() },
             select: { roleId: true },
           });
           const granteePerms = new Set<string>();
@@ -384,7 +385,7 @@ export class AdminRolesService {
       }
 
       const roles = await tx.userRole.findMany({
-        where: { appUserId: targetAppUserId, deletedAt: null, role: { deletedAt: null } },
+        where: { appUserId: targetAppUserId, deletedAt: null, role: { deletedAt: null } },  // vai HẾT HẠN vẫn liệt kê (có cột `expiresAt`), nhưng KHÔNG vào tập quyền — xem dưới
         include: { role: { include: { rolePermissions: { include: { permission: { select: { code: true } } } } } } },
         orderBy: { createdAt: 'asc' },
       });
@@ -394,8 +395,14 @@ export class AdminRolesService {
         : [];
       const granterEmail = new Map(granters.map((g) => [g.id, g.email]));
 
+      // [Trục C L3 — K4] Vai TẠM đã hết hạn vẫn được LIỆT KÊ (màn quản trị phải thấy "người
+      // này từng được cấp gì, tới khi nào") nhưng KHÔNG được cộng vào tập quyền — đây là màn
+      // trả lời câu hỏi "hiện giờ người này làm được gì", và một quyền đã rụng mà còn hiện ở
+      // đó là câu trả lời sai đúng vào lúc người quản trị đang tin nó nhất.
+      const now = Date.now();
+      const live = (r: { expiresAt: Date | null }) => !r.expiresAt || r.expiresAt.getTime() > now;
       const allPerms = new Set<string>();
-      for (const r of roles) for (const rp of r.role.rolePermissions) allPerms.add(rp.permission.code);
+      for (const r of roles.filter(live)) for (const rp of r.role.rolePermissions) allPerms.add(rp.permission.code);
 
       return {
         appUserId: target.id,
@@ -408,6 +415,11 @@ export class AdminRolesService {
           scopeId: r.scopeId,
           grantedAt: r.createdAt,
           grantedBy: r.createdBy ? { id: r.createdBy, email: granterEmail.get(r.createdBy) ?? null } : null,
+          // [Trục C L3] hai cột này là đường truy ngược "vai lạ ở đâu ra": vai tạm luôn kèm
+          // đơn ngoại lệ đã duyệt, không có đường nào khác tạo ra `expiresAt`.
+          expiresAt: r.expiresAt,
+          policyExceptionId: r.policyExceptionId,
+          expired: !live(r),
         })),
       };
     });

@@ -9,6 +9,7 @@ import { PrismaService } from '../../prisma.service';
 import type { RequestUser } from '../../common/auth/decorators';
 import { getJwtSecret } from '../../common/auth/jwt.guard';
 import { hasTenantScope } from '../../common/auth/scope.util';
+import { activeUserRoleWhere } from '../../common/auth/user-role.where';
 
 /**
  * [Trục B L4] Impersonation CHỈ ĐỌC có kiểm soát — "cho phép NHÌN THẤY cái người dùng
@@ -103,7 +104,7 @@ export class ImpersonationService {
       }
 
       const roles = await tx.userRole.findMany({
-        where: { appUserId: target.id, deletedAt: null, role: { deletedAt: null } },
+        where: { appUserId: target.id, ...activeUserRoleWhere() },
         select: { roleId: true },
       });
       const targetPerms = new Set<string>();

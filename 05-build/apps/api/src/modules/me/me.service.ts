@@ -2,6 +2,7 @@ import { ConflictException, Injectable, UnprocessableEntityException } from '@ne
 import { PrismaService } from '../../prisma.service';
 import type { RequestUser } from '../../common/auth/decorators';
 import { ImpersonationService } from '../admin/impersonation.service';
+import { activeUserRoleWhere } from '../../common/auth/user-role.where';
 
 /**
  * [Trục B L1] "Quyền của tôi" + tuỳ chọn cá nhân + thông báo — mọi role, luôn CHÍNH MÌNH.
@@ -29,7 +30,7 @@ export class MeService {
   async access(user: RequestUser) {
     return this.prisma.withTenant(user.tenantId, async (tx) => {
       const roles = await tx.userRole.findMany({
-        where: { appUserId: user.claims.sub, deletedAt: null, role: { deletedAt: null } },
+        where: { appUserId: user.claims.sub, ...activeUserRoleWhere() },
         include: { role: { include: { rolePermissions: { include: { permission: { select: { code: true } } } } } } },
         orderBy: { createdAt: 'asc' },
       });

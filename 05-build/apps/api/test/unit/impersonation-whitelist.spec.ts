@@ -47,7 +47,11 @@ describe('[Trục B L4 — J11] IMPERSONATION_READ_WHITELIST', () => {
   // vì người vận hành đường xuất không được tự soát vết xuất của mình — nếu whitelist giữ nó
   // thì tenant_admin chỉ cần đóng vai auditor@ là đọc được, đúng đường vòng mà F187 đã bịt
   // cho audit:read. Quy tắc rút ra: quyền ĐỌC HỒ SƠ GIÁM SÁT không bao giờ vào whitelist.
-  const READ_EXCLUDED_FROM_IMPERSONATION = ['audit:read', 'exportlog:read'] as const;
+  // [Trục C L3] `exception:read` vào cùng nhóm loại trừ, theo đúng quy tắc hai dòng trên đã
+  // rút ra: sổ ngoại lệ là HỒ SƠ GIÁM SÁT (ai đang thiếu quyền gì, ai đã duyệt cho ai), không
+  // phải dữ liệu nghiệp vụ. Đọc được nó qua kênh đóng vai nghĩa là mượn được bản đồ điểm yếu
+  // quyền hạn của cả đơn vị — thứ mà chính lát L3 tồn tại để giữ trong tay B0/B5.
+  const READ_EXCLUDED_FROM_IMPERSONATION = ['audit:read', 'exportlog:read', 'exception:read'] as const;
 
   it('[F187] "audit:read" KHÔNG nằm trong whitelist — J3 không lách được qua đóng vai', () => {
     expect(IMPERSONATION_READ_WHITELIST as readonly string[]).not.toContain('audit:read');
@@ -55,6 +59,10 @@ describe('[Trục B L4 — J11] IMPERSONATION_READ_WHITELIST', () => {
 
   it('[Trục C L1] "exportlog:read" KHÔNG nằm trong whitelist — không đọc sổ vết xuất qua đóng vai', () => {
     expect(IMPERSONATION_READ_WHITELIST as readonly string[]).not.toContain('exportlog:read');
+  });
+
+  it('[Trục C L3] "exception:read" KHÔNG nằm trong whitelist — sổ ngoại lệ cũng là hồ sơ giám sát', () => {
+    expect(IMPERSONATION_READ_WHITELIST as readonly string[]).not.toContain('exception:read');
   });
 
   it('khớp CHÍNH XÁC tập quyền hậu tố ":read" của catalog TRỪ các ngoại lệ tường minh — không thừa, không thiếu', () => {

@@ -17,6 +17,7 @@
     "schema": "prisma/schema.prisma"
   },
   "dependencies": {
+    "@ipms/shared": "workspace:*",
     "@prisma/client": "^5.22.0",
     "uuidv7": "^1.0.2"
   },
