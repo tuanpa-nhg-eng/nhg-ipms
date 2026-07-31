@@ -882,3 +882,42 @@ Hai test khoá vòng lặp này lại: trạng thái BRD phải khớp bảng đ
 **VERIFY L6:** **869 test / 63 suite** (baseline 825, +44) · typecheck `shared`+`db`+`api`+`web` sạch · `next build` PASS · driver sống **55/55** trên API đã kill+restart, **chạy hai vòng liên tiếp cùng kết quả**.
 
 **Việc kế tiếp:** L7 — verify toàn trục + mời Reviewer đối kháng (vé đánh số từ **F191**).
+
+---
+
+## Trục C — L7 · **31/07/2026 · Verify toàn trục + đội đỏ tự đánh — SẴN SÀNG MỜI REVIEWER**
+
+**Trạng thái:** mọi phép kiểm của kế hoạch §4 L7 đã chạy và xanh. **Reviewer đối kháng là bước của chủ dự án** (`/code-review ultra`) — tôi không tự gọi được, và cũng không nên: một bên tự chấm mình thì không còn là đối kháng.
+
+### Verify toàn trục
+
+| Phép kiểm | Kết quả |
+|---|---|
+| Bộ test đầy đủ, `runInBand` | **869/869 · 63 suite** (điểm xuất phát trục C: 633) |
+| Typecheck `shared` + `db` + `api` + `web` | sạch |
+| `next build` | PASS |
+| Render mọi route web | **36/36** (35 trang trả 200; `/` là redirect 307 sang `/exec/cockpit` — đúng thiết kế) |
+| Driver sống `verify-governance.mjs` | **55/55**, chạy **hai vòng liên tiếp cùng kết quả**, trên API đã kill+restart |
+| Đội đỏ `verify-redteam-truc-c.mjs` *(mới)* | **16/16 đòn bị chặn**, 0 lỗ |
+
+### Đội đỏ tự đánh — đánh đúng sáu trọng tâm Reviewer sẽ soi
+
+Kế hoạch §4 L7 chỉ định sẵn năm hướng tấn công cộng một ca đối chứng bắt buộc. Tôi viết một driver riêng đi tìm **đường vòng**, khác hẳn driver kia (chứng minh tính năng chạy đúng). Kết quả: **không tìm thấy lỗ nào**.
+
+Những đòn đáng kể đã bị chặn: mượn quyền người khác qua phiên đóng vai để xuất dữ liệu · nới trần xuất bằng ngoại lệ có hạn (K3 không có đường vòng) · đẩy outbox qua đường worker khi dữ liệu bị siết lên `restricted` · quét toàn bộ 13 bề mặt nghiệp vụ bằng token `platform_admin` · tự duyệt đơn ngoại lệ của chính mình, và duyệt cho chính mình qua người khác đứng tên xin · chạy job xoá bằng lượt thử của **mã dữ liệu khác** · đặt chính sách xoá cho sổ kiểm toán · sửa/xoá một cờ rủi ro bằng tay.
+
+**Ca đối chứng bắt buộc cũng xanh:** nhân viên, HR, quản trị đơn vị và kiểm toán viên đều làm được đúng việc của mình — **các hạn chế mới không chặn oan luồng nghiệp vụ đang chạy**. Đặc biệt: `tenant_admin` vẫn gán được `employee` và `exec_viewer`, tức mốc demo onboard của trục B còn nguyên sau bảy lát.
+
+### Ba ghi nhận cần chủ dự án quyết — đúng thiết kế, không phải lỗi
+
+① **K9 nới được tạm thời qua đường ngoại lệ hợp lệ — và bề mặt nền tảng TỰ KHOÁ khi đó.** `platform_admin` xin được quyền `person:read`, B5 duyệt, và nó đọc được `/persons`. Nhưng ngay lúc đó `GET /platform/tenants` trả **409**: phòng tuyến thứ hai của L2 (`assertWithinAllowlist`) phát hiện vai giữ quyền ngoài allowlist và khoá cả bề mặt nền tảng. Hai lớp bảo vệ tương tác **đúng chiều** — nới quyền đọc thì mất quyền vận hành, không có trạng thái "vừa xuyên đơn vị vừa đọc nội dung". Đáng ghi vào hồ sơ vì hành vi này không hiển nhiên với người vận hành: họ sẽ thấy màn nền tảng "hỏng" ngay sau khi được duyệt một ngoại lệ.
+
+② **Không có trần TỔNG thời gian ngoại lệ.** Trần 72 giờ chặn đúng từng đơn, nhưng xin đơn mới nối nhau thì một quyền có thể duy trì lâu dài. Mỗi lần vẫn cần B5 duyệt và để lại vết đầy đủ, nên đây là **quyết định chính sách** chứ không phải lỗ kỹ thuật: có nên thêm trần "tối đa N giờ trong 30 ngày cho cùng một người + cùng một quyền" không?
+
+③ **`cold_archive` vẫn chưa thực thi được** (chưa có kho lạnh) và **`BR-M13-03` — luồng phê duyệt dùng chung — vẫn "một phần"** (bốn cơ chế riêng). Cả hai đã ghi ở L5/L6, nhắc lại ở đây để không trôi khi đóng sổ trục.
+
+### Gợi ý trọng tâm cho Reviewer đối kháng
+
+Vé đánh số tiếp từ **F191**. Sáu hướng tôi đã tự đánh và không thấy lỗ — nên Reviewer nên soi **những chỗ tôi có thiên kiến**: ① bề mặt nào KHÔNG đi qua guard (job nền, `@Res` raw, SSE) mà chạm được dữ liệu — L6 vừa vá một chỗ như thế, khả năng còn chỗ khác ② chỗ tôi tự viết cả mã lẫn test chứng minh cho cùng một bất biến ③ tương tác GIỮA các lát (ngoại lệ × nền tảng đã lộ ra một cái ở ①; còn cặp nào?) ④ các phép ĐO trong test/driver — trục này đã có **ba lỗi đo** (L4 danh sách có trần, L6 `total` là số dòng trang, L7 đội đỏ bắt nhầm dữ liệu cũ), nên chỗ nào tôi khẳng định "đã chứng minh" cần soi lại cách đo.
+
+**Ba lát cuối không phát sinh vé nào của chính tôi** — mọi lỗi tìm được đều đã vá trong cùng lát và ghi lại ở mục tương ứng.
