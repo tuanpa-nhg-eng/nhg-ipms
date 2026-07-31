@@ -78,6 +78,34 @@ export async function withPlatform<T>(
 }
 
 /**
+ * [Trục C L5] Đường XOÁ của job lưu trữ — bật GUC `app.retention_run` KÈM tenant context.
+ *
+ * Khác `withPlatformWrite` ở một điểm quan trọng: hàm này VẪN set `app.tenant_id`. Xoá dữ liệu
+ * luôn luôn nằm trong phạm vi một đơn vị, nên RLS phải còn nguyên hiệu lực — GUC ở đây chỉ mở
+ * đúng một cánh cửa hẹp (trigger `ai_interaction_delete_gate`), không thay thế cách ly đơn vị.
+ *
+ * Chỉ `RetentionService.apply` gọi hàm này. Mọi đường xoá khác trong ứng dụng vẫn bị trigger
+ * chặn dù `ipms_app` đã có quyền DELETE — quyền là điều kiện cần, GUC là điều kiện đủ.
+ */
+export async function withRetention<T>(
+  prisma: PrismaClient,
+  tenantId: string,
+  fn: (tx: TenantTx) => Promise<T>,
+): Promise<T> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenantId)) {
+    throw new Error(`Invalid tenant id: ${tenantId}`);
+  }
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true)`;
+      await tx.$executeRaw`SELECT set_config('app.retention_run', 'on', true)`;
+      return fn(tx);
+    },
+    { maxWait: 10_000, timeout: 20_000 },
+  );
+}
+
+/**
  * [Trục C L2] Đường GHI của tầng nền tảng — TÁCH HẲN khỏi `withPlatform`.
  *
  * Chỉ dùng cho hai việc mà bản chất là không-thuộc-đơn-vị-nào: tạo đơn vị mới (chưa có

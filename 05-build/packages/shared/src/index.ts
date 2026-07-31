@@ -82,6 +82,11 @@ export const PERMISSIONS = [
   // đếm; chi tiết một cờ có thể chứa tên người và tài nguyên bị chạm.
   'risk:read', 'risk:read_summary',
   'incident:read', 'incident:manage',
+  // [Trục C L5] Lưu trữ & xoá dữ liệu cá nhân. `retention:run` TÁCH khỏi `retention:manage`
+  // vì hai việc khác hẳn nhau về hậu quả: đặt chính sách sai thì sửa lại được, bấm chạy thật
+  // thì dữ liệu đã mất. Tách quyền để sau này B5 giao hai việc cho hai người mà không phải
+  // sửa mã — hôm nay cùng một vai giữ cả hai, và chốt an toàn là bắt buộc chạy thử trước.
+  'retention:read', 'retention:manage', 'retention:run',
   // [Trục C L2] Quản trị NỀN TẢNG (tầng ①) — vận hành toàn hệ, KHÔNG đọc nội dung nghiệp vụ.
   // Không quyền nào ở đây chạm được một dòng `review`/`scorecard_item`/`evidence`/`person`:
   // chúng chỉ mở read model metadata (`platform_snapshot`) + hai hành động vận hành
@@ -482,6 +487,48 @@ export function incidentStatusRank(s: string): number {
 
 /** Nguyên nhân gốc tối thiểu khi đóng sự cố — "đã xong" không phải một nguyên nhân. */
 export const INCIDENT_ROOT_CAUSE_MIN_LEN = 20;
+
+/**
+ * [Trục C L5] THỜI HẠN LƯU TRỮ — hành động và mặc định suy từ mức phân loại.
+ *
+ * `hard_delete` xoá hàng · `anonymize` giữ hàng, xoá phần NHẬN DẠNG ĐƯỢC (văn bản tự do) ·
+ * `cold_archive` chuyển kho lạnh · `keep` giữ vô thời hạn (dùng cho sổ vết).
+ *
+ * ⚠️ `cold_archive` HIỆN CHƯA THỰC THI ĐƯỢC: hệ chưa có kho lạnh. Một chính sách khai
+ * `cold_archive` sẽ được LƯU (đúng ý định của B5) nhưng lượt chạy trả về "chưa hỗ trợ" thay
+ * vì âm thầm không làm gì — im lặng ở đây sẽ bị đọc thành "đã lưu trữ xong".
+ */
+export const RETENTION_ACTIONS = ['hard_delete', 'anonymize', 'cold_archive', 'keep'] as const;
+export type RetentionAction = (typeof RETENTION_ACTIONS)[number];
+
+/**
+ * Mặc định suy từ mức phân loại (§4 L5). Càng nhạy cảm càng giữ NGẮN — ngược với trực giác
+ * "dữ liệu quan trọng thì giữ lâu", nhưng đúng tinh thần NĐ13: giữ lâu hơn mức cần thiết là
+ * tăng phơi nhiễm, không phải tăng an toàn.
+ *
+ * Ba con số cụ thể của B5 (§6 giả định 2) nằm ở seed dưới dạng chính sách theo từng mã dữ
+ * liệu, KHÔNG suy từ bảng này: kết quả đánh giá 5 năm · nhật ký hệ thống 2 năm · nhật ký kiểm
+ * toán 10 năm. Bảng này chỉ đỡ cho những mã chưa có chính sách riêng.
+ */
+export function defaultRetentionMonths(cls: DataClassification): number {
+  switch (cls) {
+    case 'restricted': return 36;
+    case 'confidential': return 60;
+    case 'internal': return 24;
+    default: return 120;
+  }
+}
+
+/**
+ * [K6] Hai sổ KHÔNG BAO GIỜ bị job lưu trữ đụng tới. Xoá sổ giám sát theo lịch nghĩa là tự
+ * xoá bằng chứng của chính mình — và vì job chạy đúng thì im lặng, không ai phát hiện.
+ * Chốt ở ba tầng: CHECK constraint (không lưu được chính sách), hằng số này (service từ chối),
+ * và không có executor nào trong `RETENTION_TARGETS` trỏ tới hai bảng đó.
+ */
+export const RETENTION_UNTOUCHABLE_ASSETS: readonly string[] = ['audit.log', 'export.log'];
+
+/** Trần hiệu lực một lượt chạy thử trước khi phải thử lại (giờ). */
+export const RETENTION_DRY_RUN_TTL_HOURS = 24;
 
 /** JWT claims chuẩn nội bộ — map sẵn theo Entra ID để cắm SSO sau. */
 export interface IpmsJwtClaims {

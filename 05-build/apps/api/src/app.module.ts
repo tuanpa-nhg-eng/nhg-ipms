@@ -98,6 +98,8 @@ import { PlatformController } from './modules/platform/platform.controller';
 import { PlatformService } from './modules/platform/platform.service';
 import { MeController } from './modules/me/me.controller';
 import { MeService } from './modules/me/me.service';
+import { RetentionController } from './modules/retention/retention.controller';
+import { RetentionService } from './modules/retention/retention.service';
 import { RiskController } from './modules/risk/risk.controller';
 import { RiskService } from './modules/risk/risk.service';
 import { PolicyExceptionController } from './modules/policy-exception/policy-exception.controller';
@@ -128,6 +130,7 @@ import { ImpersonationService } from './modules/admin/impersonation.service';
     ImpersonationController,
     PolicyExceptionController,
     RiskController,
+    RetentionController,
   ],
   providers: [
     PrismaService,
@@ -171,6 +174,7 @@ import { ImpersonationService } from './modules/admin/impersonation.service';
     PlatformService,
     PolicyExceptionService,
     RiskService,
+    RetentionService,
     // Guard pipeline Spec Config Studio §7: Jwt → Tenant → Permission (RBAC) → Policy (ABAC #2)
     // [Trục C L1] → Export (trần xuất dữ liệu). ĐỨNG CUỐI có chủ đích: cần
     // `req.ipmsUser.permissions` do PermissionGuard dựng, và ngữ nghĩa của nó là tầng riêng —

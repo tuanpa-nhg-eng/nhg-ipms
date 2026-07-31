@@ -54,8 +54,11 @@ describe('[Trục B L4 — J11] IMPERSONATION_READ_WHITELIST', () => {
   // [Trục C L4] `risk:read` và `incident:read` cùng nhóm loại trừ, theo đúng quy tắc đã rút ra
   // ở L1/L3: hồ sơ GIÁM SÁT không đi qua kênh đóng vai. Sổ cờ rủi ro là bản đồ "hệ thống đang
   // bị chạm ở đâu"; hồ sơ sự cố là "đang xử lý cái gì, ai phụ trách". Cả hai đều thuộc B5/B0.
+  // [Trục C L5] `retention:read` — cùng nhóm: chính sách lưu trữ + sổ lượt chạy là hồ sơ tuân
+  // thủ, và đọc được nó qua kênh đóng vai nghĩa là biết trước "dữ liệu nào sắp bị xoá lúc nào".
   const READ_EXCLUDED_FROM_IMPERSONATION = [
     'audit:read', 'exportlog:read', 'exception:read', 'risk:read', 'incident:read',
+    'retention:read',
   ] as const;
 
   it('[F187] "audit:read" KHÔNG nằm trong whitelist — J3 không lách được qua đóng vai', () => {

@@ -2,7 +2,7 @@
 /**
  * DRIVER SỐNG — TRỤC C "Lớp bảo vệ niềm tin"
  *   L0 sổ đăng ký · L1 kiểm soát xuất · L2 quản trị nền tảng · L2b vai `support` ·
- *   L3 ngoại lệ có thời hạn · L4 cờ rủi ro & sự cố
+ *   L3 ngoại lệ có thời hạn · L4 cờ rủi ro & sự cố · L5 lưu trữ & xoá NĐ13
  *
  *   node scripts/verify/verify-governance.mjs
  *
@@ -69,7 +69,7 @@ const msgOf = (r) => String(r.json?.error?.message ?? r.json?.message ?? '');
 
 // ══════════════════════════════════════════════════════════════════════
 async function main() {
-  console.log(`\n${c.y}DRIVER SỐNG — TRỤC C L0 · L1 · L2 · L2b · L3 · L4${c.x}`);
+  console.log(`\n${c.y}DRIVER SỐNG — TRỤC C L0 · L1 · L2 · L2b · L3 · L4 · L5${c.x}`);
   console.log(`${c.d}${BASE} · tenant ${TENANT}${c.x}`);
 
   const admin = await login('admin');
@@ -775,6 +775,93 @@ async function main() {
       },
     });
     return is(ok, 200, 201);
+  });
+
+  // ═══ L5 — thời hạn lưu trữ & xoá dữ liệu cá nhân ═══
+  group('L5 — lưu trữ NĐ13: chạy thử bắt buộc, sổ vết bất khả xâm phạm');
+
+  await check('Mỗi mã dữ liệu tra được thời hạn + nguồn chính sách; sổ giám sát đánh dấu bất khả xâm phạm', async () => {
+    const r = await req('GET', '/retention/policies', { ...steward2 });
+    if (r.status !== 200) return is(r, 200);
+    const by = Object.fromEntries((r.json?.entries ?? []).map((e) => [e.assetCode, e]));
+    if (!by['review.result']) return 'thiếu chính sách cho review.result';
+    if (by['review.result'].retentionMonths > 60) return `thời hạn kết quả đánh giá quá dài: ${by['review.result'].retentionMonths}`;
+    const audit = by['audit.log'];
+    if (!audit?.untouchable) return 'audit.log KHÔNG được đánh dấu bất khả xâm phạm';
+    return ['cold_archive', 'keep'].includes(audit.action)
+      ? true : `audit.log có hành động nguy hiểm: ${audit.action}`;
+  });
+
+  await check('[K6] Không đặt được chính sách xoá cho sổ vết, và không chạy được lượt quét nào', async () => {
+    const set = await req('PUT', '/retention/policies/audit.log',
+      { ...steward2, body: { retentionMonths: 12, action: 'hard_delete' } });
+    if (set.status !== 422) return `đặt được chính sách xoá audit.log: ${is(set, 422)}`;
+    if (!msgOf(set).includes('K6')) return `chặn đúng nhưng không nêu K6: ${msgOf(set)}`;
+    const run = await req('POST', '/retention/dry-run/audit.log', { ...steward2, body: {} });
+    return is(run, 422);
+  });
+
+  /**
+   * Cổng ra L5: chạy thật KHÔNG đi qua chạy thử phải bị chặn — đây là chốt an toàn duy nhất
+   * đứng giữa một cú bấm nhầm và mất dữ liệu không hoàn tác.
+   */
+  await check('[CỔNG RA] Chạy thật không qua chạy thử → chặn; qua chạy thử → đi được', async () => {
+    const noDry = await req('POST', '/retention/apply/system.log', { ...steward2, body: {} });
+    if (![400, 422].includes(noDry.status)) return `chạy thật không cần chạy thử: ${is(noDry, 400, 422)}`;
+
+    const fake = await req('POST', '/retention/apply/system.log',
+      { ...steward2, body: { dryRunId: '00000000-0000-0000-0000-000000000000' } });
+    if (fake.status !== 422) return `dryRunId bịa vẫn chạy: ${is(fake, 422)}`;
+
+    const dry = await req('POST', '/retention/dry-run/system.log', { ...steward2, body: {} });
+    if (![200, 201].includes(dry.status)) return `chạy thử: ${is(dry, 200, 201)}`;
+    if (dry.json?.affected !== 0) return `lượt THỬ đã đụng dữ liệu: affected=${dry.json?.affected}`;
+
+    const apply = await req('POST', '/retention/apply/system.log',
+      { ...steward2, body: { dryRunId: dry.json.id } });
+    if (![200, 201].includes(apply.status)) return `chạy thật: ${is(apply, 200, 201)}`;
+    // số tác động phải khớp kế hoạch đã được nhìn thấy, không nhiều hơn
+    return apply.json.affected <= dry.json.planned
+      ? true : `chạy thật đụng NHIỀU HƠN kế hoạch: ${apply.json.affected} > ${dry.json.planned}`;
+  });
+
+  await check('[K6] Sổ vết audit_log KHÔNG co lại sau lượt chạy thật', async () => {
+    const before = (await req('GET', '/audit-logs?limit=1', { ...auditor })).json?.total ?? 0;
+    const dry = await req('POST', '/retention/dry-run/system.log', { ...steward2, body: {} });
+    await req('POST', '/retention/apply/system.log', { ...steward2, body: { dryRunId: dry.json.id } });
+    const after = (await req('GET', '/audit-logs?limit=1', { ...auditor })).json?.total ?? 0;
+    return after >= before ? true : `sổ vết CO LẠI sau lượt quét: ${before} → ${after}`;
+  });
+
+  await check('Sổ lượt chạy ghi đủ và B0 đọc được (hồ sơ tuân thủ)', async () => {
+    const r = await req('GET', '/retention/runs', { ...auditor });
+    if (r.status !== 200) return `auditor đọc sổ lượt chạy: ${is(r, 200)}`;
+    const applied = (r.json?.entries ?? []).find((e) => e.mode === 'apply');
+    if (!applied) return 'không có lượt chạy thật nào trong sổ';
+    const missing = ['assetCode', 'action', 'retentionMonths', 'cutoffAt', 'planned', 'dryRunId']
+      .filter((k) => applied[k] === undefined || applied[k] === null);
+    return missing.length === 0 ? true : `lượt chạy thiếu thông tin: ${missing.join(', ')}`;
+  });
+
+  await check('[SoD] B0 KHÔNG đặt chính sách và KHÔNG bấm chạy được', async () => {
+    const set = await req('PUT', '/retention/policies/system.log',
+      { ...auditor, body: { retentionMonths: 12, action: 'hard_delete' } });
+    if (set.status !== 403) return `auditor đặt được chính sách: ${is(set, 403)}`;
+    const run = await req('POST', '/retention/dry-run/system.log', { ...auditor, body: {} });
+    return is(run, 403);
+  });
+
+  await check('Đơn vị RÚT NGẮN được thời hạn nhưng KHÔNG kéo dài được', async () => {
+    const short = await req('PUT', '/retention/policies/review.result',
+      { ...steward2, body: { retentionMonths: 36, action: 'anonymize' } });
+    if (![200, 201].includes(short.status)) return `rút ngắn: ${is(short, 200, 201)}`;
+    cleanup.push(async () => {
+      await req('PUT', '/retention/policies/review.result',
+        { ...steward2, body: { retentionMonths: 36, action: 'anonymize', note: 'driver để lại' } });
+    });
+    const long = await req('PUT', '/retention/policies/review.result',
+      { ...steward2, body: { retentionMonths: 120, action: 'anonymize' } });
+    return long.status >= 400 ? true : `kéo dài được vượt chuẩn tập đoàn: ${is(long, 422)}`;
   });
 
   // ── dọn dẹp ──

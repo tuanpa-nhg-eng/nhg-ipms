@@ -795,3 +795,44 @@ Một sổ rủi ro nhập tay đo lường **sự chăm chỉ của người nh
 **VERIFY L4:** **794 test / 60 suite** (baseline 761, +33) · typecheck `shared`+`db`+`api`+`web` sạch · `next build` PASS (35 route, thêm `/compliance/risk`) · driver sống **48/48** trên API đã kill+restart, **chạy hai vòng liên tiếp cùng kết quả** (+6 check cho L4).
 
 **Việc kế tiếp:** L5 — thời hạn lưu trữ & xoá dữ liệu cá nhân (chế độ thử bắt buộc chạy trước, K6 không đụng sổ vết, K7 không xoá dữ liệu kỳ chưa chốt).
+
+---
+
+## Trục C — L5 · **31/07/2026 · Thời hạn lưu trữ & xoá dữ liệu cá nhân (NĐ13)**
+
+**Tóm tắt cho người bận:** hệ giờ có chính sách lưu trữ cho từng nhóm dữ liệu, và một cơ chế xoá **bắt buộc chạy thử trước**. Không ai xoá được gì mà chưa nhìn thấy trước mình sắp xoá cái gì. Sổ kiểm toán và sổ xuất dữ liệu nằm ngoài tầm với của job, ở ba tầng độc lập.
+
+### Vì sao lát này thận trọng hơn hẳn các lát trước
+
+Đây là lát duy nhất của trục có khả năng **phá huỷ** dữ liệu. Một job xoá chạy đúng thì im lặng — nên chạy sai cũng im lặng. Bốn rào, mỗi rào chặn một kiểu hỏng khác nhau:
+
+| Rào | Chặn kiểu hỏng nào |
+|---|---|
+| Chạy thật phải trỏ tới một lượt **chạy thử** còn hạn, cùng vân tay kế hoạch | "bấm nhầm nút" và "dữ liệu đã đổi kể từ lúc xem" |
+| **K6** — hai sổ giám sát không có executor, không lưu được chính sách xoá (CHECK ở DB) | hệ tự xoá bằng chứng của chính mình |
+| **K7** — bản ghi thuộc kỳ chưa chốt bị loại, và **số bị loại được ghi lại** | xoá dữ liệu đang dùng; và làm nó *đo được* thay vì tin lời |
+| Chạy theo **danh sách id đã lập kế hoạch**, không chạy lại theo điều kiện | phạm vi lúc chạy rộng hơn phạm vi lúc duyệt |
+
+**Ba con số của B5 (§6 giả định 2) đã vào seed** dưới dạng chính sách chuẩn tập đoàn: kết quả đánh giá **5 năm** (khử danh) · nhật ký hệ thống **2 năm** (xoá cứng) · nhật ký kiểm toán **10 năm** (kho lạnh). Ghi vào seed thay vì để trống có chủ đích — không có chính sách thì hệ rơi về mặc định suy từ mức phân loại, và một con số suy diễn trông y hệt một con số đã được người có thẩm quyền duyệt. Nay `source` trả về "chuẩn tập đoàn" và **B5 biết chính xác cái gì đang chờ mình chốt**.
+
+**Khử danh chứ không xoá hàng** với kết quả đánh giá: điểm số và hạng là dữ liệu thống kê hợp pháp để giữ; thứ nhận dạng được một con người là các trường văn bản tự do. Xoá cả hàng sẽ phá số liệu lịch sử mà không thu thêm lợi ích riêng tư nào.
+
+**Đơn vị chỉ RÚT NGẮN được thời hạn, không kéo dài** (trigger DB) — giữ lâu hơn là tăng phơi nhiễm, đúng chiều NĐ13 hạn chế.
+
+### Ba lỗi tự bắt, đều đắt nếu lọt
+
+① **`ipms_app` không có quyền DELETE trên `ai_interaction`** — lượt chạy thật đầu tiên ăn `permission denied`. Đây là bất biến có thật của hệ (nhật ký chỉ thêm), cùng họ với phát hiện ở L3 (app không đúc được `role`). **Cách sửa sai đã loại:** `GRANT DELETE` trần trụi — nó mở khả năng xoá cho *mọi* đoạn mã, kể cả một lỗi lập trình ở route không liên quan. **Cách chọn:** cấp quyền nhưng chốt sau GUC `app.retention_run` mà trong mã chỉ đúng một hàm bật, gọi từ đúng nhánh `apply` — cùng khuôn `app.platform_write` L2 đã dựng. Có ca kiểm: cùng lệnh xoá đó, chạy ngoài đường lưu trữ thì **không một dòng nào mất**.
+
+② **Job khử danh không idempotent.** Phép lọc "còn thứ để khử" dùng `IS NOT NULL`, nhưng khử danh **ghi đè một chuỗi** chứ không đặt NULL — nên hàng đã xử lý vẫn lọt vào kế hoạch lượt sau: mỗi lượt chạy lại báo đúng con số cũ và `affected` phồng lên vô hạn. Hồ sơ tuân thủ khi đó nói dối theo hướng nguy hiểm nhất — **luôn còn việc phải làm, nên không ai nhận ra công việc đã xong từ lâu.**
+
+③ **Một test bất định theo thứ tự dữ liệu.** Ca "hồ sơ lượt chạy không sửa lại được" lấy dòng đầu tiên rồi gán lại đúng giá trị cũ: chạy riêng spec thì dòng đầu tình cờ khác giá trị gán ⇒ xanh; chạy full suite thì thứ tự đổi ⇒ không có thay đổi nào ⇒ trigger không phản đối ⇒ đỏ. **Test chỉ xanh nhờ thứ tự dữ liệu là test không nói lên điều gì** — cùng họ với bài học "assert chạy 0 lần" của trục A.
+
+### Khoảng cách đã báo
+
+- **`cold_archive` chưa thực thi được** — hệ chưa có kho lưu trữ lạnh. Chính sách vẫn **lưu được** (ghi nhận ý định của B5) nhưng lượt quét trả lỗi nói rõ "chưa thực thi được" thay vì im lặng trả 0 bản ghi: một lượt chạy "thành công, 0 bản ghi" sẽ bị đọc thành "đã lưu trữ xong".
+- **Chỉ hai nhóm dữ liệu có bộ thực thi** (`review.result`, `system.log`). Mã có chính sách nhưng chưa có executor → báo thẳng "chưa hỗ trợ", fail-closed. Danh sách mở rộng khi B5 chốt thêm nhóm nào cần xử lý.
+- **Chưa có màn hình** — L5 là API + driver, đúng nhịp L2/L3.
+
+**VERIFY L5:** **825 test / 62 suite** (baseline 794, +31) · typecheck `shared`+`db`+`api`+`web` sạch · `next build` PASS · driver sống **55/55** trên API đã kill+restart, **chạy hai vòng liên tiếp cùng kết quả** (+7 check cho L5).
+
+**Việc kế tiếp:** L6 — soát toàn hệ 11 mục governance (§7 Strategic Context) + cập nhật ngược `so-nang-luc-ipms.md` và bộ BRD.

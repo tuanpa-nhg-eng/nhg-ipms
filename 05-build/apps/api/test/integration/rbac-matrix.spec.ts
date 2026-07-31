@@ -117,6 +117,8 @@ const EXPECTED: Record<string, string[]> = {
     'exception:read',
     // [Trục C L4] B0 đọc cờ + hồ sơ sự cố, KHÔNG mở/đóng sự cố
     'risk:read', 'risk:read_summary', 'incident:read',
+    // [Trục C L5] B0 rà chính sách lưu trữ + sổ lượt chạy — KHÔNG đặt, KHÔNG bấm chạy
+    'retention:read',
   ],
   exec_viewer: [
     'tenant:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read',
@@ -132,6 +134,8 @@ const EXPECTED: Record<string, string[]> = {
     'exception:approve', 'exception:read',
     // [Trục C L4] B5 — vai DUY NHẤT mở/đóng sự cố
     'risk:read', 'risk:read_summary', 'incident:read', 'incident:manage',
+    // [Trục C L5] B5 đặt chính sách lưu trữ VÀ bấm chạy
+    'retention:read', 'retention:manage', 'retention:run',
   ],
   // [Trục C L1] Vai uỷ nhiệm TRẦN XUẤT — đúng MỘT quyền, không gán sẵn cho ai. Thêm bất kỳ
   // quyền nào vào đây là biến nó từ "nâng trần" thành "vai có năng lực", và khi đó ngoại lệ
@@ -405,6 +409,20 @@ describe('[Trục B L0] Ma trận role→permission — J2 không god-account', 
   it('[J1①] mọi quyền của `exec_viewer` đều nằm trong quyền `tenant_admin` — còn onboard được', () => {
     const missing = [...actual['exec_viewer']].filter((p) => !actual['tenant_admin'].has(p));
     expect(missing).toEqual([]);
+  });
+
+  /**
+   * [Trục C L5 — K6/SoD] Quyền BẤM CHẠY job xoá dữ liệu là quyền nguy hiểm nhất hệ có: sai thì
+   * dữ liệu đã mất, không hoàn tác. Nó phải nằm ở đúng một vai, và KHÔNG được rơi vào vai kiểm
+   * toán (người soát không phải người xử lý) hay vai quản trị đơn vị.
+   */
+  it('[Trục C L5] `retention:run` CHỈ thuộc data_steward; auditor chỉ đọc', () => {
+    const runners = Object.entries(actual)
+      .filter(([, ps]) => ps.has('retention:run')).map(([r]) => r);
+    expect(runners).toEqual(['data_steward']);
+    expect(actual['auditor'].has('retention:read')).toBe(true);
+    expect(actual['auditor'].has('retention:manage')).toBe(false);
+    expect(actual['tenant_admin'].has('retention:read')).toBe(false);
   });
 
   it('[Trục C L4] vai nào có `risk:read` thì phải có cả `risk:read_summary`', () => {

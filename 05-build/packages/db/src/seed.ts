@@ -167,7 +167,9 @@ const GLOBAL_ROLES: Record<string, string[]> = {
     // và `GET /risk/summary` trả 403 cho chính B5 — quyền hẹp hơn lại bị chặn ở chỗ rộng hơn
     // cho qua. Guard so từng permission một, không suy diễn bao hàm, nên quan hệ "chi tiết ⊇
     // tổng hợp" phải khai TƯỜNG MINH ở đây.
-    'risk:read', 'risk:read_summary', 'incident:read'],
+    'risk:read', 'risk:read_summary', 'incident:read',
+    // [Trục C L5] B0 rà chính sách lưu trữ + sổ lượt chạy — KHÔNG đặt, KHÔNG bấm chạy.
+    'retention:read'],
   // [Trục C L4] V1 (điều hành) xem BẢN TỔNG HỢP một màn: `risk:read_summary` = chỉ số đếm.
   // KHÔNG `risk:read` — điều hành cần biết "có bao nhiêu, mức nào", không cần biết ai chạm gì.
   exec_viewer: [
@@ -242,6 +244,10 @@ const GLOBAL_ROLES: Record<string, string[]> = {
     'exception:approve', 'exception:read',
     // [Trục C L4] B5 tuân thủ — đọc cờ CHI TIẾT và là vai DUY NHẤT mở/đóng sự cố.
     'risk:read', 'risk:read_summary', 'incident:read', 'incident:manage',
+    // [Trục C L5] Lưu trữ & xoá dữ liệu cá nhân — B5 đặt chính sách VÀ bấm chạy. Hai quyền
+    // tách sẵn để sau này giao hai người mà không phải sửa mã; chốt an toàn hôm nay là bắt
+    // buộc chạy thử trước, không phải phân người.
+    'retention:read', 'retention:manage', 'retention:run',
   ],
 };
 
@@ -332,6 +338,40 @@ async function main() {
         where: { roleId_permissionId: { roleId: role.id, permissionId: permIds[p] } },
         update: {},
         create: { roleId: role.id, permissionId: permIds[p] },
+      });
+    }
+  }
+
+  // 2b. [Trục C L5] Chính sách lưu trữ CHUẨN TẬP ĐOÀN (tenant_id NULL).
+  //
+  // Ba con số dưới đây là GIẢ ĐỊNH §6 mục 2 của kế hoạch — B5 chưa chốt. Ghi vào seed thay vì
+  // để trống có chủ đích: không có chính sách thì hệ rơi về mặc định suy từ mức phân loại, và
+  // một con số suy diễn trông y hệt một con số đã được người có thẩm quyền duyệt. Có dòng ở
+  // đây thì `source` trả về "chuẩn tập đoàn" và B5 biết chính xác cái gì đang chờ mình chốt.
+  //
+  // `audit.log` để `cold_archive`: đúng ý định (nhật ký kiểm toán giữ 10 năm rồi chuyển kho
+  // lạnh), và CHECK constraint K6 chỉ cho phép đúng hai hành động này cho sổ giám sát. Kho
+  // lạnh CHƯA tồn tại — lượt quét sẽ báo "chưa thực thi được" thay vì âm thầm không làm gì.
+  const GLOBAL_RETENTION: Array<{ code: string; months: number; action: string; legal?: string }> = [
+    { code: 'review.result', months: 60, action: 'anonymize',
+      legal: 'NĐ13 — dữ liệu cá nhân; giữ số liệu thống kê, khử phần văn bản nhận dạng được' },
+    { code: 'hr.profile', months: 60, action: 'keep',
+      legal: 'NĐ13 — hồ sơ nhân sự do hệ nhân sự làm chủ, iPMS không tự xoá' },
+    { code: 'system.log', months: 24, action: 'hard_delete' },
+    { code: 'audit.log', months: 120, action: 'cold_archive',
+      legal: 'K6 — sổ giám sát không xoá; giữ dài hơn dữ liệu nghiệp vụ' },
+  ];
+  for (const r of GLOBAL_RETENTION) {
+    const existing = await prisma.retentionPolicy.findFirst({
+      where: { tenantId: null, assetCode: r.code, deletedAt: null },
+    });
+    if (!existing) {
+      await prisma.retentionPolicy.create({
+        data: {
+          id: uuidv7(), tenantId: null, assetCode: r.code,
+          retentionMonths: r.months, action: r.action, legalBasis: r.legal ?? null,
+          note: 'Bản chuẩn tập đoàn — giả định §6, chờ B5 chốt',
+        },
       });
     }
   }

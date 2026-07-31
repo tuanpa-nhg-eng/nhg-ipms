@@ -258,6 +258,52 @@ model UserRole {
   @@map("user_role")
 }
 
+/// [Trục C L5] Thời hạn lưu trữ theo NHÓM DỮ LIỆU (gắn `data_asset.code`, không gắn tên bảng).
+/// `tenantId` NULL = bản chuẩn tập đoàn; đơn vị chỉ RÚT NGẮN được (trigger `retention_policy_no_extend`).
+/// K6 ở tầng DB: không lưu được chính sách `hard_delete`/`anonymize` cho `audit.log`/`export.log`.
+model RetentionPolicy {
+  id              String  @id @db.Uuid
+  tenantId        String? @map("tenant_id") @db.Uuid
+  assetCode       String  @map("asset_code")
+  retentionMonths Int     @map("retention_months")
+  action          String // hard_delete|anonymize|cold_archive|keep
+  legalBasis      String? @map("legal_basis")
+  note            String?
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy String?   @map("updated_by") @db.Uuid
+  version   Int       @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@map("retention_policy")
+}
+
+/// [Trục C L5] Sổ các lượt quét lưu trữ. Vừa là hồ sơ tuân thủ, vừa là ĐIỀU KIỆN được chạy
+/// thật: `mode='apply'` bắt buộc trỏ tới một lượt `dry_run` còn hạn và cùng `planHash` (CHECK
+/// ở DB). `skippedProtected` đếm bản ghi quá hạn nhưng thuộc kỳ chưa chốt (K7).
+model RetentionRun {
+  id               String @id @db.Uuid
+  tenantId         String @map("tenant_id") @db.Uuid
+  mode             String // dry_run|apply
+  assetCode        String @map("asset_code")
+  action           String
+  retentionMonths  Int    @map("retention_months")
+  cutoffAt         DateTime @map("cutoff_at") @db.Timestamptz(6)
+  plannedCount     Int    @default(0) @map("planned_count")
+  affectedCount    Int    @default(0) @map("affected_count")
+  skippedProtected Int    @default(0) @map("skipped_protected")
+  planHash         String @map("plan_hash")
+  dryRunId         String? @map("dry_run_id") @db.Uuid
+  report           Json   @default("{}")
+  actorUserId      String @map("actor_user_id") @db.Uuid
+  startedAt        DateTime @default(now()) @map("started_at") @db.Timestamptz(6)
+  finishedAt       DateTime? @map("finished_at") @db.Timestamptz(6)
+
+  @@index([tenantId, startedAt])
+  @@map("retention_run")
+}
+
 /// [Trục C L4 — K8] Cờ rủi ro SINH TỰ ĐỘNG từ sự kiện đã có (audit_log, ai_interaction).
 /// Không có màn nhập tay: sổ rủi ro nhập tay đo sự chăm chỉ của người nhập, không đo rủi ro.
 /// `(tenantId, sourceType, sourceRef)` UNIQUE ⇒ bộ sinh chạy lại bao nhiêu lần cũng không nhân bản.
