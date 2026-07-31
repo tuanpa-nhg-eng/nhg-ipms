@@ -68,6 +68,9 @@ const EXPECTED: Record<string, string[]> = {
     'user:impersonate',
     // [Trục C L3] xin + đọc đơn ngoại lệ; KHÔNG duyệt (K5 — duyệt là của data_steward)
     'exception:request', 'exception:read',
+    // [Trục C L4] chỉ SỐ ĐẾM, và có ở đây vì J1①: thiếu nó thì tenant_admin không gán được
+    // vai `exec_viewer` (vai đó có quyền này) — tức không onboard được người điều hành nữa.
+    'risk:read_summary',
   ],
   org_admin: [
     'tenant:read', 'org:read', 'person:read', 'person:write',
@@ -112,10 +115,14 @@ const EXPECTED: Record<string, string[]> = {
     'exportlog:read',
     // [Trục C L3] rà được MỌI đơn ngoại lệ, kể cả đơn mình không dính vào
     'exception:read',
+    // [Trục C L4] B0 đọc cờ + hồ sơ sự cố, KHÔNG mở/đóng sự cố
+    'risk:read', 'risk:read_summary', 'incident:read',
   ],
   exec_viewer: [
     'tenant:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read',
     'goal:read',
+    // [Trục C L4] V1 chỉ xem bản tổng hợp — số đếm, không chi tiết
+    'risk:read_summary',
   ],
   // [Trục C L0] Chủ dữ liệu — vai DUY NHẤT sửa được sổ đăng ký dữ liệu. Không kèm quyền
   // nghiệp vụ nào: người quyết định dữ liệu được xử lý thế nào không nên là người xử lý nó.
@@ -123,6 +130,8 @@ const EXPECTED: Record<string, string[]> = {
   data_steward: [
     'tenant:read', 'org:read', 'datacatalog:read', 'datacatalog:write',
     'exception:approve', 'exception:read',
+    // [Trục C L4] B5 — vai DUY NHẤT mở/đóng sự cố
+    'risk:read', 'risk:read_summary', 'incident:read', 'incident:manage',
   ],
   // [Trục C L1] Vai uỷ nhiệm TRẦN XUẤT — đúng MỘT quyền, không gán sẵn cho ai. Thêm bất kỳ
   // quyền nào vào đây là biến nó từ "nâng trần" thành "vai có năng lực", và khi đó ngoại lệ
@@ -139,6 +148,8 @@ const EXPECTED: Record<string, string[]> = {
     'exportlog:read_metadata', 'audit:read_metadata',
     // [Trục C L3] lối ra cho giới hạn L2 cố ý đặt: B3 thấy SỐ ĐẾM, muốn chi tiết thì đi xin
     'exception:request',
+    // [Trục C L4] cờ rủi ro xuyên đơn vị — số đếm
+    'risk:read_summary',
   ],
   // [Trục C L2b — K11] Hỗ trợ kỹ thuật: đúng whitelist chỉ-đọc + `user:impersonate`. Nguồn
   // gốc là `SUPPORT_ROLE_PERMISSIONS` trong @ipms/shared — đối chiếu ba bên như platform_admin.
@@ -364,6 +375,51 @@ describe('[Trục B L0] Ma trận role→permission — J2 không god-account', 
     const holders = Object.entries(actual)
       .filter(([, ps]) => ps.has('exception:approve')).map(([r]) => r);
     expect(holders).toEqual(['data_steward']);
+  });
+
+  /**
+   * [Trục C L4 — K1, bài học L2] `risk:read` (chi tiết) và `risk:read_summary` (số đếm) là HAI
+   * quyền, và không vai nào ở tầng nền tảng/điều hành được giữ quyền chi tiết. Ở L2 đúng loại
+   * lỗi này đã xảy ra thật với `exportlog:read` — một cái tên dùng cho hai tầng, và ca quét
+   * endpoint mới phát hiện `platform@` đọc được sổ vết chi tiết của đơn vị.
+   */
+  it('[K1] `risk:read` chỉ thuộc vai TRONG đơn vị (B5/B0), không thuộc tầng nền tảng/điều hành', () => {
+    const detail = Object.entries(actual).filter(([, ps]) => ps.has('risk:read')).map(([r]) => r).sort();
+    expect(detail).toEqual(['auditor', 'data_steward']);
+    expect(actual['platform_admin'].has('risk:read')).toBe(false);
+    expect(actual['exec_viewer'].has('risk:read')).toBe(false);
+  });
+
+  /**
+   * [Trục C L4 — driver sống bắt] Bản tổng hợp là TẬP CON thông tin của danh sách chi tiết,
+   * nên ai đọc được chi tiết phải đọc được tổng hợp. Guard so từng permission một và KHÔNG
+   * suy diễn quan hệ bao hàm — bản đầu quên khai, và `GET /risk/summary` trả 403 cho chính
+   * B5, tức quyền hẹp hơn bị chặn ở chỗ quyền rộng hơn cho qua.
+   */
+  /**
+   * [Trục C L4 — ràng buộc J1① ở tầng ma trận] Mọi quyền của một vai PERSONA phải nằm trong
+   * tập quyền của vai onboard persona đó (`tenant_admin`), nếu không J1① khiến vai đó không
+   * gán được từ giao diện và mốc demo trục B gãy trong im lặng. Đóng đinh cho `exec_viewer` —
+   * ca đã thực sự xảy ra khi L4 thêm `risk:read_summary`.
+   */
+  it('[J1①] mọi quyền của `exec_viewer` đều nằm trong quyền `tenant_admin` — còn onboard được', () => {
+    const missing = [...actual['exec_viewer']].filter((p) => !actual['tenant_admin'].has(p));
+    expect(missing).toEqual([]);
+  });
+
+  it('[Trục C L4] vai nào có `risk:read` thì phải có cả `risk:read_summary`', () => {
+    const missing = Object.entries(actual)
+      .filter(([, ps]) => ps.has('risk:read') && !ps.has('risk:read_summary'))
+      .map(([r]) => r);
+    expect(missing).toEqual([]);
+  });
+
+  it('[Trục C L4] `incident:manage` CHỈ thuộc data_steward — người soát (B0) không phải người xử lý', () => {
+    const holders = Object.entries(actual)
+      .filter(([, ps]) => ps.has('incident:manage')).map(([r]) => r);
+    expect(holders).toEqual(['data_steward']);
+    expect(actual['auditor'].has('incident:read')).toBe(true);
+    expect(actual['auditor'].has('incident:manage')).toBe(false);
   });
 
   it('[J3] KHÔNG role nào ngoài auditor giữ audit:read', () => {

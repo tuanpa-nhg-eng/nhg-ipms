@@ -248,3 +248,7 @@ html[data-density="compact"] .table thead th { padding-bottom: 4px; }
 .impersonation-banner .btn.accent:hover { background: rgba(255,255,255,.34); }
 /* Đẩy nội dung app xuống dưới banner — toggle qua class trên <body>, không cần khoan AppShell */
 body.nhg-impersonating .app { margin-top: 38px; }
+
+/* [Trục C L4] Khoảng cách giữa các khối trên màn Cờ rủi ro & Sự cố — `Card` không nhận
+   prop `style`, nên giãn cách đi bằng lớp tiện ích thay vì inline style. */
+.mt-14 { margin-top: 14px; }

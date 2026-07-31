@@ -90,6 +90,14 @@ const GLOBAL_ROLES: Record<string, string[]> = {
     'user:impersonate',
     // [Trục C L3] xin + đọc đơn ngoại lệ; KHÔNG duyệt (K5 — duyệt là việc của data_steward)
     'exception:request', 'exception:read',
+    // [Trục C L4 — hệ quả J1① tự bắt khi chạy full suite] `tenant_admin` KHÔNG cần đọc cờ rủi
+    // ro để làm việc của mình, nhưng BẮT BUỘC phải giữ quyền này vì một lý do khác hẳn: J1①
+    // cấm gán vai chứa quyền người cấp không có. `exec_viewer` vừa được thêm
+    // `risk:read_summary` ⇒ nếu tenant_admin không có, nó KHÔNG onboard được người điều hành
+    // nữa — mốc demo của trục B gãy vì một thay đổi ở trục C. Đây là ràng buộc chung, đáng
+    // nhớ: **thêm quyền cho một vai persona thì vai onboard persona đó cũng phải có.**
+    // An toàn vì đây là SỐ ĐẾM (không chi tiết, không định danh) — khác `risk:read` của B5/B0.
+    'risk:read_summary',
     // KHÔNG có 'audit:read' (J3 — người quản trị không đọc vết của chính mình)
     // KHÔNG có 'flag:write' (tầng ① Platform Admin — lộ trình B1)
   ],
@@ -151,8 +159,21 @@ const GLOBAL_ROLES: Record<string, string[]> = {
   // xuất của mình. Là quyền ĐỌC nên không phá bất biến "auditor không giữ quyền ghi nào".
   // [Trục C L3] `exception:read` — B0 rà được MỌI đơn ngoại lệ, kể cả đơn mình không xin và
   // không duyệt. Vẫn là quyền ĐỌC ⇒ không phá bất biến "auditor không giữ quyền ghi nào".
-  auditor: ['tenant:read', 'audit:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read', 'exportlog:read', 'exception:read'],
-  exec_viewer: ['tenant:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read'],
+  auditor: ['tenant:read', 'audit:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read', 'exportlog:read', 'exception:read',
+    // [Trục C L4] B0 rà cờ rủi ro + hồ sơ sự cố. Vẫn thuần ĐỌC — auditor không mở/đóng sự cố
+    // (đó là việc của B5 tuân thủ), đúng tinh thần "người soát không phải người xử lý".
+    // [Trục C L4 — driver sống bắt] Ai đọc được CHI TIẾT thì đương nhiên đọc được SỐ ĐẾM:
+    // bản tổng hợp là tập con thông tin của danh sách chi tiết. Bản đầu chỉ cấp `risk:read`
+    // và `GET /risk/summary` trả 403 cho chính B5 — quyền hẹp hơn lại bị chặn ở chỗ rộng hơn
+    // cho qua. Guard so từng permission một, không suy diễn bao hàm, nên quan hệ "chi tiết ⊇
+    // tổng hợp" phải khai TƯỜNG MINH ở đây.
+    'risk:read', 'risk:read_summary', 'incident:read'],
+  // [Trục C L4] V1 (điều hành) xem BẢN TỔNG HỢP một màn: `risk:read_summary` = chỉ số đếm.
+  // KHÔNG `risk:read` — điều hành cần biết "có bao nhiêu, mức nào", không cần biết ai chạm gì.
+  exec_viewer: [
+    'tenant:read', 'org:read', 'person:read', 'kpi:read', 'scorecard:read', 'strategy:read',
+    'goal:read', 'risk:read_summary',
+  ],
   /**
    * [Trục C L1 — chủ dự án chốt 30/07: "giữ nguyên + B1 cấp cho 1–2 người"]
    *
@@ -187,6 +208,8 @@ const GLOBAL_ROLES: Record<string, string[]> = {
     'exportlog:read_metadata', 'audit:read_metadata',
     // [Trục C L3] xin được ngoại lệ, KHÔNG duyệt được (K5)
     'exception:request',
+    // [Trục C L4] số đếm cờ rủi ro xuyên đơn vị (đọc snapshot) — KHÔNG phải `risk:read`
+    'risk:read_summary',
   ],
   /**
    * [Trục C L2b — K11] Hỗ trợ kỹ thuật. BẢN PHẢN CHIẾU của `SUPPORT_ROLE_PERMISSIONS` trong
@@ -217,6 +240,8 @@ const GLOBAL_ROLES: Record<string, string[]> = {
   data_steward: [
     'tenant:read', 'org:read', 'datacatalog:read', 'datacatalog:write',
     'exception:approve', 'exception:read',
+    // [Trục C L4] B5 tuân thủ — đọc cờ CHI TIẾT và là vai DUY NHẤT mở/đóng sự cố.
+    'risk:read', 'risk:read_summary', 'incident:read', 'incident:manage',
   ],
 };
 

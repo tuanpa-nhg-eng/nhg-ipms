@@ -70,6 +70,13 @@ export class PlatformController {
     return this.svc.exportActivity(user);
   }
 
+  /** [Trục C L4] Số đếm cờ rủi ro theo đơn vị — B3 thấy đơn vị nào đỏ, không đọc được nội dung. */
+  @Get('risk')
+  @RequirePermission('risk:read_summary')
+  risk(@CurrentUser() user: RequestUser) {
+    return this.svc.riskOverview(user);
+  }
+
   @Get('flags')
   @RequirePermission('flag:read')
   flags(@CurrentUser() user: RequestUser) {

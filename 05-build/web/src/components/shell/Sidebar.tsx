@@ -41,6 +41,10 @@ const GROUP_ROLES: Record<string, string[]> = {
   // trục B tồn tại để đóng). Các link còn lại trong nhóm gate hẹp hơn ở dưới.
   admin: ["tenant_admin", "org_admin", "support"],
   audit: ["auditor"], // [J3] tenant_admin CỐ Ý không có audit:read — không được vào danh sách này
+  // [Trục C L4] Khu tuân thủ — B5 (`data_steward`) và B0 (`auditor`) cùng vào, nhưng vì hai
+  // lý do khác nhau: B5 XỬ LÝ sự cố, B0 SOÁT. Tách khỏi nhóm "audit" vì `data_steward` KHÔNG
+  // có `audit:read` (J3) nên không được thấy màn Audit Log.
+  compliance: ["data_steward", "auditor"],
   // "reference" không có trong map = luôn hiện (taskdict:read cấp cho MỌI role, seed.ts)
 };
 
@@ -134,6 +138,9 @@ export function Sidebar() {
         roles: ["dept_head"] }, // GET /task-board → taskcell:approve
       { href: "/studio/ai-governance", label: t("nav.aigov"), icon: <Activity size={ICON} />,
         roles: ["config_designer"] }, // GET /ai/learning/stats,/ai/eval/* → ai:eval
+    ]},
+    { id: "compliance", group: t("nav.compliance"), links: [
+      { href: "/compliance/risk", label: t("nav.risk"), icon: <TriangleAlert size={ICON} /> },
     ]},
     { id: "audit", group: t("nav.audit"), links: [
       { href: "/audit/logs", label: t("nav.auditlog"), icon: <ScrollText size={ICON} /> },

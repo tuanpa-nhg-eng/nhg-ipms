@@ -2,7 +2,7 @@
 /**
  * DRIVER SỐNG — TRỤC C "Lớp bảo vệ niềm tin"
  *   L0 sổ đăng ký · L1 kiểm soát xuất · L2 quản trị nền tảng · L2b vai `support` ·
- *   L3 ngoại lệ có thời hạn
+ *   L3 ngoại lệ có thời hạn · L4 cờ rủi ro & sự cố
  *
  *   node scripts/verify/verify-governance.mjs
  *
@@ -69,7 +69,7 @@ const msgOf = (r) => String(r.json?.error?.message ?? r.json?.message ?? '');
 
 // ══════════════════════════════════════════════════════════════════════
 async function main() {
-  console.log(`\n${c.y}DRIVER SỐNG — TRỤC C L0 · L1 · L2 · L2b · L3${c.x}`);
+  console.log(`\n${c.y}DRIVER SỐNG — TRỤC C L0 · L1 · L2 · L2b · L3 · L4${c.x}`);
   console.log(`${c.d}${BASE} · tenant ${TENANT}${c.x}`);
 
   const admin = await login('admin');
@@ -645,6 +645,136 @@ async function main() {
     if (![200, 201].includes(r.status)) return `thu hồi: ${is(r, 200, 201)}`;
     const after = await req('GET', '/export-log', { ...plat });
     return is(after, 403);
+  });
+
+  // ═══ L4 — cờ rủi ro sinh tự động + luồng sự cố ═══
+  group('L4 — cờ rủi ro tự sinh từ sự kiện, hiện trên bốn đường');
+
+  const exec = await login('exec');
+
+  /**
+   * CỔNG RA của lát: gây một vi phạm THẬT rồi kiểm cờ hiện ra ở cả bốn bề mặt. Không chèn
+   * dòng nào vào bảng cờ, không gọi bộ sinh trước — nếu dây nối đứt ở bất kỳ đoạn nào
+   * (chỗ chặn không ghi vết · bộ sinh không đọc được · dashboard không hiện) thì ca này đỏ.
+   */
+  await check('[K8 CỔNG RA] Vi phạm thật → cờ hiện trên cả BỐN đường, không ai nhập tay', async () => {
+    // Đếm bằng BẢN TỔNG HỢP, không bằng độ dài danh sách chi tiết: `/risk` có trần trang
+    // (mặc định 100 dòng) nên trên một DB đã chạy nhiều vòng, độ dài đó ĐỨNG YÊN dù cờ mới
+    // vẫn sinh ra — phép so sai làm driver báo đỏ một tính năng đang chạy đúng. Bắt được ở
+    // đúng lần chạy đầu; ghi lại vì đây là kiểu lỗi đo lường sẽ lặp ở mọi danh sách có trần.
+    const before = await req('GET', '/risk/summary', { ...steward2 });
+    const beforeN = before.json?.bySeverity?.high ?? 0;
+
+    // vi phạm thật: tenant_admin gán vai `hrbp` (mang quyền nó không giữ) → J1① chặn
+    const bad = await req('POST', `/admin/users/${uid('hr')}/roles`,
+      { ...admin, body: { roleCode: 'hrbp', scopeType: 'tenant' } });
+    if (bad.status !== 403) return `vi phạm không bị chặn: ${is(bad, 403)}`;
+
+    // ① B5 tuân thủ — chi tiết
+    const b5 = await req('GET', '/risk?severity=high&kind=privilege_escalation_blocked', { ...steward2 });
+    if (b5.status !== 200) return `B5 đọc cờ: ${is(b5, 200)}`;
+    const flag = (b5.json?.entries ?? [])[0];
+    if (!flag) return 'không sinh cờ leo thang quyền sau vi phạm';
+    const afterSum = await req('GET', '/risk/summary', { ...steward2 });
+    if ((afterSum.json?.bySeverity?.high ?? 0) <= beforeN) return 'số cờ mức cao không tăng sau vi phạm';
+
+    // ② B0 kiểm toán — cùng cờ đó
+    const b0 = await req('GET', '/risk', { ...auditor });
+    if (!(b0.json?.entries ?? []).some((e) => e.id === flag.id)) return 'B0 không thấy cờ';
+
+    // ③ V1 điều hành — chỉ số đếm, KHÔNG lộ chi tiết
+    const v1 = await req('GET', '/risk/summary', { ...exec });
+    if (v1.status !== 200) return `V1 tổng hợp: ${is(v1, 200)}`;
+    if (!(v1.json?.bySeverity?.high > 0)) return 'bản tổng hợp không đếm được cờ mức cao';
+    const blob = JSON.stringify(v1.json);
+    if (blob.includes(flag.id) || blob.includes('@')) return 'bản tổng hợp lộ chi tiết/định danh';
+
+    // ④ B3 nền tảng — số đếm theo đơn vị
+    const refresh = await req('POST', '/platform/snapshot/refresh', { ...plat, body: {} });
+    if (![200, 201].includes(refresh.status)) return `refresh snapshot: ${is(refresh, 200, 201)}`;
+    const b3 = await req('GET', '/platform/risk', { ...plat });
+    if (b3.status !== 200) return `B3 đọc số đếm: ${is(b3, 200)}`;
+    const h01 = (b3.json?.entries ?? []).find((e) => e.code === 'H.01');
+    return h01 && h01.high > 0 ? true : `B3 không thấy đơn vị H.01 có cờ mức cao: ${JSON.stringify(h01)}`;
+  });
+
+  await check('[K1] B3 và V1 KHÔNG đọc được cờ chi tiết (hai quyền tách nhau thật)', async () => {
+    for (const c of [plat, exec]) {
+      const r = await req('GET', '/risk', { ...c });
+      if (r.status !== 403) return `${c.prefix}@ đọc được cờ chi tiết: ${is(r, 403)}`;
+    }
+    return true;
+  });
+
+  await check('[K8] Chạy lại bộ sinh KHÔNG nhân bản cờ (idempotent theo nguồn)', async () => {
+    const r1 = await req('POST', '/risk/refresh', { ...steward2, body: {} });
+    if (![200, 201].includes(r1.status)) return is(r1, 200, 201);
+    const r2 = await req('POST', '/risk/refresh', { ...steward2, body: {} });
+    return r2.json?.created === 0 ? true : `lần chạy thứ hai vẫn tạo ${r2.json?.created} cờ`;
+  });
+
+  /**
+   * Dùng đường K3 (siết `system.log` → `restricted` rồi thử dispatch) thay vì đường payroll:
+   * ở nhánh L1 phía trên driver ĐÃ cấp `export_officer` cho hrbp và chỉ thu hồi ở bước dọn
+   * cuối, nên lúc này hrbp xuất được — thử payroll ở đây sẽ đo nhầm (422 "cycle not found"
+   * chứ không phải 403 của ExportGuard). Bài học cũ lặp lại: driver có trạng thái tích luỹ
+   * trong một lượt chạy, mỗi ca phải tự dựng điều kiện của mình.
+   */
+  await check('[nguồn mới L4] Xuất dữ liệu BỊ CHẶN để lại vết và sinh cờ mức cao', async () => {
+    const beforeSum = await req('GET', '/risk/summary', { ...steward2 });
+    const before = beforeSum.json?.byKind?.export_blocked ?? 0;
+
+    const tighten = await req('PUT', '/data-catalog/system.log',
+      { ...steward2, body: { classification: 'restricted' } });
+    if (![200, 201].includes(tighten.status)) return `siết mức: ${is(tighten, 200, 201)}`;
+    try {
+      const blocked = await req('POST', '/integrations/outbox/dispatch', { ...hr, body: {} });
+      if (blocked.status !== 403) return `đường xuất không bị chặn: ${is(blocked, 403)}`;
+    } finally {
+      await req('PUT', '/data-catalog/system.log', { ...steward2, body: { classification: 'internal' } });
+    }
+
+    const afterSum = await req('GET', '/risk/summary', { ...steward2 });
+    const after = afterSum.json?.byKind?.export_blocked ?? 0;
+    if (after <= before) return 'chặn xuất nhưng không sinh cờ — dây nối ExportGuard → audit → cờ đứt';
+    const detail = await req('GET', '/risk?kind=export_blocked', { ...steward2 });
+    const top = (detail.json?.entries ?? [])[0];
+    return top?.severity === 'high' ? true : `cờ sai mức: ${JSON.stringify(top).slice(0, 140)}`;
+  });
+
+  await check('[SoD] B0 soát được nhưng KHÔNG mở/đóng sự cố; B5 thì được', async () => {
+    const b0 = await req('POST', '/incidents',
+      { ...auditor, body: { title: 'Kiểm toán thử mở sự cố', severity: 'low' } });
+    if (b0.status !== 403) return `auditor mở được sự cố: ${is(b0, 403)}`;
+    const b5 = await req('POST', '/incidents', {
+      ...steward2,
+      body: { title: 'Driver — rà chuỗi cảnh báo leo thang quyền', severity: 'high' },
+    });
+    if (![200, 201].includes(b5.status)) return `B5 mở sự cố: ${is(b5, 200, 201)}`;
+    const read = await req('GET', '/incidents', { ...auditor });
+    return (read.json?.entries ?? []).some((e) => e.id === b5.json.id)
+      ? true : 'B0 không đọc được sự cố vừa mở (minh bạch hai chiều hỏng)';
+  });
+
+  await check('Đóng sự cố BẮT BUỘC ghi nguyên nhân gốc — "đã xong" bị từ chối', async () => {
+    const inc = await req('POST', '/incidents', {
+      ...steward2,
+      body: { title: 'Driver — sự cố kiểm ràng buộc đóng', severity: 'low' },
+    });
+    const id = inc.json.id;
+    const list = await req('GET', '/incidents', { ...steward2 });
+    const v = (list.json?.entries ?? []).find((e) => e.id === id)?.version ?? 1;
+    const short = await req('POST', `/incidents/${id}/close`,
+      { ...steward2, body: { rootCause: 'đã xong', version: v } });
+    if (![400, 422].includes(short.status)) return `nguyên nhân rỗng nghĩa vẫn đóng được: ${is(short, 400, 422)}`;
+    const ok = await req('POST', `/incidents/${id}/close`, {
+      ...steward2,
+      body: {
+        rootCause: 'Driver kiểm chứng ràng buộc đóng sự cố, không phải sự cố thật của đơn vị',
+        version: v,
+      },
+    });
+    return is(ok, 200, 201);
   });
 
   // ── dọn dẹp ──

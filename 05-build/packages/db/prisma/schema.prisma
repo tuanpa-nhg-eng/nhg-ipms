@@ -258,6 +258,53 @@ model UserRole {
   @@map("user_role")
 }
 
+/// [Trục C L4 — K8] Cờ rủi ro SINH TỰ ĐỘNG từ sự kiện đã có (audit_log, ai_interaction).
+/// Không có màn nhập tay: sổ rủi ro nhập tay đo sự chăm chỉ của người nhập, không đo rủi ro.
+/// `(tenantId, sourceType, sourceRef)` UNIQUE ⇒ bộ sinh chạy lại bao nhiêu lần cũng không nhân bản.
+/// Nội dung BẤT BIẾN (trigger) — chỉ `incidentId` đổi được.
+model RiskFlag {
+  id          String @id @db.Uuid
+  tenantId    String @map("tenant_id") @db.Uuid
+  kind        String
+  severity    String // low|medium|high
+  sourceType  String @map("source_type") // audit_log|ai_interaction
+  sourceRef   String @map("source_ref")
+  actorUserId String? @map("actor_user_id") @db.Uuid
+  summary     String
+  detail      Json   @default("{}")
+  occurredAt  DateTime @map("occurred_at") @db.Timestamptz(6)
+  incidentId  String? @map("incident_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, sourceType, sourceRef])
+  @@index([tenantId, occurredAt])
+  @@map("risk_flag")
+}
+
+/// [Trục C L4] Sự cố: mở → điều tra → khắc phục → đóng. Trạng thái đi MỘT CHIỀU (trigger);
+/// đóng BẮT BUỘC có nguyên nhân gốc ≥20 ký tự + người đóng + mốc đóng (CHECK constraint).
+model Incident {
+  id             String @id @db.Uuid
+  tenantId       String @map("tenant_id") @db.Uuid
+  title          String
+  severity       String
+  status         String @default("open")
+  assigneeUserId String? @map("assignee_user_id") @db.Uuid
+  openedBy       String @map("opened_by") @db.Uuid
+  openedAt       DateTime @default(now()) @map("opened_at") @db.Timestamptz(6)
+  closedAt       DateTime? @map("closed_at") @db.Timestamptz(6)
+  closedBy       String? @map("closed_by") @db.Uuid
+  rootCause      String? @map("root_cause")
+  note           String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version   Int      @default(1)
+
+  @@index([tenantId, status])
+  @@map("incident")
+}
+
 /// [Trục C L3] Ngoại lệ chính sách CÓ THỜI HẠN — đường nới quyền hợp lệ duy nhất.
 /// K4: trần 72h (đơn vị hạ được, không nâng), không gia hạn (trigger chặn), hết hạn tự rụng.
 /// K5: người duyệt ≠ người xin ≠ người nhận. Mỗi lần DÙNG → audit + đếm (nối cờ rủi ro L4).

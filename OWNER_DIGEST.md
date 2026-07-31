@@ -751,3 +751,47 @@ Cũng gom về một mối: mệnh đề "vai còn hiệu lực" (`activeUserRol
 **VERIFY L3:** **761 test / 58 suite** (baseline 719, +42) · typecheck `shared`+`db`+`api`+`web` sạch · `next build` PASS · driver sống **42/42** trên API :4000 đã kill+restart, **chạy hai vòng liên tiếp cùng kết quả** (+8 check cho L3).
 
 **Việc kế tiếp:** L4 — cờ rủi ro sinh tự động + luồng sự cố + dashboard bốn khối.
+
+---
+
+## Trục C — L4 · **31/07/2026 · Cờ rủi ro sinh tự động + luồng sự cố + bốn đường đọc**
+
+**Tóm tắt cho người bận:** hệ tự dựng sổ rủi ro từ những gì nó đã ghi — không có màn nhập tay. Một vi phạm thật xảy ra là cờ hiện ngay trên bốn bề mặt, mỗi bề mặt đúng mức chi tiết mà vai đó được thấy. Màn mới cho B5/B0: `/compliance/risk`.
+
+### Vì sao K8 ("sinh tự động") là bất biến chứ không phải tiện ích
+
+Một sổ rủi ro nhập tay đo lường **sự chăm chỉ của người nhập**, không đo lường rủi ro. Nó đầy lúc mới triển khai rồi rỗng dần, và cái rỗng đó bị đọc nhầm thành "hệ thống an toàn". Cờ suy ra từ sự kiện thì rỗng chỉ có một nghĩa: không có sự kiện nào xảy ra. Vì vậy màn hình **không có** nút tạo cờ, và **không có** nút bỏ qua/xoá cờ — xử lý một cờ nghĩa là gắn nó vào một sự cố và đóng sự cố đó, có người phụ trách và nguyên nhân gốc ≥20 ký tự (ràng buộc ở tầng DB, "đã xong" bị từ chối).
+
+### Bốn đường đọc, ba mức chi tiết
+
+| Đường | Ai | Thấy gì |
+|---|---|---|
+| `/compliance/risk` (màn mới) | B5 tuân thủ · B0 kiểm toán | Chi tiết từng cờ + hồ sơ sự cố |
+| `/risk/summary` | V1 điều hành | Chỉ số đếm theo loại và mức |
+| `/platform/risk` | B3 nền tảng | Số đếm **theo đơn vị**, xuyên đơn vị qua snapshot |
+| `/audit-logs` (sẵn có) | B0 | Nguồn gốc — cờ chỉ là lớp suy ra, không phải nguồn sự thật thứ hai |
+
+`risk:read` (chi tiết) và `risk:read_summary` (số đếm) là **hai quyền tách biệt**, đúng bài học đắt nhất của L2: một cái tên dùng cho hai tầng là đường rò không nhìn thấy khi đọc mã. B3 và V1 gọi `/risk` đều nhận 403 — có ca kiểm.
+
+**SoD:** B5 (`data_steward`) là vai **duy nhất** mở/đóng sự cố; B0 (`auditor`) đọc được mọi thứ nhưng không xử lý — người soát không phải người xử lý.
+
+### Lỗ hổng phát hiện khi rà nguồn, đã vá
+
+**L1 chỉ ghi vết lần xuất THÀNH CÔNG.** Một lần xuất bị chặn không để lại gì ngoài mã 403 trả về client. Nhưng "có người vừa thử mang dữ liệu `restricted` ra ngoài" mới đúng là tín hiệu B0/B5 cần thấy nhất: lần thành công nghĩa là chính sách cho phép, lần thất bại nghĩa là **có người chạm vào tường**. Đã thêm vết `export.blocked` ở `ExportGuard` (ghi vào `audit_log`, **không** vào `export_log` — sổ xuất là sổ những gì đã *rời* hệ, nhét một dòng "không rời" vào đó sẽ làm mọi phép đếm trên sổ đó sai).
+
+### Hai hệ quả hệ thống tự bắt khi chạy đủ suite và driver
+
+① **Ai đọc được chi tiết thì đương nhiên phải đọc được số đếm.** Bản đầu chỉ cấp `risk:read` cho B5, và `GET /risk/summary` trả **403 cho chính B5** — quyền hẹp hơn lại bị chặn ở chỗ quyền rộng hơn cho qua. Guard so từng permission một, không suy diễn quan hệ bao hàm, nên "chi tiết ⊇ tổng hợp" phải khai tường minh. Driver sống bắt được, không phải test.
+
+② **Thêm một quyền cho vai persona có thể làm gãy đường onboard persona đó.** Khi `exec_viewer` nhận `risk:read_summary`, J1① (không gán vai chứa quyền mình không có) khiến `tenant_admin` **không còn onboard được người điều hành** — mốc demo của trục B gãy vì một thay đổi ở trục C, và nó lộ ra ở `admin-api.spec` chứ không ở bất kỳ test nào của L4. Ràng buộc chung rút ra, đã đóng đinh bằng test: *mọi quyền của một vai persona phải nằm trong tập quyền của vai onboard nó.*
+
+③ **Một lỗi ĐO trong driver, đáng ghi vì sẽ lặp:** ca cổng ra so độ dài danh sách `/risk` trước/sau. Danh sách có trần trang 100 dòng, mà DB dev đã có 744 cờ mức cao — độ dài đứng yên dù cờ mới vẫn sinh, và driver báo đỏ một tính năng đang chạy đúng. Đã đổi sang đếm bằng bản tổng hợp (không trần). Mọi phép so trên danh sách có phân trang đều dính bẫy này.
+
+### Khoảng cách so với kế hoạch, đã báo
+
+- **"Đăng nhập bất thường" KHÔNG có cờ** — hệ chưa có nguồn: `/auth/dev-token` không ghi phiên, và đăng nhập thật sẽ do Entra ID đảm nhiệm (ngoài phạm vi trục). Bịa một nhóm cờ không có nguồn sẽ tạo ra một nhóm vĩnh viễn bằng 0 trên dashboard — trông như "an toàn" trong khi thực ra là "không đo". Có test đóng đinh việc **không** có nhóm này.
+- **B3 chưa có màn hình** — `/platform/risk` là API, đúng như toàn bộ bề mặt `/platform/*` từ L2 (chưa có màn nào). Màn duy nhất của lát này là `/compliance/risk` cho B5/B0.
+
+**VERIFY L4:** **794 test / 60 suite** (baseline 761, +33) · typecheck `shared`+`db`+`api`+`web` sạch · `next build` PASS (35 route, thêm `/compliance/risk`) · driver sống **48/48** trên API đã kill+restart, **chạy hai vòng liên tiếp cùng kết quả** (+6 check cho L4).
+
+**Việc kế tiếp:** L5 — thời hạn lưu trữ & xoá dữ liệu cá nhân (chế độ thử bắt buộc chạy trước, K6 không đụng sổ vết, K7 không xoá dữ liệu kỳ chưa chốt).

@@ -76,6 +76,12 @@ export const PERMISSIONS = [
   // biến thành lời khuyên. `exception:read` tách tiếp: B0 phải rà được đơn mình không xin,
   // không duyệt.
   'exception:request', 'exception:approve', 'exception:read',
+  // [Trục C L4] Cờ rủi ro + sự cố. `risk:read` (chi tiết, trong phạm vi đơn vị) TÁCH khỏi
+  // `risk:read_summary` (chỉ SỐ ĐẾM) — đúng bài học đắt nhất của L2: trùng tên quyền giữa hai
+  // tầng là đường rò không nhìn thấy khi đọc mã. V1 (điều hành) và tầng nền tảng chỉ cần số
+  // đếm; chi tiết một cờ có thể chứa tên người và tài nguyên bị chạm.
+  'risk:read', 'risk:read_summary',
+  'incident:read', 'incident:manage',
   // [Trục C L2] Quản trị NỀN TẢNG (tầng ①) — vận hành toàn hệ, KHÔNG đọc nội dung nghiệp vụ.
   // Không quyền nào ở đây chạm được một dòng `review`/`scorecard_item`/`evidence`/`person`:
   // chúng chỉ mở read model metadata (`platform_snapshot`) + hai hành động vận hành
@@ -210,6 +216,10 @@ export const PLATFORM_ADMIN_PERMISSIONS: readonly PermissionCode[] = [
   // L2 cố ý đặt: B3 thấy SỐ LẦN xuất dữ liệu, muốn xem chi tiết một sự cố thì đi xin quyền
   // đọc có thời hạn và có người duyệt — không phải được cấp sẵn vĩnh viễn.
   'exception:request',
+  // [Trục C L4] SỐ ĐẾM cờ rủi ro xuyên đơn vị (đọc từ `platform_snapshot`, đúng khuôn K1 của
+  // L2). KHÔNG phải `risk:read` — chi tiết một cờ có thể mang tên người và tài nguyên bị chạm,
+  // đó là hồ sơ trong phạm vi đơn vị của B5/B0.
+  'risk:read_summary',
 ];
 
 /**
@@ -384,6 +394,94 @@ export const EXCEPTION_GRANTABLE_PERMISSIONS: readonly PermissionCode[] = [
 /** Trạng thái một đơn ngoại lệ. `expired` do đường đọc/job suy ra, không ai bấm. */
 export const EXCEPTION_STATUSES = ['pending', 'approved', 'rejected', 'revoked', 'expired'] as const;
 export type ExceptionStatus = (typeof EXCEPTION_STATUSES)[number];
+
+/**
+ * [Trục C L4 — K8] LUẬT SINH CỜ RỦI RO — bảng ánh xạ "sự kiện đã có" → "cờ".
+ *
+ * Đặt ở đây, không trong DB và không trong service: đây là DANH MỤC RỦI RO của hệ, thứ mà B5
+ * sẽ rà và tranh luận từng dòng. Nằm trong mã thì mỗi lần thêm/bớt là một sửa đổi có người
+ * duyệt và có lịch sử; nằm trong một bảng cấu hình thì nó lặng lẽ trôi.
+ *
+ * Nguyên tắc chọn nguồn: **chỉ dùng sự kiện ĐÃ TỒN TẠI**, không bịa cảm biến mới. Mọi dòng
+ * dưới đây trỏ tới một `audit_log.action` hoặc một trạng thái `ai_interaction` mà hệ đã ghi
+ * từ trước lát này — trừ `export.blocked`, thứ mà lát này phải bổ sung vì L1 chỉ ghi vết lần
+ * xuất THÀNH CÔNG (xem ghi chú ở migration).
+ *
+ * Về mức độ: `high` dành cho việc có người **chạm vào tường bảo vệ dữ liệu** (mang dữ liệu ra
+ * ngoài, gửi ra LLM ngoài, leo thang quyền). `medium` cho vi phạm phân tách nhiệm vụ và
+ * chính sách bị từ chối — bất thường, nhưng hệ đã chặn đúng và thường là do cấu hình sai vai.
+ * `low` cho việc DÙNG một ngoại lệ đã được duyệt: tự nó hợp lệ, chỉ cần đếm để thấy xu hướng.
+ */
+export interface RiskRule {
+  kind: string;
+  severity: 'low' | 'medium' | 'high';
+  /** Nhãn tiếng Việt hiển thị trên dashboard — không suy từ `kind` để tránh dịch máy ở FE. */
+  label: string;
+}
+
+export const RISK_RULES_BY_AUDIT_ACTION: Readonly<Record<string, RiskRule>> = {
+  'export.blocked': {
+    kind: 'export_blocked', severity: 'high',
+    label: 'Xuất dữ liệu bị chặn',
+  },
+  'admin.role_grant_denied': {
+    kind: 'privilege_escalation_blocked', severity: 'high',
+    label: 'Chặn leo thang quyền khi gán vai',
+  },
+  'admin.impersonation_denied': {
+    kind: 'impersonation_blocked', severity: 'high',
+    label: 'Chặn mở phiên đóng vai',
+  },
+  'sod.violation_blocked': {
+    kind: 'sod_violation', severity: 'medium',
+    label: 'Vi phạm phân tách nhiệm vụ',
+  },
+  'ai_golden.sod_denied': {
+    kind: 'sod_violation', severity: 'medium',
+    label: 'Vi phạm phân tách nhiệm vụ (duyệt tín hiệu học)',
+  },
+  'authoring.grant_denied': {
+    kind: 'sod_violation', severity: 'medium',
+    label: 'Chặn cấp quyền soạn thảo',
+  },
+  'policy.denied': {
+    kind: 'policy_denied', severity: 'medium',
+    label: 'Chính sách truy cập từ chối',
+  },
+  'policy.exception_denied': {
+    kind: 'exception_denied', severity: 'medium',
+    label: 'Đơn ngoại lệ bị chặn (K5)',
+  },
+  'policy.exception_used': {
+    kind: 'exception_used', severity: 'low',
+    label: 'Dùng quyền được nới bằng ngoại lệ',
+  },
+};
+
+/** Egress AI bị chặn — nguồn KHÔNG phải audit_log mà là `ai_interaction.status='blocked'`. */
+export const RISK_RULE_AI_EGRESS_BLOCKED: RiskRule = {
+  kind: 'ai_egress_blocked', severity: 'high',
+  label: 'Gọi AI bị chặn egress',
+};
+
+/** Mọi loại cờ hệ có thể sinh — dùng cho dashboard (hiện đủ nhóm kể cả khi đếm = 0). */
+export const RISK_KINDS: readonly string[] = [
+  ...new Set([
+    ...Object.values(RISK_RULES_BY_AUDIT_ACTION).map((r) => r.kind),
+    RISK_RULE_AI_EGRESS_BLOCKED.kind,
+  ]),
+];
+
+export const INCIDENT_STATUSES = ['open', 'investigating', 'remediating', 'closed'] as const;
+export type IncidentStatus = (typeof INCIDENT_STATUSES)[number];
+
+/** Thứ hạng trạng thái sự cố — chỉ đi tới, không lùi (đối xứng trigger `incident_forward_only`). */
+export function incidentStatusRank(s: string): number {
+  return Math.max(0, INCIDENT_STATUSES.indexOf(s as IncidentStatus));
+}
+
+/** Nguyên nhân gốc tối thiểu khi đóng sự cố — "đã xong" không phải một nguyên nhân. */
+export const INCIDENT_ROOT_CAUSE_MIN_LEN = 20;
 
 /** JWT claims chuẩn nội bộ — map sẵn theo Entra ID để cắm SSO sau. */
 export interface IpmsJwtClaims {

@@ -4,6 +4,7 @@ import {
 import { PLATFORM_ADMIN_PERMISSIONS } from '@ipms/shared';
 import { TenantTx, uuidv7, withPlatform, withPlatformWrite } from '@ipms/db';
 import { PrismaService } from '../../prisma.service';
+import { RiskService } from '../risk/risk.service';
 import { RequestUser } from '../../common/auth/decorators';
 
 /**
@@ -33,11 +34,18 @@ export interface PlatformMetrics {
   outboxPending: number;
   outboxDead: number;
   auditEvents: number;
+  // [Trục C L4] Cờ rủi ro — SỐ ĐẾM, đúng ba nhóm. Chi tiết một cờ (ai chạm gì) nằm trong
+  // phạm vi đơn vị (`GET /risk`, quyền `risk:read` của B5/B0); tầng nền tảng chỉ được biết
+  // "đơn vị nào đang có bao nhiêu, mức nào" — cùng ranh giới K1 đã đặt cho sổ vết xuất ở L2.
+  riskFlagsHigh: number;
+  riskFlagsMedium: number;
+  riskFlagsLow: number;
+  incidentsOpen: number;
 }
 
 @Injectable()
 export class PlatformService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private risk: RiskService) {}
 
   /**
    * [K9 — phòng tuyến thứ hai] Vai `platform_admin` trong DB phải KHỚP allowlist khai trong
@@ -220,6 +228,46 @@ export class PlatformService {
   }
 
   /**
+   * [Trục C L4] Cờ rủi ro XUYÊN ĐƠN VỊ — chỉ SỐ ĐẾM, đọc từ snapshot.
+   *
+   * Đây là đường thứ ba trong bốn đường của lát: B3 thấy đơn vị nào đang đỏ mà KHÔNG đọc được
+   * cờ đó nói gì. Cùng khuôn `exportActivity()` ngay trên, và cùng lý do — nếu tầng nền tảng
+   * đọc được chi tiết cờ thì `platform_admin` gián tiếp đọc được hoạt động nội bộ của mọi đơn
+   * vị, đúng thứ K1 tồn tại để chặn.
+   */
+  async riskOverview(user: RequestUser) {
+    this.assertWithinAllowlist(user);
+    return withPlatform(this.prisma.client, async (tx: TenantTx) => {
+      const tenants = await tx.tenant.findMany({
+        where: { deletedAt: null }, select: { id: true, code: true },
+      });
+      const codeById = new Map(tenants.map((t) => [t.id, t.code]));
+      const snaps = await tx.platformSnapshot.findMany();
+      const entries = snaps.map((s) => {
+        const m = s.metrics as unknown as PlatformMetrics;
+        return {
+          tenantId: s.tenantId, code: codeById.get(s.tenantId) ?? '(đã xoá)',
+          high: m?.riskFlagsHigh ?? 0,
+          medium: m?.riskFlagsMedium ?? 0,
+          low: m?.riskFlagsLow ?? 0,
+          incidentsOpen: m?.incidentsOpen ?? 0,
+          capturedAt: s.capturedAt,
+        };
+      }).sort((a, b) => (b.high - a.high) || (b.medium - a.medium));
+      return {
+        entries,
+        totals: {
+          high: entries.reduce((n, e) => n + e.high, 0),
+          medium: entries.reduce((n, e) => n + e.medium, 0),
+          low: entries.reduce((n, e) => n + e.low, 0),
+          incidentsOpen: entries.reduce((n, e) => n + e.incidentsOpen, 0),
+        },
+        note: 'Chỉ số đếm. Nội dung từng cờ thuộc phạm vi tuân thủ/kiểm toán của đơn vị (B5/B0).',
+      };
+    });
+  }
+
+  /**
    * LÀM MỚI SNAPSHOT — trái tim của K1.
    *
    * Đọc danh sách đơn vị qua GUC đọc (chỉ metadata), rồi **với TỪNG đơn vị** mở một
@@ -249,6 +297,11 @@ export class PlatformService {
   }
 
   private async refreshOne(tenantId: string): Promise<string> {
+    // [Trục C L4] Vật hoá cờ rủi ro TRƯỚC khi đếm. Không có dòng này, snapshot đếm cờ của lượt
+    // TRƯỚC và B3 nhìn thấy một con số luôn trễ một nhịp — kiểu sai lệch không ai phát hiện vì
+    // nó vẫn tăng dần và vẫn trông hợp lý.
+    await this.risk.generate(tenantId);
+
     const monthStart = new Date();
     monthStart.setUTCDate(1); monthStart.setUTCHours(0, 0, 0, 0);
 
@@ -258,6 +311,7 @@ export class PlatformService {
         reviewsOpen, reviewsFinal, evidencePending,
         exportEvents, lastExport, aiRows,
         integrationConnections, integrationRunsFailed, outboxPending, outboxDead, auditEvents,
+        riskFlagsHigh, riskFlagsMedium, riskFlagsLow, incidentsOpen,
       ] = await Promise.all([
         tx.appUser.count({ where: { deletedAt: null } }),
         tx.appUser.count({ where: { deletedAt: null, status: { not: 'active' } } }),
@@ -279,6 +333,10 @@ export class PlatformService {
         tx.outboxEvent.count({ where: { status: 'pending' } }),
         tx.outboxEvent.count({ where: { status: 'dead' } }),
         tx.auditLog.count(),
+        tx.riskFlag.count({ where: { severity: 'high' } }),
+        tx.riskFlag.count({ where: { severity: 'medium' } }),
+        tx.riskFlag.count({ where: { severity: 'low' } }),
+        tx.incident.count({ where: { status: { not: 'closed' } } }),
       ]);
       const m: PlatformMetrics = {
         users, usersDisabled, orgUnits, persons, goals, goalsAtRisk,
@@ -288,6 +346,7 @@ export class PlatformService {
         aiCallsMonth: aiRows.length,
         aiCostUsdMonth: Number(aiRows.reduce((s, r) => s + Number(r.costUsd ?? 0), 0).toFixed(6)),
         integrationConnections, integrationRunsFailed, outboxPending, outboxDead, auditEvents,
+        riskFlagsHigh, riskFlagsMedium, riskFlagsLow, incidentsOpen,
       };
       return m;
     });
