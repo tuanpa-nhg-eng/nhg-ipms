@@ -836,3 +836,49 @@ Một sổ rủi ro nhập tay đo lường **sự chăm chỉ của người nh
 **VERIFY L5:** **825 test / 62 suite** (baseline 794, +31) · typecheck `shared`+`db`+`api`+`web` sạch · `next build` PASS · driver sống **55/55** trên API đã kill+restart, **chạy hai vòng liên tiếp cùng kết quả** (+7 check cho L5).
 
 **Việc kế tiếp:** L6 — soát toàn hệ 11 mục governance (§7 Strategic Context) + cập nhật ngược `so-nang-luc-ipms.md` và bộ BRD.
+
+---
+
+## Trục C — L6 · **31/07/2026 · Soát 11 mục governance + cập nhật ngược tài liệu**
+
+**Tóm tắt cho người bận:** điểm xuất phát của trục C là "đủ 6, hở 5". Hết L6: **9/11 đạt, 2 mục còn một phần, 0 mục trống**. Bảng đối chiếu không nằm trong tài liệu — nó là một **test chạy được**, và tài liệu bán hàng bị khoá vào nó.
+
+### Bảng đối chiếu là test, không phải tài liệu
+
+Kế hoạch đòi "mục → nơi hiện thực → test chứng minh; mục nào không chỉ ra được test là chưa xong". Một bảng trong Markdown chỉ đúng vào ngày người ta viết nó, nên bảng này sống trong `governance-conformance.spec.ts` và tự kiểm ba lớp:
+
+- **Spec chứng minh phải TỒN TẠI** trên đĩa — đổi tên hay xoá một spec ⇒ đỏ ngay, không phải phát hiện sau sáu tháng.
+- **Bất biến cứng đo ở DB** — 8 bảng governance, 8 trigger, quyền `UPDATE/DELETE` trên hai sổ giám sát, cột hạn của vai tạm, CHECK constraint K6. Kiểm bằng `pg_catalog`, không bằng niềm tin rằng migration đã chạy.
+- **Không có đường đánh dấu xong cho đẹp** — mục `partial` bắt buộc kèm ghi chú ≥80 ký tự mô tả còn thiếu gì.
+
+### Hai mục còn "một phần" — và vì sao tôi không tự nâng lên "đạt"
+
+**Mục 4 — luồng phê duyệt dùng chung (BR-M13-03).** Cả bốn loại đối tượng (KPI, cấu hình, kết quả đánh giá, ngoại lệ chính sách) đều có phê duyệt và đều cưỡng chế người-duyệt-khác-người-tạo — nhưng bằng **bốn cơ chế riêng**. Tiêu chí đòi "cùng một cơ chế". Gộp lại là refactor chạm cả bốn module đang chạy đúng: rủi ro hồi quy cao hơn lợi ích tuân thủ, nên tôi tách thành việc riêng có kế hoạch thay vì nhét vào L6. **Cần B5 quyết ưu tiên.**
+
+**Mục 11 — dashboard bốn khối.** Bốn *đường đọc* đều có và đều có test, nhưng chỉ B5/B0 có **màn hình**. B3 và V1 mới có API — đúng nhịp đã chọn từ L2. Tiêu chí nói "dashboard", mà dashboard nghĩa là màn hình, nên không tự nâng.
+
+### Nợ đã trả: worker đẩy dữ liệu ra ngoài mà không qua cổng xuất
+
+Ghi nợ từ L2, trả ở đây. Từ L1 tới L5, route `POST /integrations/outbox/dispatch` khai `@Exported` và được `ExportGuard` gác đúng như K2 đòi — **nhưng worker BullMQ gọi thẳng `dispatchTenant()`**, không qua HTTP, không qua guard, không ghi vết. Nghĩa là đường chạy thật trong production nằm ngoài cổng, còn đường bấm tay thì được gác. Đã dời cổng + ghi vết xuống tầng service để cả hai người gọi đi qua cùng một chỗ; route chuyển sang `@ExportExempt` để không ghi vết hai lần.
+
+Kèm một tính chất mới đáng giá: **job nền không mang theo quyền của ai**, nên mọi mã dữ liệu cần quyền bổ sung đều không tự động xuất được. Ngày nào có người đổi `system.log` thành `confidential`, đường này **đóng** thay vì âm thầm mang dữ liệu nhạy cảm ra ngoài bằng quyền của một tiến trình nền.
+
+### Ba lỗi tự bắt khi soát
+
+① **Dời chốt kiểm soát suýt làm mất phần ghi vết của nó.** Guard ghi audit `export.blocked` khi chặn; service bản đầu chỉ ném lỗi. Driver sống bắt: "chặn xuất nhưng không sinh cờ". **Bài học: dời một chốt thì phải dời cả phần ghi vết — phần từ chối thì người dùng thấy ngay, phần ghi vết thì không ai thấy thiếu.**
+
+② **`GET /export-log` trả `total` là số dòng của TRANG, không phải tổng.** Sổ có 500 lần xuất thì nó báo 200 và đứng yên mãi mãi — một trường tên `total` mà không phải tổng là kiểu sai lệch không ai kiểm chứng lại. Đây là **lần thứ hai trong trục** một phép đo bị trần trang đánh lừa (lần đầu ở L4 với danh sách cờ rủi ro). Đã trả số đếm thật + `returned` tách bạch.
+
+③ **Một mã BR trải trên nhiều mục thì trạng thái của nó là mục YẾU NHẤT.** Bản đầu của test đối chiếu so từng cặp, nên đòi BRD ghi "Đã có" cho `BR-M13-04` trong khi phần dashboard chưa xong. Hứa theo phần mạnh nhất là cách tài liệu bán hàng bắt đầu nói dối.
+
+### Cập nhật ngược tài liệu — và khoá lại bằng test
+
+`brd-nen-tang.mau.json`: **6 mã đổi trạng thái** — `BR-M08-06`, `BR-M11-06`, `BR-M13-02`, `BR-M13-05`, `BR-M13-06` → **Đã có**; `BR-M13-04` → **Một phần**. Bộ BRD đã sinh lại: **74 yêu cầu / 13 module, còn 8 "Chưa có"** (trước trục C là 13).
+
+`so-nang-luc-ipms.md`: dòng NĐ13 đổi từ *"PT — chưa có retention engine"* sang *"VH cho hai nhóm dữ liệu · PT cho phần còn lại"*, **giữ nguyên cảnh báo ⛔ không hứa "tuân thủ NĐ13 sẵn"**; thêm 5 dòng năng lực mới của trục C (sổ đăng ký dữ liệu, kiểm soát xuất, ngoại lệ có hạn, cờ rủi ro, quản trị nền tảng) — mỗi dòng ghi rõ phần nào VH, phần nào PT.
+
+Hai test khoá vòng lặp này lại: trạng thái BRD phải khớp bảng đối chiếu, và sổ năng lực không được còn câu đã sai. **Lệch theo chiều "tài liệu hứa nhiều hơn mã làm được" thì thành cam kết với khách** — đó là chiều nguy hiểm.
+
+**VERIFY L6:** **869 test / 63 suite** (baseline 825, +44) · typecheck `shared`+`db`+`api`+`web` sạch · `next build` PASS · driver sống **55/55** trên API đã kill+restart, **chạy hai vòng liên tiếp cùng kết quả**.
+
+**Việc kế tiếp:** L7 — verify toàn trục + mời Reviewer đối kháng (vé đánh số từ **F191**).

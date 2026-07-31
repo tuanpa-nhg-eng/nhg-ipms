@@ -6,7 +6,6 @@
     "Căn cứ: 00-boi-canh/NHG_Strategic_Context_v0_1.md (§7 governance, §9.3 ranh giới AI, §10 12 câu hỏi bắt buộc).",
     "Chạy: py .claude/skills/ipms-presales-common/scripts/xuat-brd-nen-tang.py <file.json>"
   ],
-
   "tai_lieu": {
     "ten": "Tài liệu Yêu cầu Nghiệp vụ — Nền tảng iPMS",
     "ten_en": "Business Requirements Document — iPMS AI-Native Platform",
@@ -25,7 +24,6 @@
       "Biên bản làm việc nghiệp vụ KPI với chuyên gia hiệu suất (B1)"
     ]
   },
-
   "boi_canh": {
     "dinh_vi_nhg": "NHG không nên được hiểu đơn thuần là một tập đoàn giáo dục. Trong bối cảnh chiến lược 2026–2030, NHG là một Human Development Investment Holding — tập đoàn đầu tư, vận hành và quản trị hệ sinh thái phát triển con người với ba trụ cột Giáo dục – Y tế – Công nghệ. Giáo dục là gốc, Y tế là chiều sâu, Công nghệ là năng lực nhân rộng. Dữ liệu là tài sản chiến lược, AI là đòn bẩy hiệu suất, và quản trị – tuân thủ – an toàn thông tin là lớp bảo vệ niềm tin.",
     "van_de": "Quản trị hiệu suất hiện nay phân tán theo từng đơn vị, chỉ số không thống nhất, kết quả đánh giá khó truy vết về công việc thật, và không có lớp quản trị AI để có thể ứng dụng trí tuệ nhân tạo một cách an toàn ở quy mô tập đoàn. Hệ quả: chiến lược không chảy được xuống tác vụ, dữ liệu không nuôi được dashboard, và lãnh đạo ra quyết định trên số liệu tổng hợp thủ công.",
@@ -42,25 +40,80 @@
       "Không hard-code theo một đơn vị nếu có thể scale toàn tập đoàn"
     ],
     "gia_tri_3v": [
-      { "gia_tri": "Trust / Uy tín", "trong_ipms": "Dữ liệu đúng, phân quyền rõ, audit đầy đủ, kết quả đánh giá giải thích được bằng bằng chứng" },
-      { "gia_tri": "Romance / Lãng mạn", "trong_ipms": "Trải nghiệm nhân văn, dễ dùng, truyền cảm hứng — không biến quản trị hiệu suất thành công cụ giám sát" },
-      { "gia_tri": "Human", "trong_ipms": "AI không bao giờ chấm điểm cuối cùng, không kỷ luật nhân sự, không cấp thu quyền" },
-      { "gia_tri": "Liberal Spirit", "trong_ipms": "Đơn vị và trưởng phòng tự cấu hình, tự soạn tác vụ — trong khuôn khổ governance rõ ràng" },
-      { "gia_tri": "Vision", "trong_ipms": "Một nền tảng phục vụ toàn tập đoàn, không phân nhánh mã nguồn theo đơn vị" },
-      { "gia_tri": "Value", "trong_ipms": "Mọi năng lực phải quy về giá trị đo được: năng suất, chất lượng, chi phí, rủi ro" },
-      { "gia_tri": "Virtue", "trong_ipms": "AI và dữ liệu chính trực, minh bạch, có kiểm soát, không thao túng" }
+      {
+        "gia_tri": "Trust / Uy tín",
+        "trong_ipms": "Dữ liệu đúng, phân quyền rõ, audit đầy đủ, kết quả đánh giá giải thích được bằng bằng chứng"
+      },
+      {
+        "gia_tri": "Romance / Lãng mạn",
+        "trong_ipms": "Trải nghiệm nhân văn, dễ dùng, truyền cảm hứng — không biến quản trị hiệu suất thành công cụ giám sát"
+      },
+      {
+        "gia_tri": "Human",
+        "trong_ipms": "AI không bao giờ chấm điểm cuối cùng, không kỷ luật nhân sự, không cấp thu quyền"
+      },
+      {
+        "gia_tri": "Liberal Spirit",
+        "trong_ipms": "Đơn vị và trưởng phòng tự cấu hình, tự soạn tác vụ — trong khuôn khổ governance rõ ràng"
+      },
+      {
+        "gia_tri": "Vision",
+        "trong_ipms": "Một nền tảng phục vụ toàn tập đoàn, không phân nhánh mã nguồn theo đơn vị"
+      },
+      {
+        "gia_tri": "Value",
+        "trong_ipms": "Mọi năng lực phải quy về giá trị đo được: năng suất, chất lượng, chi phí, rủi ro"
+      },
+      {
+        "gia_tri": "Virtue",
+        "trong_ipms": "AI và dữ liệu chính trực, minh bạch, có kiểm soát, không thao túng"
+      }
     ]
   },
-
   "muc_tieu": [
-    { "ma": "MT-01", "muc_tieu": "Chiến lược chảy được xuống tác vụ và truy vết ngược được", "do_luong": "100% mục tiêu cấp tập đoàn có đường truy vết OKR → KGI → KPI → Tác vụ → Người chịu trách nhiệm", "chu_quan": "B1", "moc": "Hết giai đoạn 2" },
-    { "ma": "MT-02", "muc_tieu": "Kết quả đánh giá giải thích được bằng bằng chứng, không cảm tính", "do_luong": "≥80% KPI có bằng chứng đã xác minh hoặc lấy tự động từ hệ nguồn", "chu_quan": "B1", "moc": "Kỳ đánh giá thứ hai" },
-    { "ma": "MT-03", "muc_tieu": "Chuẩn hoá tác vụ toàn tập đoàn làm nền cho tự động hoá", "do_luong": "Từ điển Tác vụ phủ ≥80% vị trí của đơn vị thí điểm, 100% tác vụ đang dùng có gắn chỉ số", "chu_quan": "B1 + B3", "moc": "Hết giai đoạn 3" },
-    { "ma": "MT-04", "muc_tieu": "Ứng dụng AI an toàn ở quy mô tập đoàn", "do_luong": "100% lượt gọi AI có nhật ký; 0 sự cố dữ liệu Confidential/Restricted rời hạ tầng; mọi đề xuất AI đều qua người duyệt", "chu_quan": "B3 + B5", "moc": "Trước khi bật AI thật" },
-    { "ma": "MT-05", "muc_tieu": "Nhân rộng không phân nhánh mã nguồn", "do_luong": "Mỗi OpCo mới lên nền tảng chỉ bằng cấu hình, 0 nhánh mã riêng", "chu_quan": "B3", "moc": "Từ OpCo thứ hai" },
-    { "ma": "MT-06", "muc_tieu": "Lãnh đạo có dashboard thay cho báo cáo tổng hợp thủ công", "do_luong": "V1, B0, B1, B2, B3, B5 đều có dashboard riêng lấy số trực tiếp từ nền tảng", "chu_quan": "B3", "moc": "Hết giai đoạn 4" }
+    {
+      "ma": "MT-01",
+      "muc_tieu": "Chiến lược chảy được xuống tác vụ và truy vết ngược được",
+      "do_luong": "100% mục tiêu cấp tập đoàn có đường truy vết OKR → KGI → KPI → Tác vụ → Người chịu trách nhiệm",
+      "chu_quan": "B1",
+      "moc": "Hết giai đoạn 2"
+    },
+    {
+      "ma": "MT-02",
+      "muc_tieu": "Kết quả đánh giá giải thích được bằng bằng chứng, không cảm tính",
+      "do_luong": "≥80% KPI có bằng chứng đã xác minh hoặc lấy tự động từ hệ nguồn",
+      "chu_quan": "B1",
+      "moc": "Kỳ đánh giá thứ hai"
+    },
+    {
+      "ma": "MT-03",
+      "muc_tieu": "Chuẩn hoá tác vụ toàn tập đoàn làm nền cho tự động hoá",
+      "do_luong": "Từ điển Tác vụ phủ ≥80% vị trí của đơn vị thí điểm, 100% tác vụ đang dùng có gắn chỉ số",
+      "chu_quan": "B1 + B3",
+      "moc": "Hết giai đoạn 3"
+    },
+    {
+      "ma": "MT-04",
+      "muc_tieu": "Ứng dụng AI an toàn ở quy mô tập đoàn",
+      "do_luong": "100% lượt gọi AI có nhật ký; 0 sự cố dữ liệu Confidential/Restricted rời hạ tầng; mọi đề xuất AI đều qua người duyệt",
+      "chu_quan": "B3 + B5",
+      "moc": "Trước khi bật AI thật"
+    },
+    {
+      "ma": "MT-05",
+      "muc_tieu": "Nhân rộng không phân nhánh mã nguồn",
+      "do_luong": "Mỗi OpCo mới lên nền tảng chỉ bằng cấu hình, 0 nhánh mã riêng",
+      "chu_quan": "B3",
+      "moc": "Từ OpCo thứ hai"
+    },
+    {
+      "ma": "MT-06",
+      "muc_tieu": "Lãnh đạo có dashboard thay cho báo cáo tổng hợp thủ công",
+      "do_luong": "V1, B0, B1, B2, B3, B5 đều có dashboard riêng lấy số trực tiếp từ nền tảng",
+      "chu_quan": "B3",
+      "moc": "Hết giai đoạn 4"
+    }
   ],
-
   "loi_nen_tang": {
     "tieu_de": "Từ điển Tác vụ gắn KPI",
     "tuyen_bo": "Từ điển Tác vụ gắn với KPI là LÕI của iPMS. Mọi module khác tồn tại để phục vụ, nuôi dưỡng hoặc khai thác lõi này. Nếu phải cắt phạm vi, cắt mọi thứ khác trước — không cắt lõi.",
@@ -79,25 +132,76 @@
       "Tác vụ luôn thuộc về một đơn vị và một người chịu trách nhiệm — không có tác vụ vô chủ."
     ],
     "chuoi_truy_vet": [
-      { "mat_xich": "OKR", "cau_hoi": "Tập đoàn muốn gì trong kỳ này?", "chu_the": "Ban Điều hành · V1", "vi_du": "Mở rộng quy mô người học ở trụ cột Giáo dục" },
-      { "mat_xich": "KGI", "cau_hoi": "Kết quả then chốt nào chứng minh đạt được?", "chu_the": "OpCo cấp 1", "vi_du": "Tăng quy mô tuyển sinh của khối đại học" },
-      { "mat_xich": "KPI", "cau_hoi": "Đo bằng chỉ số nào, công thức nào?", "chu_the": "B1 · Từ điển KPI", "vi_du": "Tỷ lệ chuyển đổi từ hồ sơ sang nhập học" },
-      { "mat_xich": "Task Cell", "cau_hoi": "Công việc cụ thể nào tác động lên chỉ số đó?", "chu_the": "Trưởng phòng · nhân viên", "vi_du": "Gọi lại ứng viên tiềm năng trong 24 giờ" },
-      { "mat_xich": "Người chịu trách nhiệm", "cau_hoi": "Ai làm, ai duyệt, ai được tư vấn?", "chu_the": "Vai trò trong tác vụ", "vi_du": "Chuyên viên tuyển sinh" },
-      { "mat_xich": "Bằng chứng", "cau_hoi": "Lấy gì chứng minh đã làm và làm tốt?", "chu_the": "Người nộp ≠ người xác minh", "vi_du": "Nhật ký liên hệ trích từ hệ nguồn" },
-      { "mat_xich": "Điểm & Kết quả", "cau_hoi": "Quy ra điểm thế nào, ai chốt?", "chu_the": "Máy tính điểm · người chốt", "vi_du": "Điểm chỉ số theo bậc thang đã duyệt" },
-      { "mat_xich": "Phản hồi ngược", "cau_hoi": "Làm rồi thấy mô tả chưa đúng thì sửa thế nào?", "chu_the": "Người làm thật góp ý", "vi_du": "Mở lại tác vụ, sửa, duyệt, lên phiên bản mới" }
+      {
+        "mat_xich": "OKR",
+        "cau_hoi": "Tập đoàn muốn gì trong kỳ này?",
+        "chu_the": "Ban Điều hành · V1",
+        "vi_du": "Mở rộng quy mô người học ở trụ cột Giáo dục"
+      },
+      {
+        "mat_xich": "KGI",
+        "cau_hoi": "Kết quả then chốt nào chứng minh đạt được?",
+        "chu_the": "OpCo cấp 1",
+        "vi_du": "Tăng quy mô tuyển sinh của khối đại học"
+      },
+      {
+        "mat_xich": "KPI",
+        "cau_hoi": "Đo bằng chỉ số nào, công thức nào?",
+        "chu_the": "B1 · Từ điển KPI",
+        "vi_du": "Tỷ lệ chuyển đổi từ hồ sơ sang nhập học"
+      },
+      {
+        "mat_xich": "Task Cell",
+        "cau_hoi": "Công việc cụ thể nào tác động lên chỉ số đó?",
+        "chu_the": "Trưởng phòng · nhân viên",
+        "vi_du": "Gọi lại ứng viên tiềm năng trong 24 giờ"
+      },
+      {
+        "mat_xich": "Người chịu trách nhiệm",
+        "cau_hoi": "Ai làm, ai duyệt, ai được tư vấn?",
+        "chu_the": "Vai trò trong tác vụ",
+        "vi_du": "Chuyên viên tuyển sinh"
+      },
+      {
+        "mat_xich": "Bằng chứng",
+        "cau_hoi": "Lấy gì chứng minh đã làm và làm tốt?",
+        "chu_the": "Người nộp ≠ người xác minh",
+        "vi_du": "Nhật ký liên hệ trích từ hệ nguồn"
+      },
+      {
+        "mat_xich": "Điểm & Kết quả",
+        "cau_hoi": "Quy ra điểm thế nào, ai chốt?",
+        "chu_the": "Máy tính điểm · người chốt",
+        "vi_du": "Điểm chỉ số theo bậc thang đã duyệt"
+      },
+      {
+        "mat_xich": "Phản hồi ngược",
+        "cau_hoi": "Làm rồi thấy mô tả chưa đúng thì sửa thế nào?",
+        "chu_the": "Người làm thật góp ý",
+        "vi_du": "Mở lại tác vụ, sửa, duyệt, lên phiên bản mới"
+      }
     ],
     "vong_lap_toi_uu": "Tác vụ đang dùng → người làm thật góp ý → trưởng phòng mở lại và giao người sửa → sửa → trưởng phòng duyệt kích hoạt → phiên bản mới, góp ý được đánh dấu đã xử lý, lịch sử giữ nguyên. Đây là cơ chế để mô tả công việc không lạc hậu sau sáu tháng như tài liệu tĩnh — tổ chức tự bồi đắp tri thức vận hành của chính mình.",
     "vai_tro_ai": [
-      { "nang_luc": "Mức độ có thể ứng dụng AI trên từng tác vụ", "y_nghia": "Biết chỗ nào nên tự động hoá trước, chỗ nào phải giữ con người" },
-      { "nang_luc": "Gợi ý agent phù hợp cho tác vụ", "y_nghia": "Từ danh mục công việc suy ra được danh mục agent cần xây" },
-      { "nang_luc": "Bản đồ công việc theo vai trò", "y_nghia": "Nhìn được một chức danh gồm những việc gì và bao nhiêu phần trăm có thể được AI hỗ trợ" },
-      { "nang_luc": "Đo tác động sau khi áp dụng AI", "y_nghia": "Chứng minh giá trị bằng số, đúng tinh thần Value trong 3V" }
+      {
+        "nang_luc": "Mức độ có thể ứng dụng AI trên từng tác vụ",
+        "y_nghia": "Biết chỗ nào nên tự động hoá trước, chỗ nào phải giữ con người"
+      },
+      {
+        "nang_luc": "Gợi ý agent phù hợp cho tác vụ",
+        "y_nghia": "Từ danh mục công việc suy ra được danh mục agent cần xây"
+      },
+      {
+        "nang_luc": "Bản đồ công việc theo vai trò",
+        "y_nghia": "Nhìn được một chức danh gồm những việc gì và bao nhiêu phần trăm có thể được AI hỗ trợ"
+      },
+      {
+        "nang_luc": "Đo tác động sau khi áp dụng AI",
+        "y_nghia": "Chứng minh giá trị bằng số, đúng tinh thần Value trong 3V"
+      }
     ],
     "hau_qua_neu_bo_lo": "Bỏ lõi này thì iPMS trở thành một phần mềm chấm điểm: đo được kết quả nhưng không nối được kết quả với hành vi, không có nền để triển khai AI, và không tích luỹ được tri thức vận hành. Toàn bộ giá trị dài hạn của nền tảng nằm ở lõi này."
   },
-
   "pham_vi": {
     "trong": [
       "Quản trị mục tiêu ba tầng: OKR → KGI → KPI, phân rã Holding → OpCo cấp 1 → OpCo cấp 2",
@@ -112,156 +216,953 @@
       "Kết nối IDP và các hệ nguồn dữ liệu của tập đoàn"
     ],
     "ngoai": [
-      { "hang_muc": "Tính lương và chi trả", "ly_do": "Thuộc hệ thống nhân sự – tiền lương; iPMS chỉ xuất kết quả đã chốt", "giao_dien": "Xuất kết quả FINAL sang hệ lương" },
-      { "hang_muc": "Tuyển dụng và quản trị hồ sơ nhân sự gốc", "ly_do": "Thuộc TalentOS / hệ nhân sự", "giao_dien": "Đồng bộ danh sách nhân sự, chức danh, đơn vị" },
-      { "hang_muc": "Đào tạo và cấp chứng chỉ", "ly_do": "Thuộc iLMS", "giao_dien": "Nhận tín hiệu năng lực, gửi nhu cầu đào tạo từ kết quả đánh giá" },
-      { "hang_muc": "Kho dữ liệu tập đoàn và mô hình dữ liệu chung", "ly_do": "Thuộc IDP — iPMS không tạo silo mới", "giao_dien": "Đăng ký dữ liệu và tiêu thụ dữ liệu qua IDP" },
-      { "hang_muc": "Hồ sơ kiểm toán nội bộ", "ly_do": "Thuộc Internal Audit OS", "giao_dien": "Cấp quyền đọc nhật ký kiểm toán cho B0" },
-      { "hang_muc": "Huấn luyện tinh chỉnh mô hình AI", "ly_do": "Dự án con giai đoạn sau, cần hạ tầng tính toán riêng", "giao_dien": "—" }
+      {
+        "hang_muc": "Tính lương và chi trả",
+        "ly_do": "Thuộc hệ thống nhân sự – tiền lương; iPMS chỉ xuất kết quả đã chốt",
+        "giao_dien": "Xuất kết quả FINAL sang hệ lương"
+      },
+      {
+        "hang_muc": "Tuyển dụng và quản trị hồ sơ nhân sự gốc",
+        "ly_do": "Thuộc TalentOS / hệ nhân sự",
+        "giao_dien": "Đồng bộ danh sách nhân sự, chức danh, đơn vị"
+      },
+      {
+        "hang_muc": "Đào tạo và cấp chứng chỉ",
+        "ly_do": "Thuộc iLMS",
+        "giao_dien": "Nhận tín hiệu năng lực, gửi nhu cầu đào tạo từ kết quả đánh giá"
+      },
+      {
+        "hang_muc": "Kho dữ liệu tập đoàn và mô hình dữ liệu chung",
+        "ly_do": "Thuộc IDP — iPMS không tạo silo mới",
+        "giao_dien": "Đăng ký dữ liệu và tiêu thụ dữ liệu qua IDP"
+      },
+      {
+        "hang_muc": "Hồ sơ kiểm toán nội bộ",
+        "ly_do": "Thuộc Internal Audit OS",
+        "giao_dien": "Cấp quyền đọc nhật ký kiểm toán cho B0"
+      },
+      {
+        "hang_muc": "Huấn luyện tinh chỉnh mô hình AI",
+        "ly_do": "Dự án con giai đoạn sau, cần hạ tầng tính toán riêng",
+        "giao_dien": "—"
+      }
     ]
   },
-
   "muoi_hai_cau_hoi": [
-    { "stt": 1, "cau_hoi": "Phục vụ mục tiêu chiến lược nào của NHG?", "tra_loi": "Tăng hiệu suất quản trị và vận hành toàn tập đoàn trong giai đoạn AI-first; biến chiến lược thành tác vụ đo được ở cả ba trụ cột Giáo dục – Y tế – Công nghệ." },
-    { "stt": 2, "cau_hoi": "Thuộc Holding, OpCo cấp 1, OpCo cấp 2 hay PropCo?", "tra_loi": "Nền tảng cấp Holding, triển khai xuống toàn bộ OpCo cấp 1 và cấp 2 theo mô hình đa đơn vị; PropCo dùng phần quản trị hiệu suất chung." },
-    { "stt": 3, "cau_hoi": "Business owner là ai?", "tra_loi": "B1 — Chiến lược & Chính sách Nhân sự (chủ nghiệp vụ), đồng chủ quản B3 về nền tảng và AI." },
-    { "stt": 4, "cau_hoi": "Data owner là ai?", "tra_loi": "Dữ liệu mục tiêu – chỉ số – đánh giá: B1. Dữ liệu vận hành nguồn: OpCo tương ứng. Dữ liệu nền tảng, nhật ký, AI usage: B3. Chi tiết ở Ma trận Dữ liệu." },
-    { "stt": 5, "cau_hoi": "Dữ liệu gốc nằm ở đâu?", "tra_loi": "Nhân sự: hệ nhân sự tập đoàn. Tài chính: hệ tài chính – kế toán. Vận hành ngành: hệ nghiệp vụ của OpCo. iPMS là hệ ghi nhận cho mục tiêu, chỉ số, bằng chứng, kết quả đánh giá và tác vụ; các dữ liệu khác được tiêu thụ qua IDP." },
-    { "stt": 6, "cau_hoi": "Dữ liệu thuộc mức phân loại nào?", "tra_loi": "Trải đủ bốn mức. Cơ cấu tổ chức: Internal. Chỉ số và tác vụ: Internal. Kết quả đánh giá cá nhân: Confidential. Dữ liệu lương thưởng và hồ sơ kỷ luật: Restricted." },
-    { "stt": 7, "cau_hoi": "AI được phép làm gì và không được phép làm gì?", "tra_loi": "Được: tóm tắt, gợi ý, phát hiện bất thường, soạn nháp, tạo checklist, đề xuất hành động, chuẩn hoá dữ liệu, hỗ trợ tìm kiếm – phân tích. Không được: chấm KPI cuối cùng, phê duyệt, kỷ luật nhân sự, cấp thu quyền, công bố ra ngoài, xử lý dữ liệu nhạy cảm ngoài chính sách. Danh sách này được cưỡng chế bằng mã, không phải bằng hướng dẫn sử dụng." },
-    { "stt": 8, "cau_hoi": "Human-in-the-loop nằm ở bước nào?", "tra_loi": "Bốn cổng bắt buộc: phê duyệt chỉ số, xác minh bằng chứng, chốt kết quả đánh giá, và công bố cấu hình. Mọi đề xuất của AI vào hàng chờ ở trạng thái chờ duyệt, không tự có hiệu lực." },
-    { "stt": 9, "cau_hoi": "Có audit log, approval workflow và export control không?", "tra_loi": "Có cả ba. Nhật ký kiểm toán chỉ ghi thêm, không sửa xoá được kể cả bởi quản trị viên; luồng phê duyệt chuẩn cho chỉ số, cấu hình và kết quả; mọi lần xuất dữ liệu được ghi vết." },
-    { "stt": 10, "cau_hoi": "Dashboard nào phục vụ V1, B1, B2, B3, B5, B0 và OpCo?", "tra_loi": "Xem Ma trận Dashboard theo trung tâm quyền lực." },
-    { "stt": 11, "cau_hoi": "Rủi ro pháp lý, tài chính, dữ liệu, thương hiệu, vận hành là gì?", "tra_loi": "Xem Danh mục Rủi ro. Ba rủi ro lớn nhất: rò rỉ dữ liệu đánh giá cá nhân, AI đưa ra kết luận sai được coi là quyết định, và kháng cự tổ chức khi đo lường minh bạch hơn." },
-    { "stt": 12, "cau_hoi": "Giải pháp có củng cố Trust & Romance không?", "tra_loi": "Trust: kết quả đánh giá luôn truy vết được về bằng chứng và tác vụ có thật. Romance: người dùng thấy công việc của mình nối với mục tiêu lớn, và được tham gia hoàn thiện chính mô tả công việc của mình qua vòng lặp góp ý." }
+    {
+      "stt": 1,
+      "cau_hoi": "Phục vụ mục tiêu chiến lược nào của NHG?",
+      "tra_loi": "Tăng hiệu suất quản trị và vận hành toàn tập đoàn trong giai đoạn AI-first; biến chiến lược thành tác vụ đo được ở cả ba trụ cột Giáo dục – Y tế – Công nghệ."
+    },
+    {
+      "stt": 2,
+      "cau_hoi": "Thuộc Holding, OpCo cấp 1, OpCo cấp 2 hay PropCo?",
+      "tra_loi": "Nền tảng cấp Holding, triển khai xuống toàn bộ OpCo cấp 1 và cấp 2 theo mô hình đa đơn vị; PropCo dùng phần quản trị hiệu suất chung."
+    },
+    {
+      "stt": 3,
+      "cau_hoi": "Business owner là ai?",
+      "tra_loi": "B1 — Chiến lược & Chính sách Nhân sự (chủ nghiệp vụ), đồng chủ quản B3 về nền tảng và AI."
+    },
+    {
+      "stt": 4,
+      "cau_hoi": "Data owner là ai?",
+      "tra_loi": "Dữ liệu mục tiêu – chỉ số – đánh giá: B1. Dữ liệu vận hành nguồn: OpCo tương ứng. Dữ liệu nền tảng, nhật ký, AI usage: B3. Chi tiết ở Ma trận Dữ liệu."
+    },
+    {
+      "stt": 5,
+      "cau_hoi": "Dữ liệu gốc nằm ở đâu?",
+      "tra_loi": "Nhân sự: hệ nhân sự tập đoàn. Tài chính: hệ tài chính – kế toán. Vận hành ngành: hệ nghiệp vụ của OpCo. iPMS là hệ ghi nhận cho mục tiêu, chỉ số, bằng chứng, kết quả đánh giá và tác vụ; các dữ liệu khác được tiêu thụ qua IDP."
+    },
+    {
+      "stt": 6,
+      "cau_hoi": "Dữ liệu thuộc mức phân loại nào?",
+      "tra_loi": "Trải đủ bốn mức. Cơ cấu tổ chức: Internal. Chỉ số và tác vụ: Internal. Kết quả đánh giá cá nhân: Confidential. Dữ liệu lương thưởng và hồ sơ kỷ luật: Restricted."
+    },
+    {
+      "stt": 7,
+      "cau_hoi": "AI được phép làm gì và không được phép làm gì?",
+      "tra_loi": "Được: tóm tắt, gợi ý, phát hiện bất thường, soạn nháp, tạo checklist, đề xuất hành động, chuẩn hoá dữ liệu, hỗ trợ tìm kiếm – phân tích. Không được: chấm KPI cuối cùng, phê duyệt, kỷ luật nhân sự, cấp thu quyền, công bố ra ngoài, xử lý dữ liệu nhạy cảm ngoài chính sách. Danh sách này được cưỡng chế bằng mã, không phải bằng hướng dẫn sử dụng."
+    },
+    {
+      "stt": 8,
+      "cau_hoi": "Human-in-the-loop nằm ở bước nào?",
+      "tra_loi": "Bốn cổng bắt buộc: phê duyệt chỉ số, xác minh bằng chứng, chốt kết quả đánh giá, và công bố cấu hình. Mọi đề xuất của AI vào hàng chờ ở trạng thái chờ duyệt, không tự có hiệu lực."
+    },
+    {
+      "stt": 9,
+      "cau_hoi": "Có audit log, approval workflow và export control không?",
+      "tra_loi": "Có cả ba. Nhật ký kiểm toán chỉ ghi thêm, không sửa xoá được kể cả bởi quản trị viên; luồng phê duyệt chuẩn cho chỉ số, cấu hình và kết quả; mọi lần xuất dữ liệu được ghi vết."
+    },
+    {
+      "stt": 10,
+      "cau_hoi": "Dashboard nào phục vụ V1, B1, B2, B3, B5, B0 và OpCo?",
+      "tra_loi": "Xem Ma trận Dashboard theo trung tâm quyền lực."
+    },
+    {
+      "stt": 11,
+      "cau_hoi": "Rủi ro pháp lý, tài chính, dữ liệu, thương hiệu, vận hành là gì?",
+      "tra_loi": "Xem Danh mục Rủi ro. Ba rủi ro lớn nhất: rò rỉ dữ liệu đánh giá cá nhân, AI đưa ra kết luận sai được coi là quyết định, và kháng cự tổ chức khi đo lường minh bạch hơn."
+    },
+    {
+      "stt": 12,
+      "cau_hoi": "Giải pháp có củng cố Trust & Romance không?",
+      "tra_loi": "Trust: kết quả đánh giá luôn truy vết được về bằng chứng và tác vụ có thật. Romance: người dùng thấy công việc của mình nối với mục tiêu lớn, và được tham gia hoàn thiện chính mô tả công việc của mình qua vòng lặp góp ý."
+    }
   ],
-
   "trung_tam_quyen_luc": [
-    { "ma": "V1", "ten": "Văn phòng Chủ tịch", "vai_tro": "Nhìn toàn cảnh hiệu suất tập đoàn, cảnh báo sớm", "quan_he_ipms": "Người tiêu thụ dashboard cấp cao nhất", "dashboard": "Toàn cảnh hiệu suất theo trụ cột, mục tiêu rủi ro, so sánh OpCo" },
-    { "ma": "B0", "ten": "Kiểm toán nội bộ & Nguồn vốn", "vai_tro": "Giám sát độc lập, kiểm chứng số liệu", "quan_he_ipms": "Chỉ đọc nhật ký kiểm toán và bằng chứng", "dashboard": "Nhật ký thao tác nhạy cảm, ngoại lệ chính sách, sự cố" },
-    { "ma": "B1", "ten": "Chiến lược & Chính sách Nhân sự", "vai_tro": "Chủ nghiệp vụ", "quan_he_ipms": "Sở hữu Từ điển KPI, chu kỳ đánh giá, chính sách hiệu suất", "dashboard": "Tiến độ chu kỳ, phân bố điểm, ma trận tài năng, khoảng trống năng lực" },
-    { "ma": "B2", "ten": "Tài chính & Đầu tư", "vai_tro": "Gắn hiệu suất với kết quả tài chính", "quan_he_ipms": "Cung cấp số liệu tài chính cho KPI, nhận kết quả cho quỹ thưởng", "dashboard": "Hiệu suất theo đơn vị đối chiếu kết quả tài chính" },
-    { "ma": "B3", "ten": "Nghiên cứu, Phát triển & Ứng dụng Công nghệ", "vai_tro": "Chủ nền tảng, dữ liệu và AI", "quan_he_ipms": "Vận hành nền tảng, quản trị AI, tích hợp IDP", "dashboard": "Sức khoẻ hệ thống, mức dùng AI và chi phí, tiến độ tích hợp" },
-    { "ma": "B5", "ten": "Pháp chế & Tuân thủ", "vai_tro": "Bảo vệ tuân thủ và quản trị rủi ro", "quan_he_ipms": "Duyệt chính sách dữ liệu và ranh giới AI", "dashboard": "Vi phạm chính sách, ngoại lệ, hồ sơ tuân thủ dữ liệu cá nhân" },
-    { "ma": "B6", "ten": "Chiến lược Phát triển Tập đoàn", "vai_tro": "Đánh giá năng lực thực thi khi mở rộng", "quan_he_ipms": "Đọc năng lực thực thi của các đơn vị", "dashboard": "Năng lực thực thi theo đơn vị, sẵn sàng cho mở rộng" },
-    { "ma": "OpCo", "ten": "Đơn vị vận hành cấp 1 và cấp 2", "vai_tro": "Nơi tạo ra kết quả và dữ liệu gốc", "quan_he_ipms": "Người dùng chính, tự cấu hình trong khuôn khổ", "dashboard": "Mục tiêu đơn vị, đội ngũ, tiến độ, tác vụ" }
+    {
+      "ma": "V1",
+      "ten": "Văn phòng Chủ tịch",
+      "vai_tro": "Nhìn toàn cảnh hiệu suất tập đoàn, cảnh báo sớm",
+      "quan_he_ipms": "Người tiêu thụ dashboard cấp cao nhất",
+      "dashboard": "Toàn cảnh hiệu suất theo trụ cột, mục tiêu rủi ro, so sánh OpCo"
+    },
+    {
+      "ma": "B0",
+      "ten": "Kiểm toán nội bộ & Nguồn vốn",
+      "vai_tro": "Giám sát độc lập, kiểm chứng số liệu",
+      "quan_he_ipms": "Chỉ đọc nhật ký kiểm toán và bằng chứng",
+      "dashboard": "Nhật ký thao tác nhạy cảm, ngoại lệ chính sách, sự cố"
+    },
+    {
+      "ma": "B1",
+      "ten": "Chiến lược & Chính sách Nhân sự",
+      "vai_tro": "Chủ nghiệp vụ",
+      "quan_he_ipms": "Sở hữu Từ điển KPI, chu kỳ đánh giá, chính sách hiệu suất",
+      "dashboard": "Tiến độ chu kỳ, phân bố điểm, ma trận tài năng, khoảng trống năng lực"
+    },
+    {
+      "ma": "B2",
+      "ten": "Tài chính & Đầu tư",
+      "vai_tro": "Gắn hiệu suất với kết quả tài chính",
+      "quan_he_ipms": "Cung cấp số liệu tài chính cho KPI, nhận kết quả cho quỹ thưởng",
+      "dashboard": "Hiệu suất theo đơn vị đối chiếu kết quả tài chính"
+    },
+    {
+      "ma": "B3",
+      "ten": "Nghiên cứu, Phát triển & Ứng dụng Công nghệ",
+      "vai_tro": "Chủ nền tảng, dữ liệu và AI",
+      "quan_he_ipms": "Vận hành nền tảng, quản trị AI, tích hợp IDP",
+      "dashboard": "Sức khoẻ hệ thống, mức dùng AI và chi phí, tiến độ tích hợp"
+    },
+    {
+      "ma": "B5",
+      "ten": "Pháp chế & Tuân thủ",
+      "vai_tro": "Bảo vệ tuân thủ và quản trị rủi ro",
+      "quan_he_ipms": "Duyệt chính sách dữ liệu và ranh giới AI",
+      "dashboard": "Vi phạm chính sách, ngoại lệ, hồ sơ tuân thủ dữ liệu cá nhân"
+    },
+    {
+      "ma": "B6",
+      "ten": "Chiến lược Phát triển Tập đoàn",
+      "vai_tro": "Đánh giá năng lực thực thi khi mở rộng",
+      "quan_he_ipms": "Đọc năng lực thực thi của các đơn vị",
+      "dashboard": "Năng lực thực thi theo đơn vị, sẵn sàng cho mở rộng"
+    },
+    {
+      "ma": "OpCo",
+      "ten": "Đơn vị vận hành cấp 1 và cấp 2",
+      "vai_tro": "Nơi tạo ra kết quả và dữ liệu gốc",
+      "quan_he_ipms": "Người dùng chính, tự cấu hình trong khuôn khổ",
+      "dashboard": "Mục tiêu đơn vị, đội ngũ, tiến độ, tác vụ"
+    }
   ],
-
   "persona": [
-    { "persona": "Nhân viên", "so_luong_du_kien": "Toàn bộ nhân sự", "viec_chinh": "Nhận mục tiêu, cập nhật tiến độ, nộp bằng chứng, tự đánh giá, góp ý tác vụ", "khong_duoc": "Xem kết quả người khác; sửa định mức của chính mình" },
-    { "persona": "Trưởng phòng", "so_luong_du_kien": "Cấp quản lý trực tiếp", "viec_chinh": "Giao mục tiêu, đánh giá, uỷ quyền soạn tác vụ, duyệt kích hoạt tác vụ", "khong_duoc": "Xem nhân sự phòng khác; tự duyệt tác vụ do chính mình soạn" },
-    { "persona": "Nhân sự (B1)", "so_luong_du_kien": "Khối nhân sự", "viec_chinh": "Vận hành chu kỳ, quản trị Từ điển KPI, chủ trì cân chỉnh", "khong_duoc": "Sửa kết quả đã chốt" },
-    { "persona": "Ban lãnh đạo", "so_luong_du_kien": "Cấp điều hành", "viec_chinh": "Theo dõi toàn cảnh, mục tiêu rủi ro", "khong_duoc": "Thao tác trực tiếp lên dữ liệu nghiệp vụ" },
-    { "persona": "Kiểm toán nội bộ (B0)", "so_luong_du_kien": "Khối kiểm toán", "viec_chinh": "Tra cứu nhật ký, kiểm chứng bằng chứng", "khong_duoc": "Sửa bất kỳ dữ liệu nào" },
-    { "persona": "Quản trị đơn vị", "so_luong_du_kien": "Mỗi đơn vị 1–2 người", "viec_chinh": "Tạo người dùng, gán vai, cấu hình đơn vị", "khong_duoc": "Chốt kết quả, xuất lương, đọc nhật ký kiểm toán" },
-    { "persona": "Quản trị nền tảng (B3)", "so_luong_du_kien": "Khối công nghệ", "viec_chinh": "Vận hành xuyên đơn vị, cờ tính năng, quản trị AI", "khong_duoc": "Đọc nội dung đánh giá cá nhân khi không có lệnh hợp lệ" }
+    {
+      "persona": "Nhân viên",
+      "so_luong_du_kien": "Toàn bộ nhân sự",
+      "viec_chinh": "Nhận mục tiêu, cập nhật tiến độ, nộp bằng chứng, tự đánh giá, góp ý tác vụ",
+      "khong_duoc": "Xem kết quả người khác; sửa định mức của chính mình"
+    },
+    {
+      "persona": "Trưởng phòng",
+      "so_luong_du_kien": "Cấp quản lý trực tiếp",
+      "viec_chinh": "Giao mục tiêu, đánh giá, uỷ quyền soạn tác vụ, duyệt kích hoạt tác vụ",
+      "khong_duoc": "Xem nhân sự phòng khác; tự duyệt tác vụ do chính mình soạn"
+    },
+    {
+      "persona": "Nhân sự (B1)",
+      "so_luong_du_kien": "Khối nhân sự",
+      "viec_chinh": "Vận hành chu kỳ, quản trị Từ điển KPI, chủ trì cân chỉnh",
+      "khong_duoc": "Sửa kết quả đã chốt"
+    },
+    {
+      "persona": "Ban lãnh đạo",
+      "so_luong_du_kien": "Cấp điều hành",
+      "viec_chinh": "Theo dõi toàn cảnh, mục tiêu rủi ro",
+      "khong_duoc": "Thao tác trực tiếp lên dữ liệu nghiệp vụ"
+    },
+    {
+      "persona": "Kiểm toán nội bộ (B0)",
+      "so_luong_du_kien": "Khối kiểm toán",
+      "viec_chinh": "Tra cứu nhật ký, kiểm chứng bằng chứng",
+      "khong_duoc": "Sửa bất kỳ dữ liệu nào"
+    },
+    {
+      "persona": "Quản trị đơn vị",
+      "so_luong_du_kien": "Mỗi đơn vị 1–2 người",
+      "viec_chinh": "Tạo người dùng, gán vai, cấu hình đơn vị",
+      "khong_duoc": "Chốt kết quả, xuất lương, đọc nhật ký kiểm toán"
+    },
+    {
+      "persona": "Quản trị nền tảng (B3)",
+      "so_luong_du_kien": "Khối công nghệ",
+      "viec_chinh": "Vận hành xuyên đơn vị, cờ tính năng, quản trị AI",
+      "khong_duoc": "Đọc nội dung đánh giá cá nhân khi không có lệnh hợp lệ"
+    }
   ],
-
   "modules": [
-    { "ma": "M01", "ten": "Chiến lược & Phân rã mục tiêu", "muc_dich": "Đưa mục tiêu tập đoàn xuống tới cá nhân và truy vết ngược được", "chu_quan": "B1" },
-    { "ma": "M02", "ten": "Từ điển KPI & Bộ máy chấm điểm", "muc_dich": "Chuẩn hoá chỉ số và cách tính điểm toàn tập đoàn", "chu_quan": "B1" },
-    { "ma": "M03", "ten": "Thẻ điểm & Định mức", "muc_dich": "Gắn bộ chỉ số vào từng vị trí với định mức rõ ràng", "chu_quan": "B1" },
-    { "ma": "M04", "ten": "Chu trình đánh giá", "muc_dich": "Vận hành trọn vòng từ giao mục tiêu tới chốt kết quả", "chu_quan": "B1" },
-    { "ma": "M05", "ten": "Kho bằng chứng", "muc_dich": "Mọi con số đều truy về được bằng chứng đã xác minh", "chu_quan": "B1 + OpCo" },
-    { "ma": "M06", "ten": "Từ điển Tác vụ & WorkMap ★ LÕI", "muc_dich": "Chuẩn hoá công việc thật, gắn mỗi tác vụ với chỉ số, đo tác động AI — lõi của nền tảng, xem Mục 4", "chu_quan": "B1 + B3" },
-    { "ma": "M07", "ten": "Configuration Studio", "muc_dich": "Đơn vị tự cấu hình mà không phân nhánh mã nguồn", "chu_quan": "B3" },
-    { "ma": "M08", "ten": "Quản trị & Phân quyền", "muc_dich": "Ai thấy gì, làm gì, phê duyệt gì — chặn mặc định", "chu_quan": "B3 + B5" },
-    { "ma": "M09", "ten": "Lớp AI", "muc_dich": "Trợ lý và agent nghiệp vụ có danh tính, có phạm vi", "chu_quan": "B3" },
-    { "ma": "M10", "ten": "Quản trị AI", "muc_dich": "Ranh giới, nhật ký, kiểm định và chi phí của AI", "chu_quan": "B3 + B5" },
-    { "ma": "M11", "ten": "Dữ liệu & Tích hợp IDP", "muc_dich": "Tiêu thụ dữ liệu gốc, không tạo silo mới", "chu_quan": "B3" },
-    { "ma": "M12", "ten": "Dashboard & Báo cáo", "muc_dich": "Mỗi trung tâm quyền lực có bảng điều khiển riêng", "chu_quan": "B3" },
-    { "ma": "M13", "ten": "Kiểm toán & Tuân thủ", "muc_dich": "Lưu vết, kiểm soát xuất dữ liệu, xử lý sự cố", "chu_quan": "B5 + B0" }
+    {
+      "ma": "M01",
+      "ten": "Chiến lược & Phân rã mục tiêu",
+      "muc_dich": "Đưa mục tiêu tập đoàn xuống tới cá nhân và truy vết ngược được",
+      "chu_quan": "B1"
+    },
+    {
+      "ma": "M02",
+      "ten": "Từ điển KPI & Bộ máy chấm điểm",
+      "muc_dich": "Chuẩn hoá chỉ số và cách tính điểm toàn tập đoàn",
+      "chu_quan": "B1"
+    },
+    {
+      "ma": "M03",
+      "ten": "Thẻ điểm & Định mức",
+      "muc_dich": "Gắn bộ chỉ số vào từng vị trí với định mức rõ ràng",
+      "chu_quan": "B1"
+    },
+    {
+      "ma": "M04",
+      "ten": "Chu trình đánh giá",
+      "muc_dich": "Vận hành trọn vòng từ giao mục tiêu tới chốt kết quả",
+      "chu_quan": "B1"
+    },
+    {
+      "ma": "M05",
+      "ten": "Kho bằng chứng",
+      "muc_dich": "Mọi con số đều truy về được bằng chứng đã xác minh",
+      "chu_quan": "B1 + OpCo"
+    },
+    {
+      "ma": "M06",
+      "ten": "Từ điển Tác vụ & WorkMap ★ LÕI",
+      "muc_dich": "Chuẩn hoá công việc thật, gắn mỗi tác vụ với chỉ số, đo tác động AI — lõi của nền tảng, xem Mục 4",
+      "chu_quan": "B1 + B3"
+    },
+    {
+      "ma": "M07",
+      "ten": "Configuration Studio",
+      "muc_dich": "Đơn vị tự cấu hình mà không phân nhánh mã nguồn",
+      "chu_quan": "B3"
+    },
+    {
+      "ma": "M08",
+      "ten": "Quản trị & Phân quyền",
+      "muc_dich": "Ai thấy gì, làm gì, phê duyệt gì — chặn mặc định",
+      "chu_quan": "B3 + B5"
+    },
+    {
+      "ma": "M09",
+      "ten": "Lớp AI",
+      "muc_dich": "Trợ lý và agent nghiệp vụ có danh tính, có phạm vi",
+      "chu_quan": "B3"
+    },
+    {
+      "ma": "M10",
+      "ten": "Quản trị AI",
+      "muc_dich": "Ranh giới, nhật ký, kiểm định và chi phí của AI",
+      "chu_quan": "B3 + B5"
+    },
+    {
+      "ma": "M11",
+      "ten": "Dữ liệu & Tích hợp IDP",
+      "muc_dich": "Tiêu thụ dữ liệu gốc, không tạo silo mới",
+      "chu_quan": "B3"
+    },
+    {
+      "ma": "M12",
+      "ten": "Dashboard & Báo cáo",
+      "muc_dich": "Mỗi trung tâm quyền lực có bảng điều khiển riêng",
+      "chu_quan": "B3"
+    },
+    {
+      "ma": "M13",
+      "ten": "Kiểm toán & Tuân thủ",
+      "muc_dich": "Lưu vết, kiểm soát xuất dữ liệu, xử lý sự cố",
+      "chu_quan": "B5 + B0"
+    }
   ],
-
   "yeu_cau": [
-    { "ma": "BR-M01-01", "module": "M01", "phat_bieu": "Hệ thống phải cho phép định nghĩa cây mục tiêu ba tầng OKR → KGI → KPI, ràng buộc đúng tầng, và phân rã xuống ba lớp Holding → OpCo cấp 1 → OpCo cấp 2.", "tieu_chi": "Dựng được cây mục tiêu năm hiện hành của tập đoàn và mọi mục tiêu con đều trỏ về đúng một mục tiêu cha.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M01-02", "module": "M01", "phat_bieu": "Hệ thống phải tự tổng hợp tiến độ mục tiêu cha từ các mục tiêu con theo trọng số và cảnh báo mục tiêu có nguy cơ không đạt.", "tieu_chi": "Cập nhật tiến độ một mục tiêu con làm thay đổi đúng tiến độ mục tiêu cha; mục tiêu chậm tiến độ xuất hiện trong danh sách cảnh báo.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M01-03", "module": "M01", "phat_bieu": "Hệ thống phải phát hiện và cảnh báo mục tiêu chưa có chỉ số hoặc chưa có tác vụ nào đỡ bên dưới.", "tieu_chi": "Tạo một mục tiêu không gắn chỉ số: hệ thống liệt kê nó vào danh sách khoảng trống.", "uu_tien": "S", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M01-04", "module": "M01", "phat_bieu": "Mỗi mục tiêu phải gắn được nhãn trụ cột chiến lược (Giáo dục, Y tế, Công nghệ) để tổng hợp hiệu suất theo trụ cột.", "tieu_chi": "Dashboard cấp tập đoàn hiển thị được tiến độ theo từng trụ cột.", "uu_tien": "S", "trang_thai": "Chưa có", "lop": "Holding" },
-    { "ma": "BR-M01-05", "module": "M01", "phat_bieu": "Điều chỉnh mục tiêu giữa kỳ phải qua phê duyệt và được lưu vết đầy đủ (ai đổi, đổi gì, vì sao).", "tieu_chi": "Sửa một mục tiêu đã giao: hệ thống yêu cầu lý do và ghi bản ghi kiểm toán.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-
-    { "ma": "BR-M02-01", "module": "M02", "phat_bieu": "Hệ thống phải hỗ trợ chỉ số cấu trúc cha–con, mỗi thành phần có trọng số, tổng trọng số bắt buộc bằng 100%.", "tieu_chi": "Nhập bộ trọng số có tổng khác 100%: hệ thống chặn và báo lỗi rõ ràng.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M02-02", "module": "M02", "phat_bieu": "Công thức chỉ số phải hỗ trợ cả chiều thuận và chiều nghịch, kèm điều kiện áp dụng theo vị trí hoặc tình huống.", "tieu_chi": "Cấu hình một chỉ số kiểu tỷ lệ lỗi: giá trị càng thấp cho điểm càng cao.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M02-03", "module": "M02", "phat_bieu": "Hệ thống phải hỗ trợ bậc thang quy đổi kết quả sang điểm theo bảng do B1 định nghĩa.", "tieu_chi": "Tái lập đúng bảng bậc thang hiện hành và điểm tính ra khớp bảng tính đối chiếu.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M02-04", "module": "M02", "phat_bieu": "Công thức chỉ số phải có phiên bản và bất biến: sửa công thức không được làm thay đổi điểm của các kỳ đã chốt.", "tieu_chi": "Sửa công thức sau khi chốt kỳ: điểm kỳ cũ giữ nguyên, kỳ mới dùng công thức mới.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M02-05", "module": "M02", "phat_bieu": "Chỉ số chỉ có hiệu lực sau khi được người có thẩm quyền phê duyệt; người soạn không được tự duyệt chỉ số của mình.", "tieu_chi": "Người soạn bấm duyệt chính chỉ số mình tạo: hệ thống từ chối và ghi nhận sự việc.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M02-06", "module": "M02", "phat_bieu": "Hệ thống phải phân biệt Từ điển KPI chuẩn cấp tập đoàn và bộ chỉ số riêng của đơn vị, không xung đột mã và không cho đơn vị sửa chỉ số chuẩn.", "tieu_chi": "Đơn vị tạo chỉ số trùng mã chuẩn: hệ thống chặn; đơn vị sửa chỉ số chuẩn: hệ thống chặn.", "uu_tien": "M", "trang_thai": "Một phần", "lop": "Holding" },
-
-    { "ma": "BR-M03-01", "module": "M03", "phat_bieu": "Hệ thống phải cho phép lập thẻ điểm theo chức danh hoặc vị trí, gồm nhiều chỉ số với trọng số tổng bằng 100%.", "tieu_chi": "Lập thẻ điểm cho 3 chức danh khác nhau và xem trước điểm mà không ghi vào dữ liệu thật.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M03-02", "module": "M03", "phat_bieu": "Mỗi chỉ số trong thẻ điểm phải đặt được định mức mục tiêu, tối thiểu và mức gốc theo từng kỳ.", "tieu_chi": "Đặt định mức khác nhau cho hai kỳ liên tiếp và điểm tính đúng theo từng kỳ.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M03-03", "module": "M03", "phat_bieu": "Hệ thống phải tự đề xuất thẻ điểm và bộ chỉ số từ cơ cấu tổ chức và chức năng của vị trí, kèm lý do vì sao đề xuất như vậy.", "tieu_chi": "Khai báo một phòng ban mới: hệ thống đề xuất bộ chỉ số kèm giải thích, người dùng duyệt trước khi áp dụng.", "uu_tien": "S", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M03-04", "module": "M03", "phat_bieu": "Đề xuất tự động không được ghi đè phần cấu hình do người dùng sửa tay.", "tieu_chi": "Sửa tay một dòng thẻ điểm rồi chạy lại đề xuất: dòng đã sửa giữ nguyên và được đánh dấu bỏ qua.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-
-    { "ma": "BR-M04-01", "module": "M04", "phat_bieu": "Chu trình đánh giá phải gồm sáu bước và cho phép bật tắt từng bước theo đặc thù đơn vị.", "tieu_chi": "Một đơn vị chạy đủ sáu bước, một đơn vị khác tắt bước check-in giữa kỳ, cả hai đều chốt được kỳ.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M04-02", "module": "M04", "phat_bieu": "Điểm phải được tính ở phía máy chủ từ định mức đã duyệt; người được đánh giá không được có bất kỳ đường nào tác động lên điểm của mình.", "tieu_chi": "Thử sửa định mức hoặc tự xác minh bằng chứng của chính mình: hệ thống chặn ở mọi đường.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M04-03", "module": "M04", "phat_bieu": "Bước cân chỉnh phải cho phép so sánh ngang giữa các quản lý và bắt buộc ghi lý do cho mọi thay đổi điểm.", "tieu_chi": "Đổi điểm trong phiên cân chỉnh mà không nhập lý do: hệ thống từ chối.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M04-04", "module": "M04", "phat_bieu": "Chốt kết quả phải do người có thẩm quyền thực hiện, chống thao tác đồng thời, và sau khi chốt thì bất biến.", "tieu_chi": "Hai người cùng bấm chốt một lúc: chỉ một lần có hiệu lực, lần còn lại báo lỗi rõ ràng.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M04-05", "module": "M04", "phat_bieu": "Chỉ kết quả đã chốt mới được xuất sang hệ thống lương thưởng, theo bảng quy đổi cấu hình riêng cho từng đơn vị.", "tieu_chi": "Thử xuất kỳ chưa chốt: hệ thống từ chối. Xuất kỳ đã chốt: dữ liệu khớp bảng quy đổi.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M04-06", "module": "M04", "phat_bieu": "Hệ thống phải hỗ trợ đánh giá nhiều người chấm (song song và tuần tự) cho các vị trí cần góc nhìn đa chiều.", "tieu_chi": "Cấu hình một vị trí có ba người chấm với trọng số khác nhau và điểm tổng hợp đúng công thức.", "uu_tien": "S", "trang_thai": "Chưa có", "lop": "Cả hai" },
-    { "ma": "BR-M04-07", "module": "M04", "phat_bieu": "Chính sách hiển thị điểm cho người được đánh giá trước khi chốt phải cấu hình được theo đơn vị.", "tieu_chi": "Bật và tắt chính sách ở hai đơn vị, người dùng thấy đúng theo cấu hình của đơn vị mình.", "uu_tien": "S", "trang_thai": "Chưa có", "lop": "Cả hai", "ghi_chu": "Chờ B1 chốt chính sách." },
-
-    { "ma": "BR-M05-01", "module": "M05", "phat_bieu": "Mỗi chỉ số phải đính kèm được minh chứng, và người nộp minh chứng không được đồng thời là người xác minh.", "tieu_chi": "Người nộp bấm xác minh chính minh chứng của mình: hệ thống chặn.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M05-02", "module": "M05", "phat_bieu": "Chỉ bằng chứng đã xác minh và thuộc đúng kỳ mới được dùng để tính điểm tự động.", "tieu_chi": "Nạp bằng chứng ngoài kỳ: không ảnh hưởng điểm của kỳ đang chấm.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M05-03", "module": "M05", "phat_bieu": "Hệ thống phải nạp bằng chứng hàng loạt từ hệ nguồn mà không nhân đôi khi chạy lại.", "tieu_chi": "Chạy nạp cùng một tệp hai lần: số bản ghi không tăng gấp đôi.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M05-04", "module": "M05", "phat_bieu": "Bằng chứng bị nguồn cập nhật lại phải quay về trạng thái chờ xác minh, không giữ trạng thái đã xác minh cũ.", "tieu_chi": "Nguồn gửi lại giá trị khác cho cùng một bản ghi: trạng thái xác minh bị đặt lại.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-
-    { "ma": "BR-M06-01", "module": "M06", "phat_bieu": "Mỗi tác vụ phải mô tả được đầy đủ theo bảy nhóm thuộc tính: định danh, vai trò và năng lực, luồng vào ra, đo lường và định mức, chiều AI, quản trị và rủi ro, vòng đời.", "tieu_chi": "Soạn một tác vụ thiếu nhóm bắt buộc: hệ thống nêu rõ thiếu gì, không cho đưa vào sử dụng.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M06-02", "module": "M06", "phat_bieu": "Tác vụ bắt buộc gắn với một chỉ số có thật mới được đưa vào sử dụng.", "tieu_chi": "Kích hoạt tác vụ chưa gắn chỉ số: hệ thống từ chối ở mọi cửa, kể cả cửa nạp dữ liệu hàng loạt.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M06-03", "module": "M06", "phat_bieu": "Trưởng phòng phải uỷ quyền được cho nhân viên soạn tác vụ trong phạm vi phòng mình, và quyền phải tự thu hồi khi nhân viên chuyển phòng.", "tieu_chi": "Chuyển phòng một nhân viên đang giữ quyền soạn: quyền ở phòng cũ mất hiệu lực ngay, quyền ở nơi khác không bị ảnh hưởng.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M06-04", "module": "M06", "phat_bieu": "Người soạn tác vụ không được là người duyệt kích hoạt tác vụ đó.", "tieu_chi": "Trưởng phòng tự soạn rồi tự duyệt: hệ thống chặn kể cả với quản trị viên cấp cao nhất.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M06-05", "module": "M06", "phat_bieu": "Tác vụ phải có vòng lặp tối ưu liên tục: người làm thật góp ý → mở lại để sửa → duyệt → phiên bản mới, giữ nguyên lịch sử các phiên bản và so sánh được.", "tieu_chi": "Chạy trọn vòng trên một tác vụ: góp ý được đánh dấu đã xử lý, phiên bản tăng, so sánh được hai phiên bản.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M06-06", "module": "M06", "phat_bieu": "Mỗi tác vụ phải đo được mức độ có thể ứng dụng AI và gợi ý agent phù hợp, tổng hợp thành bản đồ công việc theo vai trò.", "tieu_chi": "Xem bản đồ công việc của một chức danh: thấy được phân bố tác vụ theo mức ứng dụng AI và danh sách agent gợi ý.", "uu_tien": "S", "trang_thai": "Một phần", "lop": "Cả hai" },
-    { "ma": "BR-M06-07", "module": "M06", "phat_bieu": "Thư viện tác vụ phải có ba tầng: bản của đơn vị, bản đã nộp chờ duyệt và bản chuẩn cấp tập đoàn; đơn vị được kế thừa bản chuẩn nhưng vẫn giữ quyền điều chỉnh trong phạm vi của mình.", "tieu_chi": "Đơn vị kế thừa một tác vụ chuẩn, sửa bản của mình mà không ảnh hưởng bản chuẩn.", "uu_tien": "S", "trang_thai": "Đã có", "lop": "Holding" },
-
-    { "ma": "BR-M07-01", "module": "M07", "phat_bieu": "Mọi cấu hình phải là dữ liệu có phiên bản, đi theo vòng nháp → xem trước → so sánh khác biệt → công bố → quay lui được.", "tieu_chi": "Công bố một cấu hình rồi quay lui: hệ thống trở về đúng trạng thái trước đó và ghi vết cả hai lần.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M07-02", "module": "M07", "phat_bieu": "Người sửa cấu hình không được là người công bố cấu hình.", "tieu_chi": "Cùng một tài khoản sửa rồi công bố: hệ thống chặn và ghi nhận sự việc.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M07-03", "module": "M07", "phat_bieu": "Mỗi đơn vị phải tự đặt được bộ nhận diện riêng (logo, màu, tên hiển thị) trong khuôn khổ hệ thống thiết kế của tập đoàn.", "tieu_chi": "Đổi bộ nhận diện của một đơn vị: chỉ đơn vị đó đổi, đơn vị khác không bị ảnh hưởng; giá trị không hợp lệ bị chặn.", "uu_tien": "S", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M07-04", "module": "M07", "phat_bieu": "Hệ thống phải có bàn thiết kế trực quan cho cơ cấu tổ chức và quy trình, thao tác kéo thả.", "tieu_chi": "Dựng một quy trình bằng kéo thả và sinh ra được bộ tác vụ tương ứng.", "uu_tien": "S", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M07-05", "module": "M07", "phat_bieu": "Một đơn vị mới lên nền tảng chỉ bằng cấu hình, không được phát sinh nhánh mã nguồn riêng.", "tieu_chi": "Đưa một đơn vị mới lên hoàn toàn bằng thao tác cấu hình, không cần triển khai phiên bản phần mềm riêng.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Holding" },
-
-    { "ma": "BR-M08-01", "module": "M08", "phat_bieu": "Phân quyền phải theo vai trò kèm phạm vi (bản thân, phòng ban, đơn vị), chặn mặc định khi không có quyền tường minh.", "tieu_chi": "Tài khoản không được cấp quyền truy cập một khu vực: bị từ chối ở cả giao diện lẫn giao diện lập trình.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M08-02", "module": "M08", "phat_bieu": "Đơn vị phải siết thêm được quyền bằng chính sách dạng mã, nhưng không được tự nới rộng quyền vượt khung của tập đoàn.", "tieu_chi": "Viết một chính sách cấp thêm quyền: không có hiệu lực. Viết chính sách thu hẹp quyền: có hiệu lực ngay.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M08-03", "module": "M08", "phat_bieu": "Hệ thống không được tồn tại tài khoản toàn năng: kể cả quản trị viên cao nhất của đơn vị cũng không được chốt kết quả, xuất lương, công bố cấu hình và đọc nhật ký kiểm toán.", "tieu_chi": "Dùng tài khoản quản trị cao nhất thử bốn thao tác trên: đều bị từ chối.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M08-04", "module": "M08", "phat_bieu": "Hỗ trợ kỹ thuật phải đóng vai người dùng được ở chế độ chỉ đọc, có thời hạn, và mọi thao tác trong phiên đóng vai đều được ghi vết.", "tieu_chi": "Trong phiên đóng vai: đọc được, mọi thao tác ghi bị từ chối, thoát phiên thì phiên cũ mất hiệu lực ngay.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M08-05", "module": "M08", "phat_bieu": "Thao tác nhạy cảm phải yêu cầu xác thực bổ sung tại thời điểm thao tác.", "tieu_chi": "Thực hiện thao tác nhạy cảm: hệ thống yêu cầu xác thực lại trước khi cho phép.", "uu_tien": "S", "trang_thai": "Chưa có", "lop": "Cả hai" },
-    { "ma": "BR-M08-06", "module": "M08", "phat_bieu": "Phải có lớp quản trị nền tảng xuyên đơn vị dành cho B3 để vận hành, bật tắt tính năng và xử lý sự cố, tách bạch khỏi quyền nghiệp vụ.", "tieu_chi": "Tài khoản quản trị nền tảng vận hành được hệ thống nhưng không đọc được nội dung đánh giá cá nhân khi không có lệnh hợp lệ.", "uu_tien": "M", "trang_thai": "Chưa có", "lop": "Holding" },
-    { "ma": "BR-M08-07", "module": "M08", "phat_bieu": "Dữ liệu giữa các đơn vị phải cô lập ở tầng cơ sở dữ liệu, cô lập là mặc định và truy cập xuyên đơn vị là ngoại lệ tường minh có thời hạn.", "tieu_chi": "Bộ kiểm thử rò rỉ dữ liệu chéo giữa hai đơn vị chạy đạt toàn bộ.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Holding" },
-
-    { "ma": "BR-M09-01", "module": "M09", "phat_bieu": "Hệ thống phải có trợ lý hỏi đáp toàn cục và gợi ý ngay trong màn nghiệp vụ, hiểu ngữ cảnh trang người dùng đang làm việc.", "tieu_chi": "Mở trợ lý ở màn soạn chỉ số: trợ lý nhận đúng ngữ cảnh và gợi ý phù hợp với màn đó.", "uu_tien": "S", "trang_thai": "Một phần", "lop": "Cả hai", "ghi_chu": "Đã chạy trên mô hình mô phỏng; bật mô hình thật cần khoá và hạn mức." },
-    { "ma": "BR-M09-02", "module": "M09", "phat_bieu": "Mỗi AI agent phải có danh tính riêng: tên, mục đích, chủ quản, phạm vi dữ liệu được phép, quyền được cấp và mức phân loại dữ liệu tối đa được xử lý.", "tieu_chi": "Danh bạ agent liệt kê đủ các trường trên; agent không khai báo đủ thì không được phép chạy.", "uu_tien": "M", "trang_thai": "Một phần", "lop": "Holding" },
-    { "ma": "BR-M09-03", "module": "M09", "phat_bieu": "Agent không được truy cập trực tiếp dữ liệu gốc; mọi truy cập phải đi qua lớp công cụ trung gian có kiểm soát quyền và ghi nhật ký.", "tieu_chi": "Agent gọi công cụ vượt quyền của người dùng đang phiên: bị từ chối và ghi nhận.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M09-04", "module": "M09", "phat_bieu": "Mọi đề xuất của AI phải vào hàng chờ ở trạng thái chờ duyệt và chỉ có hiệu lực khi người có thẩm quyền chấp nhận.", "tieu_chi": "AI đề xuất một thay đổi cấu hình: thay đổi chỉ vào bản nháp, không vào bản đang chạy, cho tới khi có người duyệt.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M09-05", "module": "M09", "phat_bieu": "Hệ thống phải hỗ trợ nhiều nhà cung cấp mô hình và khả năng tự vận hành mô hình trong hạ tầng nội bộ cho dữ liệu nhạy cảm.", "tieu_chi": "Chuyển một tác vụ AI sang mô hình nội bộ mà không phải sửa giao diện người dùng.", "uu_tien": "S", "trang_thai": "Chưa có", "lop": "Holding" },
-    { "ma": "BR-M09-06", "module": "M09", "phat_bieu": "AI chỉ được nhận gói ngữ cảnh đã lọc theo quyền của người dùng đang phiên, không phải toàn bộ dữ liệu của tổ chức.", "tieu_chi": "Người dùng phạm vi phòng ban hỏi về dữ liệu phòng khác: trợ lý không có dữ liệu đó để trả lời.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-
-    { "ma": "BR-M10-01", "module": "M10", "phat_bieu": "Danh sách việc AI được phép và không được phép làm phải được cưỡng chế bằng mã nguồn, không phải bằng hướng dẫn sử dụng.", "tieu_chi": "Thử cấu hình một agent để tự chốt điểm đánh giá: hệ thống không cho phép ở tầng nền tảng.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M10-02", "module": "M10", "phat_bieu": "Chính sách xuất dữ liệu ra dịch vụ AI bên ngoài phải theo bốn mức phân loại; dữ liệu Confidential và Restricted không được rời hạ tầng do NHG kiểm soát.", "tieu_chi": "Gửi một yêu cầu chứa dữ liệu Restricted tới mô hình bên ngoài: bị chặn và ghi nhận sự việc.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M10-03", "module": "M10", "phat_bieu": "Thông tin định danh cá nhân phải được khử trước khi gửi tới mô hình và khôi phục lại khi trả kết quả cho người dùng có quyền.", "tieu_chi": "Nội dung gửi ra ngoài không chứa họ tên, thư điện tử, số điện thoại; kết quả hiển thị lại đúng cho người có quyền.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M10-04", "module": "M10", "phat_bieu": "Mọi lượt gọi AI phải ghi nhật ký chỉ ghi thêm: ai gọi, agent nào, mô hình nào, mức phân loại dữ liệu, kết quả và chi phí.", "tieu_chi": "Thử sửa hoặc xoá một bản ghi nhật ký AI: cơ sở dữ liệu từ chối.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M10-05", "module": "M10", "phat_bieu": "Trước khi đưa một mô hình vào sử dụng thật phải chạy bộ kiểm định chất lượng và đạt ngưỡng do B3 và B5 đặt ra.", "tieu_chi": "Mô hình không đạt ngưỡng: hệ thống không cho bật ở môi trường thật.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Holding" },
-    { "ma": "BR-M10-06", "module": "M10", "phat_bieu": "Hệ thống phải đo được chi phí AI theo đơn vị, theo agent và theo tác vụ, và chặn khi vượt hạn mức ngân sách đã đặt.", "tieu_chi": "Đặt hạn mức thấp rồi chạy vượt: hệ thống dừng và cảnh báo tới B3.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Holding" },
-    { "ma": "BR-M10-07", "module": "M10", "phat_bieu": "Mọi đề xuất của AI phải nêu được căn cứ: dựa trên dữ liệu nào, quy tắc nào.", "tieu_chi": "Mở một đề xuất bất kỳ: xem được phần giải thích căn cứ.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-
-    { "ma": "BR-M11-01", "module": "M11", "phat_bieu": "iPMS không được tạo kho dữ liệu song song; dữ liệu do iPMS sinh ra phải đăng ký và chia sẻ được qua IDP.", "tieu_chi": "Dữ liệu mục tiêu, chỉ số và kết quả đánh giá truy cập được từ IDP theo đúng phân quyền.", "uu_tien": "M", "trang_thai": "Chưa có", "lop": "Holding" },
-    { "ma": "BR-M11-02", "module": "M11", "phat_bieu": "Hệ thống phải có bộ khung kết nối chuẩn để nối tới hệ nguồn của tập đoàn và của OpCo.", "tieu_chi": "Viết một kết nối mới bằng bộ khung mà không sửa lõi nền tảng.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M11-03", "module": "M11", "phat_bieu": "Dữ liệu nạp vào phải qua hợp đồng dữ liệu, kiểm tra từng dòng và báo lỗi theo dòng.", "tieu_chi": "Nạp tệp có 3 dòng sai định dạng: hệ thống nhận các dòng đúng và nêu chính xác 3 dòng sai.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M11-04", "module": "M11", "phat_bieu": "Đồng bộ hai chiều phải không nhân đôi bản ghi và có cơ chế thử lại khi lỗi.", "tieu_chi": "Ngắt kết nối giữa chừng rồi nối lại: không phát sinh bản ghi trùng.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M11-05", "module": "M11", "phat_bieu": "Khi hệ nguồn chưa mở giao diện kết nối, hệ thống phải có phương án nạp tệp định kỳ làm dự phòng.", "tieu_chi": "Nạp bằng tệp cho một chỉ số và điểm tính ra đúng như khi lấy tự động.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M11-06", "module": "M11", "phat_bieu": "Mỗi nhóm dữ liệu phải có chủ dữ liệu được chỉ định và mức phân loại rõ ràng.", "tieu_chi": "Ma trận dữ liệu điền đủ chủ dữ liệu và mức phân loại cho toàn bộ nhóm.", "uu_tien": "M", "trang_thai": "Một phần", "lop": "Holding" },
-
-    { "ma": "BR-M12-01", "module": "M12", "phat_bieu": "Mỗi trung tâm quyền lực (V1, B0, B1, B2, B3, B5, B6) và mỗi persona phải có dashboard riêng phù hợp quyền hạn.", "tieu_chi": "Mỗi vai trò đăng nhập chỉ thấy dashboard của mình, không thấy khu vực của vai trò khác.", "uu_tien": "M", "trang_thai": "Một phần", "lop": "Cả hai" },
-    { "ma": "BR-M12-02", "module": "M12", "phat_bieu": "Hệ thống phải có cảnh báo mục tiêu rủi ro, ma trận tài năng và đường phân bố điểm phục vụ cân chỉnh.", "tieu_chi": "Ba màn này lấy số trực tiếp từ dữ liệu thật, không phải số nhập tay.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M12-03", "module": "M12", "phat_bieu": "Cấp tập đoàn phải nhìn xuyên các đơn vị để so sánh và tổng hợp, đồng thời đơn vị phải giữ kín được chỉ số nhạy cảm theo chính sách.", "tieu_chi": "Bản đồ nhiệt cấp tập đoàn hiển thị đủ đơn vị; chỉ số bị đánh dấu nhạy cảm không lộ ra ngoài đơn vị.", "uu_tien": "M", "trang_thai": "Chưa có", "lop": "Holding" },
-    { "ma": "BR-M12-04", "module": "M12", "phat_bieu": "Hệ thống phải xuất được báo cáo ra tệp trình bày cho hồ sơ hội đồng và báo cáo lãnh đạo.", "tieu_chi": "Xuất báo cáo kỳ đúng mẫu, song ngữ khi cần.", "uu_tien": "S", "trang_thai": "Chưa có", "lop": "Cả hai" },
-
-    { "ma": "BR-M13-01", "module": "M13", "phat_bieu": "Mọi thao tác nhạy cảm phải ghi nhật ký kiểm toán chỉ ghi thêm, không sửa xoá được kể cả bởi quản trị viên, và ghi cùng giao dịch nghiệp vụ.", "tieu_chi": "Thao tác thất bại và bị quay lui thì bản ghi kiểm toán về sự việc vẫn còn.", "uu_tien": "M", "trang_thai": "Đã có", "lop": "Cả hai" },
-    { "ma": "BR-M13-02", "module": "M13", "phat_bieu": "Mọi lần xuất dữ liệu ra khỏi hệ thống phải được kiểm soát và ghi vết: ai xuất, dữ liệu gì, mức phân loại nào, ra đâu.", "tieu_chi": "Xuất một tệp kết quả: nhật ký ghi đủ bốn thông tin trên.", "uu_tien": "M", "trang_thai": "Một phần", "lop": "Cả hai" },
-    { "ma": "BR-M13-03", "module": "M13", "phat_bieu": "Hệ thống phải có luồng phê duyệt chuẩn dùng chung cho chỉ số, cấu hình, kết quả đánh giá và ngoại lệ chính sách.", "tieu_chi": "Bốn loại đối tượng trên đều đi qua cùng một cơ chế phê duyệt và cùng một nơi tra cứu lịch sử.", "uu_tien": "S", "trang_thai": "Một phần", "lop": "Cả hai" },
-    { "ma": "BR-M13-04", "module": "M13", "phat_bieu": "Hệ thống phải có cờ rủi ro và luồng xử lý sự cố, kèm dashboard cho B3, B5, B0 và V1.", "tieu_chi": "Tạo một sự cố thử: xuất hiện đúng trên dashboard của bốn khối trên.", "uu_tien": "S", "trang_thai": "Chưa có", "lop": "Holding" },
-    { "ma": "BR-M13-05", "module": "M13", "phat_bieu": "Ngoại lệ chính sách phải có thời hạn, người phê duyệt và tự hết hiệu lực khi tới hạn.", "tieu_chi": "Cấp một ngoại lệ 7 ngày: sau 7 ngày quyền tự mất mà không cần thao tác thủ công.", "uu_tien": "S", "trang_thai": "Chưa có", "lop": "Cả hai" },
-    { "ma": "BR-M13-06", "module": "M13", "phat_bieu": "Hệ thống phải có chính sách thời hạn lưu trữ và xoá dữ liệu cá nhân theo quy định pháp luật hiện hành.", "tieu_chi": "Dữ liệu quá hạn lưu trữ được xử lý theo chính sách và có nhật ký chứng minh.", "uu_tien": "M", "trang_thai": "Chưa có", "lop": "Holding", "ghi_chu": "Nghị định 13 — B5 chủ trì đặt chính sách." }
+    {
+      "ma": "BR-M01-01",
+      "module": "M01",
+      "phat_bieu": "Hệ thống phải cho phép định nghĩa cây mục tiêu ba tầng OKR → KGI → KPI, ràng buộc đúng tầng, và phân rã xuống ba lớp Holding → OpCo cấp 1 → OpCo cấp 2.",
+      "tieu_chi": "Dựng được cây mục tiêu năm hiện hành của tập đoàn và mọi mục tiêu con đều trỏ về đúng một mục tiêu cha.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M01-02",
+      "module": "M01",
+      "phat_bieu": "Hệ thống phải tự tổng hợp tiến độ mục tiêu cha từ các mục tiêu con theo trọng số và cảnh báo mục tiêu có nguy cơ không đạt.",
+      "tieu_chi": "Cập nhật tiến độ một mục tiêu con làm thay đổi đúng tiến độ mục tiêu cha; mục tiêu chậm tiến độ xuất hiện trong danh sách cảnh báo.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M01-03",
+      "module": "M01",
+      "phat_bieu": "Hệ thống phải phát hiện và cảnh báo mục tiêu chưa có chỉ số hoặc chưa có tác vụ nào đỡ bên dưới.",
+      "tieu_chi": "Tạo một mục tiêu không gắn chỉ số: hệ thống liệt kê nó vào danh sách khoảng trống.",
+      "uu_tien": "S",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M01-04",
+      "module": "M01",
+      "phat_bieu": "Mỗi mục tiêu phải gắn được nhãn trụ cột chiến lược (Giáo dục, Y tế, Công nghệ) để tổng hợp hiệu suất theo trụ cột.",
+      "tieu_chi": "Dashboard cấp tập đoàn hiển thị được tiến độ theo từng trụ cột.",
+      "uu_tien": "S",
+      "trang_thai": "Chưa có",
+      "lop": "Holding"
+    },
+    {
+      "ma": "BR-M01-05",
+      "module": "M01",
+      "phat_bieu": "Điều chỉnh mục tiêu giữa kỳ phải qua phê duyệt và được lưu vết đầy đủ (ai đổi, đổi gì, vì sao).",
+      "tieu_chi": "Sửa một mục tiêu đã giao: hệ thống yêu cầu lý do và ghi bản ghi kiểm toán.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M02-01",
+      "module": "M02",
+      "phat_bieu": "Hệ thống phải hỗ trợ chỉ số cấu trúc cha–con, mỗi thành phần có trọng số, tổng trọng số bắt buộc bằng 100%.",
+      "tieu_chi": "Nhập bộ trọng số có tổng khác 100%: hệ thống chặn và báo lỗi rõ ràng.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M02-02",
+      "module": "M02",
+      "phat_bieu": "Công thức chỉ số phải hỗ trợ cả chiều thuận và chiều nghịch, kèm điều kiện áp dụng theo vị trí hoặc tình huống.",
+      "tieu_chi": "Cấu hình một chỉ số kiểu tỷ lệ lỗi: giá trị càng thấp cho điểm càng cao.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M02-03",
+      "module": "M02",
+      "phat_bieu": "Hệ thống phải hỗ trợ bậc thang quy đổi kết quả sang điểm theo bảng do B1 định nghĩa.",
+      "tieu_chi": "Tái lập đúng bảng bậc thang hiện hành và điểm tính ra khớp bảng tính đối chiếu.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M02-04",
+      "module": "M02",
+      "phat_bieu": "Công thức chỉ số phải có phiên bản và bất biến: sửa công thức không được làm thay đổi điểm của các kỳ đã chốt.",
+      "tieu_chi": "Sửa công thức sau khi chốt kỳ: điểm kỳ cũ giữ nguyên, kỳ mới dùng công thức mới.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M02-05",
+      "module": "M02",
+      "phat_bieu": "Chỉ số chỉ có hiệu lực sau khi được người có thẩm quyền phê duyệt; người soạn không được tự duyệt chỉ số của mình.",
+      "tieu_chi": "Người soạn bấm duyệt chính chỉ số mình tạo: hệ thống từ chối và ghi nhận sự việc.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M02-06",
+      "module": "M02",
+      "phat_bieu": "Hệ thống phải phân biệt Từ điển KPI chuẩn cấp tập đoàn và bộ chỉ số riêng của đơn vị, không xung đột mã và không cho đơn vị sửa chỉ số chuẩn.",
+      "tieu_chi": "Đơn vị tạo chỉ số trùng mã chuẩn: hệ thống chặn; đơn vị sửa chỉ số chuẩn: hệ thống chặn.",
+      "uu_tien": "M",
+      "trang_thai": "Một phần",
+      "lop": "Holding"
+    },
+    {
+      "ma": "BR-M03-01",
+      "module": "M03",
+      "phat_bieu": "Hệ thống phải cho phép lập thẻ điểm theo chức danh hoặc vị trí, gồm nhiều chỉ số với trọng số tổng bằng 100%.",
+      "tieu_chi": "Lập thẻ điểm cho 3 chức danh khác nhau và xem trước điểm mà không ghi vào dữ liệu thật.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M03-02",
+      "module": "M03",
+      "phat_bieu": "Mỗi chỉ số trong thẻ điểm phải đặt được định mức mục tiêu, tối thiểu và mức gốc theo từng kỳ.",
+      "tieu_chi": "Đặt định mức khác nhau cho hai kỳ liên tiếp và điểm tính đúng theo từng kỳ.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M03-03",
+      "module": "M03",
+      "phat_bieu": "Hệ thống phải tự đề xuất thẻ điểm và bộ chỉ số từ cơ cấu tổ chức và chức năng của vị trí, kèm lý do vì sao đề xuất như vậy.",
+      "tieu_chi": "Khai báo một phòng ban mới: hệ thống đề xuất bộ chỉ số kèm giải thích, người dùng duyệt trước khi áp dụng.",
+      "uu_tien": "S",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M03-04",
+      "module": "M03",
+      "phat_bieu": "Đề xuất tự động không được ghi đè phần cấu hình do người dùng sửa tay.",
+      "tieu_chi": "Sửa tay một dòng thẻ điểm rồi chạy lại đề xuất: dòng đã sửa giữ nguyên và được đánh dấu bỏ qua.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M04-01",
+      "module": "M04",
+      "phat_bieu": "Chu trình đánh giá phải gồm sáu bước và cho phép bật tắt từng bước theo đặc thù đơn vị.",
+      "tieu_chi": "Một đơn vị chạy đủ sáu bước, một đơn vị khác tắt bước check-in giữa kỳ, cả hai đều chốt được kỳ.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M04-02",
+      "module": "M04",
+      "phat_bieu": "Điểm phải được tính ở phía máy chủ từ định mức đã duyệt; người được đánh giá không được có bất kỳ đường nào tác động lên điểm của mình.",
+      "tieu_chi": "Thử sửa định mức hoặc tự xác minh bằng chứng của chính mình: hệ thống chặn ở mọi đường.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M04-03",
+      "module": "M04",
+      "phat_bieu": "Bước cân chỉnh phải cho phép so sánh ngang giữa các quản lý và bắt buộc ghi lý do cho mọi thay đổi điểm.",
+      "tieu_chi": "Đổi điểm trong phiên cân chỉnh mà không nhập lý do: hệ thống từ chối.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M04-04",
+      "module": "M04",
+      "phat_bieu": "Chốt kết quả phải do người có thẩm quyền thực hiện, chống thao tác đồng thời, và sau khi chốt thì bất biến.",
+      "tieu_chi": "Hai người cùng bấm chốt một lúc: chỉ một lần có hiệu lực, lần còn lại báo lỗi rõ ràng.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M04-05",
+      "module": "M04",
+      "phat_bieu": "Chỉ kết quả đã chốt mới được xuất sang hệ thống lương thưởng, theo bảng quy đổi cấu hình riêng cho từng đơn vị.",
+      "tieu_chi": "Thử xuất kỳ chưa chốt: hệ thống từ chối. Xuất kỳ đã chốt: dữ liệu khớp bảng quy đổi.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M04-06",
+      "module": "M04",
+      "phat_bieu": "Hệ thống phải hỗ trợ đánh giá nhiều người chấm (song song và tuần tự) cho các vị trí cần góc nhìn đa chiều.",
+      "tieu_chi": "Cấu hình một vị trí có ba người chấm với trọng số khác nhau và điểm tổng hợp đúng công thức.",
+      "uu_tien": "S",
+      "trang_thai": "Chưa có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M04-07",
+      "module": "M04",
+      "phat_bieu": "Chính sách hiển thị điểm cho người được đánh giá trước khi chốt phải cấu hình được theo đơn vị.",
+      "tieu_chi": "Bật và tắt chính sách ở hai đơn vị, người dùng thấy đúng theo cấu hình của đơn vị mình.",
+      "uu_tien": "S",
+      "trang_thai": "Chưa có",
+      "lop": "Cả hai",
+      "ghi_chu": "Chờ B1 chốt chính sách."
+    },
+    {
+      "ma": "BR-M05-01",
+      "module": "M05",
+      "phat_bieu": "Mỗi chỉ số phải đính kèm được minh chứng, và người nộp minh chứng không được đồng thời là người xác minh.",
+      "tieu_chi": "Người nộp bấm xác minh chính minh chứng của mình: hệ thống chặn.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M05-02",
+      "module": "M05",
+      "phat_bieu": "Chỉ bằng chứng đã xác minh và thuộc đúng kỳ mới được dùng để tính điểm tự động.",
+      "tieu_chi": "Nạp bằng chứng ngoài kỳ: không ảnh hưởng điểm của kỳ đang chấm.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M05-03",
+      "module": "M05",
+      "phat_bieu": "Hệ thống phải nạp bằng chứng hàng loạt từ hệ nguồn mà không nhân đôi khi chạy lại.",
+      "tieu_chi": "Chạy nạp cùng một tệp hai lần: số bản ghi không tăng gấp đôi.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M05-04",
+      "module": "M05",
+      "phat_bieu": "Bằng chứng bị nguồn cập nhật lại phải quay về trạng thái chờ xác minh, không giữ trạng thái đã xác minh cũ.",
+      "tieu_chi": "Nguồn gửi lại giá trị khác cho cùng một bản ghi: trạng thái xác minh bị đặt lại.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M06-01",
+      "module": "M06",
+      "phat_bieu": "Mỗi tác vụ phải mô tả được đầy đủ theo bảy nhóm thuộc tính: định danh, vai trò và năng lực, luồng vào ra, đo lường và định mức, chiều AI, quản trị và rủi ro, vòng đời.",
+      "tieu_chi": "Soạn một tác vụ thiếu nhóm bắt buộc: hệ thống nêu rõ thiếu gì, không cho đưa vào sử dụng.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M06-02",
+      "module": "M06",
+      "phat_bieu": "Tác vụ bắt buộc gắn với một chỉ số có thật mới được đưa vào sử dụng.",
+      "tieu_chi": "Kích hoạt tác vụ chưa gắn chỉ số: hệ thống từ chối ở mọi cửa, kể cả cửa nạp dữ liệu hàng loạt.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M06-03",
+      "module": "M06",
+      "phat_bieu": "Trưởng phòng phải uỷ quyền được cho nhân viên soạn tác vụ trong phạm vi phòng mình, và quyền phải tự thu hồi khi nhân viên chuyển phòng.",
+      "tieu_chi": "Chuyển phòng một nhân viên đang giữ quyền soạn: quyền ở phòng cũ mất hiệu lực ngay, quyền ở nơi khác không bị ảnh hưởng.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M06-04",
+      "module": "M06",
+      "phat_bieu": "Người soạn tác vụ không được là người duyệt kích hoạt tác vụ đó.",
+      "tieu_chi": "Trưởng phòng tự soạn rồi tự duyệt: hệ thống chặn kể cả với quản trị viên cấp cao nhất.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M06-05",
+      "module": "M06",
+      "phat_bieu": "Tác vụ phải có vòng lặp tối ưu liên tục: người làm thật góp ý → mở lại để sửa → duyệt → phiên bản mới, giữ nguyên lịch sử các phiên bản và so sánh được.",
+      "tieu_chi": "Chạy trọn vòng trên một tác vụ: góp ý được đánh dấu đã xử lý, phiên bản tăng, so sánh được hai phiên bản.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M06-06",
+      "module": "M06",
+      "phat_bieu": "Mỗi tác vụ phải đo được mức độ có thể ứng dụng AI và gợi ý agent phù hợp, tổng hợp thành bản đồ công việc theo vai trò.",
+      "tieu_chi": "Xem bản đồ công việc của một chức danh: thấy được phân bố tác vụ theo mức ứng dụng AI và danh sách agent gợi ý.",
+      "uu_tien": "S",
+      "trang_thai": "Một phần",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M06-07",
+      "module": "M06",
+      "phat_bieu": "Thư viện tác vụ phải có ba tầng: bản của đơn vị, bản đã nộp chờ duyệt và bản chuẩn cấp tập đoàn; đơn vị được kế thừa bản chuẩn nhưng vẫn giữ quyền điều chỉnh trong phạm vi của mình.",
+      "tieu_chi": "Đơn vị kế thừa một tác vụ chuẩn, sửa bản của mình mà không ảnh hưởng bản chuẩn.",
+      "uu_tien": "S",
+      "trang_thai": "Đã có",
+      "lop": "Holding"
+    },
+    {
+      "ma": "BR-M07-01",
+      "module": "M07",
+      "phat_bieu": "Mọi cấu hình phải là dữ liệu có phiên bản, đi theo vòng nháp → xem trước → so sánh khác biệt → công bố → quay lui được.",
+      "tieu_chi": "Công bố một cấu hình rồi quay lui: hệ thống trở về đúng trạng thái trước đó và ghi vết cả hai lần.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M07-02",
+      "module": "M07",
+      "phat_bieu": "Người sửa cấu hình không được là người công bố cấu hình.",
+      "tieu_chi": "Cùng một tài khoản sửa rồi công bố: hệ thống chặn và ghi nhận sự việc.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M07-03",
+      "module": "M07",
+      "phat_bieu": "Mỗi đơn vị phải tự đặt được bộ nhận diện riêng (logo, màu, tên hiển thị) trong khuôn khổ hệ thống thiết kế của tập đoàn.",
+      "tieu_chi": "Đổi bộ nhận diện của một đơn vị: chỉ đơn vị đó đổi, đơn vị khác không bị ảnh hưởng; giá trị không hợp lệ bị chặn.",
+      "uu_tien": "S",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M07-04",
+      "module": "M07",
+      "phat_bieu": "Hệ thống phải có bàn thiết kế trực quan cho cơ cấu tổ chức và quy trình, thao tác kéo thả.",
+      "tieu_chi": "Dựng một quy trình bằng kéo thả và sinh ra được bộ tác vụ tương ứng.",
+      "uu_tien": "S",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M07-05",
+      "module": "M07",
+      "phat_bieu": "Một đơn vị mới lên nền tảng chỉ bằng cấu hình, không được phát sinh nhánh mã nguồn riêng.",
+      "tieu_chi": "Đưa một đơn vị mới lên hoàn toàn bằng thao tác cấu hình, không cần triển khai phiên bản phần mềm riêng.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Holding"
+    },
+    {
+      "ma": "BR-M08-01",
+      "module": "M08",
+      "phat_bieu": "Phân quyền phải theo vai trò kèm phạm vi (bản thân, phòng ban, đơn vị), chặn mặc định khi không có quyền tường minh.",
+      "tieu_chi": "Tài khoản không được cấp quyền truy cập một khu vực: bị từ chối ở cả giao diện lẫn giao diện lập trình.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M08-02",
+      "module": "M08",
+      "phat_bieu": "Đơn vị phải siết thêm được quyền bằng chính sách dạng mã, nhưng không được tự nới rộng quyền vượt khung của tập đoàn.",
+      "tieu_chi": "Viết một chính sách cấp thêm quyền: không có hiệu lực. Viết chính sách thu hẹp quyền: có hiệu lực ngay.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M08-03",
+      "module": "M08",
+      "phat_bieu": "Hệ thống không được tồn tại tài khoản toàn năng: kể cả quản trị viên cao nhất của đơn vị cũng không được chốt kết quả, xuất lương, công bố cấu hình và đọc nhật ký kiểm toán.",
+      "tieu_chi": "Dùng tài khoản quản trị cao nhất thử bốn thao tác trên: đều bị từ chối.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M08-04",
+      "module": "M08",
+      "phat_bieu": "Hỗ trợ kỹ thuật phải đóng vai người dùng được ở chế độ chỉ đọc, có thời hạn, và mọi thao tác trong phiên đóng vai đều được ghi vết.",
+      "tieu_chi": "Trong phiên đóng vai: đọc được, mọi thao tác ghi bị từ chối, thoát phiên thì phiên cũ mất hiệu lực ngay.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M08-05",
+      "module": "M08",
+      "phat_bieu": "Thao tác nhạy cảm phải yêu cầu xác thực bổ sung tại thời điểm thao tác.",
+      "tieu_chi": "Thực hiện thao tác nhạy cảm: hệ thống yêu cầu xác thực lại trước khi cho phép.",
+      "uu_tien": "S",
+      "trang_thai": "Chưa có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M08-06",
+      "module": "M08",
+      "phat_bieu": "Phải có lớp quản trị nền tảng xuyên đơn vị dành cho B3 để vận hành, bật tắt tính năng và xử lý sự cố, tách bạch khỏi quyền nghiệp vụ.",
+      "tieu_chi": "Tài khoản quản trị nền tảng vận hành được hệ thống nhưng không đọc được nội dung đánh giá cá nhân khi không có lệnh hợp lệ.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Holding"
+    },
+    {
+      "ma": "BR-M08-07",
+      "module": "M08",
+      "phat_bieu": "Dữ liệu giữa các đơn vị phải cô lập ở tầng cơ sở dữ liệu, cô lập là mặc định và truy cập xuyên đơn vị là ngoại lệ tường minh có thời hạn.",
+      "tieu_chi": "Bộ kiểm thử rò rỉ dữ liệu chéo giữa hai đơn vị chạy đạt toàn bộ.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Holding"
+    },
+    {
+      "ma": "BR-M09-01",
+      "module": "M09",
+      "phat_bieu": "Hệ thống phải có trợ lý hỏi đáp toàn cục và gợi ý ngay trong màn nghiệp vụ, hiểu ngữ cảnh trang người dùng đang làm việc.",
+      "tieu_chi": "Mở trợ lý ở màn soạn chỉ số: trợ lý nhận đúng ngữ cảnh và gợi ý phù hợp với màn đó.",
+      "uu_tien": "S",
+      "trang_thai": "Một phần",
+      "lop": "Cả hai",
+      "ghi_chu": "Đã chạy trên mô hình mô phỏng; bật mô hình thật cần khoá và hạn mức."
+    },
+    {
+      "ma": "BR-M09-02",
+      "module": "M09",
+      "phat_bieu": "Mỗi AI agent phải có danh tính riêng: tên, mục đích, chủ quản, phạm vi dữ liệu được phép, quyền được cấp và mức phân loại dữ liệu tối đa được xử lý.",
+      "tieu_chi": "Danh bạ agent liệt kê đủ các trường trên; agent không khai báo đủ thì không được phép chạy.",
+      "uu_tien": "M",
+      "trang_thai": "Một phần",
+      "lop": "Holding"
+    },
+    {
+      "ma": "BR-M09-03",
+      "module": "M09",
+      "phat_bieu": "Agent không được truy cập trực tiếp dữ liệu gốc; mọi truy cập phải đi qua lớp công cụ trung gian có kiểm soát quyền và ghi nhật ký.",
+      "tieu_chi": "Agent gọi công cụ vượt quyền của người dùng đang phiên: bị từ chối và ghi nhận.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M09-04",
+      "module": "M09",
+      "phat_bieu": "Mọi đề xuất của AI phải vào hàng chờ ở trạng thái chờ duyệt và chỉ có hiệu lực khi người có thẩm quyền chấp nhận.",
+      "tieu_chi": "AI đề xuất một thay đổi cấu hình: thay đổi chỉ vào bản nháp, không vào bản đang chạy, cho tới khi có người duyệt.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M09-05",
+      "module": "M09",
+      "phat_bieu": "Hệ thống phải hỗ trợ nhiều nhà cung cấp mô hình và khả năng tự vận hành mô hình trong hạ tầng nội bộ cho dữ liệu nhạy cảm.",
+      "tieu_chi": "Chuyển một tác vụ AI sang mô hình nội bộ mà không phải sửa giao diện người dùng.",
+      "uu_tien": "S",
+      "trang_thai": "Chưa có",
+      "lop": "Holding"
+    },
+    {
+      "ma": "BR-M09-06",
+      "module": "M09",
+      "phat_bieu": "AI chỉ được nhận gói ngữ cảnh đã lọc theo quyền của người dùng đang phiên, không phải toàn bộ dữ liệu của tổ chức.",
+      "tieu_chi": "Người dùng phạm vi phòng ban hỏi về dữ liệu phòng khác: trợ lý không có dữ liệu đó để trả lời.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M10-01",
+      "module": "M10",
+      "phat_bieu": "Danh sách việc AI được phép và không được phép làm phải được cưỡng chế bằng mã nguồn, không phải bằng hướng dẫn sử dụng.",
+      "tieu_chi": "Thử cấu hình một agent để tự chốt điểm đánh giá: hệ thống không cho phép ở tầng nền tảng.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M10-02",
+      "module": "M10",
+      "phat_bieu": "Chính sách xuất dữ liệu ra dịch vụ AI bên ngoài phải theo bốn mức phân loại; dữ liệu Confidential và Restricted không được rời hạ tầng do NHG kiểm soát.",
+      "tieu_chi": "Gửi một yêu cầu chứa dữ liệu Restricted tới mô hình bên ngoài: bị chặn và ghi nhận sự việc.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M10-03",
+      "module": "M10",
+      "phat_bieu": "Thông tin định danh cá nhân phải được khử trước khi gửi tới mô hình và khôi phục lại khi trả kết quả cho người dùng có quyền.",
+      "tieu_chi": "Nội dung gửi ra ngoài không chứa họ tên, thư điện tử, số điện thoại; kết quả hiển thị lại đúng cho người có quyền.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M10-04",
+      "module": "M10",
+      "phat_bieu": "Mọi lượt gọi AI phải ghi nhật ký chỉ ghi thêm: ai gọi, agent nào, mô hình nào, mức phân loại dữ liệu, kết quả và chi phí.",
+      "tieu_chi": "Thử sửa hoặc xoá một bản ghi nhật ký AI: cơ sở dữ liệu từ chối.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M10-05",
+      "module": "M10",
+      "phat_bieu": "Trước khi đưa một mô hình vào sử dụng thật phải chạy bộ kiểm định chất lượng và đạt ngưỡng do B3 và B5 đặt ra.",
+      "tieu_chi": "Mô hình không đạt ngưỡng: hệ thống không cho bật ở môi trường thật.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Holding"
+    },
+    {
+      "ma": "BR-M10-06",
+      "module": "M10",
+      "phat_bieu": "Hệ thống phải đo được chi phí AI theo đơn vị, theo agent và theo tác vụ, và chặn khi vượt hạn mức ngân sách đã đặt.",
+      "tieu_chi": "Đặt hạn mức thấp rồi chạy vượt: hệ thống dừng và cảnh báo tới B3.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Holding"
+    },
+    {
+      "ma": "BR-M10-07",
+      "module": "M10",
+      "phat_bieu": "Mọi đề xuất của AI phải nêu được căn cứ: dựa trên dữ liệu nào, quy tắc nào.",
+      "tieu_chi": "Mở một đề xuất bất kỳ: xem được phần giải thích căn cứ.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M11-01",
+      "module": "M11",
+      "phat_bieu": "iPMS không được tạo kho dữ liệu song song; dữ liệu do iPMS sinh ra phải đăng ký và chia sẻ được qua IDP.",
+      "tieu_chi": "Dữ liệu mục tiêu, chỉ số và kết quả đánh giá truy cập được từ IDP theo đúng phân quyền.",
+      "uu_tien": "M",
+      "trang_thai": "Chưa có",
+      "lop": "Holding"
+    },
+    {
+      "ma": "BR-M11-02",
+      "module": "M11",
+      "phat_bieu": "Hệ thống phải có bộ khung kết nối chuẩn để nối tới hệ nguồn của tập đoàn và của OpCo.",
+      "tieu_chi": "Viết một kết nối mới bằng bộ khung mà không sửa lõi nền tảng.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M11-03",
+      "module": "M11",
+      "phat_bieu": "Dữ liệu nạp vào phải qua hợp đồng dữ liệu, kiểm tra từng dòng và báo lỗi theo dòng.",
+      "tieu_chi": "Nạp tệp có 3 dòng sai định dạng: hệ thống nhận các dòng đúng và nêu chính xác 3 dòng sai.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M11-04",
+      "module": "M11",
+      "phat_bieu": "Đồng bộ hai chiều phải không nhân đôi bản ghi và có cơ chế thử lại khi lỗi.",
+      "tieu_chi": "Ngắt kết nối giữa chừng rồi nối lại: không phát sinh bản ghi trùng.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M11-05",
+      "module": "M11",
+      "phat_bieu": "Khi hệ nguồn chưa mở giao diện kết nối, hệ thống phải có phương án nạp tệp định kỳ làm dự phòng.",
+      "tieu_chi": "Nạp bằng tệp cho một chỉ số và điểm tính ra đúng như khi lấy tự động.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M11-06",
+      "module": "M11",
+      "phat_bieu": "Mỗi nhóm dữ liệu phải có chủ dữ liệu được chỉ định và mức phân loại rõ ràng.",
+      "tieu_chi": "Ma trận dữ liệu điền đủ chủ dữ liệu và mức phân loại cho toàn bộ nhóm.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Holding"
+    },
+    {
+      "ma": "BR-M12-01",
+      "module": "M12",
+      "phat_bieu": "Mỗi trung tâm quyền lực (V1, B0, B1, B2, B3, B5, B6) và mỗi persona phải có dashboard riêng phù hợp quyền hạn.",
+      "tieu_chi": "Mỗi vai trò đăng nhập chỉ thấy dashboard của mình, không thấy khu vực của vai trò khác.",
+      "uu_tien": "M",
+      "trang_thai": "Một phần",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M12-02",
+      "module": "M12",
+      "phat_bieu": "Hệ thống phải có cảnh báo mục tiêu rủi ro, ma trận tài năng và đường phân bố điểm phục vụ cân chỉnh.",
+      "tieu_chi": "Ba màn này lấy số trực tiếp từ dữ liệu thật, không phải số nhập tay.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M12-03",
+      "module": "M12",
+      "phat_bieu": "Cấp tập đoàn phải nhìn xuyên các đơn vị để so sánh và tổng hợp, đồng thời đơn vị phải giữ kín được chỉ số nhạy cảm theo chính sách.",
+      "tieu_chi": "Bản đồ nhiệt cấp tập đoàn hiển thị đủ đơn vị; chỉ số bị đánh dấu nhạy cảm không lộ ra ngoài đơn vị.",
+      "uu_tien": "M",
+      "trang_thai": "Chưa có",
+      "lop": "Holding"
+    },
+    {
+      "ma": "BR-M12-04",
+      "module": "M12",
+      "phat_bieu": "Hệ thống phải xuất được báo cáo ra tệp trình bày cho hồ sơ hội đồng và báo cáo lãnh đạo.",
+      "tieu_chi": "Xuất báo cáo kỳ đúng mẫu, song ngữ khi cần.",
+      "uu_tien": "S",
+      "trang_thai": "Chưa có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M13-01",
+      "module": "M13",
+      "phat_bieu": "Mọi thao tác nhạy cảm phải ghi nhật ký kiểm toán chỉ ghi thêm, không sửa xoá được kể cả bởi quản trị viên, và ghi cùng giao dịch nghiệp vụ.",
+      "tieu_chi": "Thao tác thất bại và bị quay lui thì bản ghi kiểm toán về sự việc vẫn còn.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M13-02",
+      "module": "M13",
+      "phat_bieu": "Mọi lần xuất dữ liệu ra khỏi hệ thống phải được kiểm soát và ghi vết: ai xuất, dữ liệu gì, mức phân loại nào, ra đâu.",
+      "tieu_chi": "Xuất một tệp kết quả: nhật ký ghi đủ bốn thông tin trên.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M13-03",
+      "module": "M13",
+      "phat_bieu": "Hệ thống phải có luồng phê duyệt chuẩn dùng chung cho chỉ số, cấu hình, kết quả đánh giá và ngoại lệ chính sách.",
+      "tieu_chi": "Bốn loại đối tượng trên đều đi qua cùng một cơ chế phê duyệt và cùng một nơi tra cứu lịch sử.",
+      "uu_tien": "S",
+      "trang_thai": "Một phần",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M13-04",
+      "module": "M13",
+      "phat_bieu": "Hệ thống phải có cờ rủi ro và luồng xử lý sự cố, kèm dashboard cho B3, B5, B0 và V1.",
+      "tieu_chi": "Tạo một sự cố thử: xuất hiện đúng trên dashboard của bốn khối trên.",
+      "uu_tien": "S",
+      "trang_thai": "Một phần",
+      "lop": "Holding"
+    },
+    {
+      "ma": "BR-M13-05",
+      "module": "M13",
+      "phat_bieu": "Ngoại lệ chính sách phải có thời hạn, người phê duyệt và tự hết hiệu lực khi tới hạn.",
+      "tieu_chi": "Cấp một ngoại lệ 7 ngày: sau 7 ngày quyền tự mất mà không cần thao tác thủ công.",
+      "uu_tien": "S",
+      "trang_thai": "Đã có",
+      "lop": "Cả hai"
+    },
+    {
+      "ma": "BR-M13-06",
+      "module": "M13",
+      "phat_bieu": "Hệ thống phải có chính sách thời hạn lưu trữ và xoá dữ liệu cá nhân theo quy định pháp luật hiện hành.",
+      "tieu_chi": "Dữ liệu quá hạn lưu trữ được xử lý theo chính sách và có nhật ký chứng minh.",
+      "uu_tien": "M",
+      "trang_thai": "Đã có",
+      "lop": "Holding",
+      "ghi_chu": "Nghị định 13 — B5 chủ trì đặt chính sách."
+    }
   ],
-
   "ranh_gioi_ai": {
     "duoc_phep": [
       "Tóm tắt kết quả, phản hồi và tài liệu",
@@ -282,77 +1183,345 @@
       "Xử lý dữ liệu nhạy cảm ngoài chính sách"
     ],
     "cong_hitl": [
-      { "cong": "Phê duyệt chỉ số", "ai_lam": "AI soạn nháp và kiểm tra chất lượng", "nguoi_quyet": "Người có thẩm quyền của B1 hoặc đơn vị", "bang_chung": "Bản ghi phê duyệt" },
-      { "cong": "Xác minh bằng chứng", "ai_lam": "AI phân loại và đối chiếu sơ bộ", "nguoi_quyet": "Người xác minh khác người nộp", "bang_chung": "Bản ghi xác minh" },
-      { "cong": "Chốt kết quả đánh giá", "ai_lam": "AI tóm tắt và nêu điểm bất thường", "nguoi_quyet": "Cấp có thẩm quyền chốt kỳ", "bang_chung": "Bản ghi chốt kỳ bất biến" },
-      { "cong": "Công bố cấu hình", "ai_lam": "AI đề xuất thay đổi vào bản nháp", "nguoi_quyet": "Người công bố, khác người sửa", "bang_chung": "Nhật ký công bố và quay lui" }
+      {
+        "cong": "Phê duyệt chỉ số",
+        "ai_lam": "AI soạn nháp và kiểm tra chất lượng",
+        "nguoi_quyet": "Người có thẩm quyền của B1 hoặc đơn vị",
+        "bang_chung": "Bản ghi phê duyệt"
+      },
+      {
+        "cong": "Xác minh bằng chứng",
+        "ai_lam": "AI phân loại và đối chiếu sơ bộ",
+        "nguoi_quyet": "Người xác minh khác người nộp",
+        "bang_chung": "Bản ghi xác minh"
+      },
+      {
+        "cong": "Chốt kết quả đánh giá",
+        "ai_lam": "AI tóm tắt và nêu điểm bất thường",
+        "nguoi_quyet": "Cấp có thẩm quyền chốt kỳ",
+        "bang_chung": "Bản ghi chốt kỳ bất biến"
+      },
+      {
+        "cong": "Công bố cấu hình",
+        "ai_lam": "AI đề xuất thay đổi vào bản nháp",
+        "nguoi_quyet": "Người công bố, khác người sửa",
+        "bang_chung": "Nhật ký công bố và quay lui"
+      }
     ]
   },
-
   "agent": [
-    { "ten": "Trợ lý hiệu suất", "muc_dich": "Hỏi đáp và hướng dẫn trong sản phẩm", "du_lieu": "Ngữ cảnh màn hình, dữ liệu trong quyền người dùng", "phan_loai_toi_da": "Internal", "hitl": "Không tạo thay đổi trực tiếp", "chu_quan": "B3" },
-    { "ten": "Trợ lý soạn chỉ số", "muc_dich": "Soạn nháp chỉ số, công thức, bậc thang", "du_lieu": "Từ điển KPI, cơ cấu tổ chức", "phan_loai_toi_da": "Internal", "hitl": "Đề xuất chờ duyệt", "chu_quan": "B1" },
-    { "ten": "Trợ lý soạn tác vụ", "muc_dich": "Soạn nháp tác vụ theo bảy nhóm thuộc tính", "du_lieu": "Thư viện tác vụ, quy trình", "phan_loai_toi_da": "Internal", "hitl": "Đề xuất chờ duyệt", "chu_quan": "B1" },
-    { "ten": "Trợ lý phát hiện trùng lặp", "muc_dich": "Phát hiện tác vụ và chỉ số trùng nhau", "du_lieu": "Thư viện tác vụ và chỉ số", "phan_loai_toi_da": "Internal", "hitl": "Đề xuất gộp chờ duyệt", "chu_quan": "B1" },
-    { "ten": "Trợ lý cảnh báo mục tiêu rủi ro", "muc_dich": "Phát hiện mục tiêu có nguy cơ trượt", "du_lieu": "Tiến độ mục tiêu, bằng chứng", "phan_loai_toi_da": "Internal", "hitl": "Cảnh báo, không tự điều chỉnh mục tiêu", "chu_quan": "B1" },
-    { "ten": "Trợ lý tóm tắt đánh giá", "muc_dich": "Tóm tắt phản hồi nhiều nguồn cho quản lý", "du_lieu": "Nội dung đánh giá cá nhân", "phan_loai_toi_da": "Confidential — chỉ mô hình nội bộ", "hitl": "Tóm tắt, người viết kết luận", "chu_quan": "B1 + B5" },
-    { "ten": "Trợ lý cân chỉnh", "muc_dich": "Nêu điểm lệch chuẩn giữa các quản lý", "du_lieu": "Phân bố điểm trong kỳ", "phan_loai_toi_da": "Confidential — chỉ mô hình nội bộ", "hitl": "Chỉ gợi ý, người chủ trì quyết", "chu_quan": "B1" }
+    {
+      "ten": "Trợ lý hiệu suất",
+      "muc_dich": "Hỏi đáp và hướng dẫn trong sản phẩm",
+      "du_lieu": "Ngữ cảnh màn hình, dữ liệu trong quyền người dùng",
+      "phan_loai_toi_da": "Internal",
+      "hitl": "Không tạo thay đổi trực tiếp",
+      "chu_quan": "B3"
+    },
+    {
+      "ten": "Trợ lý soạn chỉ số",
+      "muc_dich": "Soạn nháp chỉ số, công thức, bậc thang",
+      "du_lieu": "Từ điển KPI, cơ cấu tổ chức",
+      "phan_loai_toi_da": "Internal",
+      "hitl": "Đề xuất chờ duyệt",
+      "chu_quan": "B1"
+    },
+    {
+      "ten": "Trợ lý soạn tác vụ",
+      "muc_dich": "Soạn nháp tác vụ theo bảy nhóm thuộc tính",
+      "du_lieu": "Thư viện tác vụ, quy trình",
+      "phan_loai_toi_da": "Internal",
+      "hitl": "Đề xuất chờ duyệt",
+      "chu_quan": "B1"
+    },
+    {
+      "ten": "Trợ lý phát hiện trùng lặp",
+      "muc_dich": "Phát hiện tác vụ và chỉ số trùng nhau",
+      "du_lieu": "Thư viện tác vụ và chỉ số",
+      "phan_loai_toi_da": "Internal",
+      "hitl": "Đề xuất gộp chờ duyệt",
+      "chu_quan": "B1"
+    },
+    {
+      "ten": "Trợ lý cảnh báo mục tiêu rủi ro",
+      "muc_dich": "Phát hiện mục tiêu có nguy cơ trượt",
+      "du_lieu": "Tiến độ mục tiêu, bằng chứng",
+      "phan_loai_toi_da": "Internal",
+      "hitl": "Cảnh báo, không tự điều chỉnh mục tiêu",
+      "chu_quan": "B1"
+    },
+    {
+      "ten": "Trợ lý tóm tắt đánh giá",
+      "muc_dich": "Tóm tắt phản hồi nhiều nguồn cho quản lý",
+      "du_lieu": "Nội dung đánh giá cá nhân",
+      "phan_loai_toi_da": "Confidential — chỉ mô hình nội bộ",
+      "hitl": "Tóm tắt, người viết kết luận",
+      "chu_quan": "B1 + B5"
+    },
+    {
+      "ten": "Trợ lý cân chỉnh",
+      "muc_dich": "Nêu điểm lệch chuẩn giữa các quản lý",
+      "du_lieu": "Phân bố điểm trong kỳ",
+      "phan_loai_toi_da": "Confidential — chỉ mô hình nội bộ",
+      "hitl": "Chỉ gợi ý, người chủ trì quyết",
+      "chu_quan": "B1"
+    }
   ],
-
   "du_lieu": [
-    { "nhom": "Mục tiêu & chỉ số", "nguon_goc": "iPMS là hệ ghi nhận", "chu_du_lieu": "B1", "phan_loai": "Internal", "ranh_gioi_ai": "Được xử lý qua mô hình ngoài nếu đã khử định danh" },
-    { "nhom": "Tác vụ & mô tả công việc", "nguon_goc": "iPMS là hệ ghi nhận", "chu_du_lieu": "B1 + OpCo", "phan_loai": "Internal", "ranh_gioi_ai": "Được xử lý qua mô hình ngoài" },
-    { "nhom": "Kết quả đánh giá cá nhân", "nguon_goc": "iPMS là hệ ghi nhận", "chu_du_lieu": "B1", "phan_loai": "Confidential", "ranh_gioi_ai": "Chỉ mô hình trong hạ tầng NHG" },
-    { "nhom": "Lương thưởng, kỷ luật", "nguon_goc": "Hệ nhân sự – tiền lương", "chu_du_lieu": "B1 + B2", "phan_loai": "Restricted", "ranh_gioi_ai": "Không đưa vào AI dưới bất kỳ hình thức nào" },
-    { "nhom": "Hồ sơ nhân sự, chức danh, đơn vị", "nguon_goc": "Hệ nhân sự", "chu_du_lieu": "B1", "phan_loai": "Confidential", "ranh_gioi_ai": "Chỉ trường tối thiểu, đã khử định danh" },
-    { "nhom": "Số liệu tài chính phục vụ chỉ số", "nguon_goc": "Hệ tài chính – kế toán", "chu_du_lieu": "B2", "phan_loai": "Confidential", "ranh_gioi_ai": "Chỉ mức tổng hợp" },
-    { "nhom": "Dữ liệu vận hành ngành (tuyển sinh, học vụ, khám chữa bệnh)", "nguon_goc": "Hệ nghiệp vụ của OpCo", "chu_du_lieu": "OpCo", "phan_loai": "Confidential / Restricted tuỳ loại", "ranh_gioi_ai": "Dữ liệu người học và người bệnh không đưa ra ngoài" },
-    { "nhom": "Nhật ký hệ thống & AI usage", "nguon_goc": "iPMS", "chu_du_lieu": "B3", "phan_loai": "Internal", "ranh_gioi_ai": "Dùng cho phân tích nội bộ" },
-    { "nhom": "Nhật ký kiểm toán", "nguon_goc": "iPMS", "chu_du_lieu": "B0", "phan_loai": "Confidential", "ranh_gioi_ai": "Không đưa vào AI" }
+    {
+      "nhom": "Mục tiêu & chỉ số",
+      "nguon_goc": "iPMS là hệ ghi nhận",
+      "chu_du_lieu": "B1",
+      "phan_loai": "Internal",
+      "ranh_gioi_ai": "Được xử lý qua mô hình ngoài nếu đã khử định danh"
+    },
+    {
+      "nhom": "Tác vụ & mô tả công việc",
+      "nguon_goc": "iPMS là hệ ghi nhận",
+      "chu_du_lieu": "B1 + OpCo",
+      "phan_loai": "Internal",
+      "ranh_gioi_ai": "Được xử lý qua mô hình ngoài"
+    },
+    {
+      "nhom": "Kết quả đánh giá cá nhân",
+      "nguon_goc": "iPMS là hệ ghi nhận",
+      "chu_du_lieu": "B1",
+      "phan_loai": "Confidential",
+      "ranh_gioi_ai": "Chỉ mô hình trong hạ tầng NHG"
+    },
+    {
+      "nhom": "Lương thưởng, kỷ luật",
+      "nguon_goc": "Hệ nhân sự – tiền lương",
+      "chu_du_lieu": "B1 + B2",
+      "phan_loai": "Restricted",
+      "ranh_gioi_ai": "Không đưa vào AI dưới bất kỳ hình thức nào"
+    },
+    {
+      "nhom": "Hồ sơ nhân sự, chức danh, đơn vị",
+      "nguon_goc": "Hệ nhân sự",
+      "chu_du_lieu": "B1",
+      "phan_loai": "Confidential",
+      "ranh_gioi_ai": "Chỉ trường tối thiểu, đã khử định danh"
+    },
+    {
+      "nhom": "Số liệu tài chính phục vụ chỉ số",
+      "nguon_goc": "Hệ tài chính – kế toán",
+      "chu_du_lieu": "B2",
+      "phan_loai": "Confidential",
+      "ranh_gioi_ai": "Chỉ mức tổng hợp"
+    },
+    {
+      "nhom": "Dữ liệu vận hành ngành (tuyển sinh, học vụ, khám chữa bệnh)",
+      "nguon_goc": "Hệ nghiệp vụ của OpCo",
+      "chu_du_lieu": "OpCo",
+      "phan_loai": "Confidential / Restricted tuỳ loại",
+      "ranh_gioi_ai": "Dữ liệu người học và người bệnh không đưa ra ngoài"
+    },
+    {
+      "nhom": "Nhật ký hệ thống & AI usage",
+      "nguon_goc": "iPMS",
+      "chu_du_lieu": "B3",
+      "phan_loai": "Internal",
+      "ranh_gioi_ai": "Dùng cho phân tích nội bộ"
+    },
+    {
+      "nhom": "Nhật ký kiểm toán",
+      "nguon_goc": "iPMS",
+      "chu_du_lieu": "B0",
+      "phan_loai": "Confidential",
+      "ranh_gioi_ai": "Không đưa vào AI"
+    }
   ],
-
   "phi_chuc_nang": [
-    { "nhom": "Quy mô", "yeu_cau": "Phục vụ toàn bộ nhân sự tập đoàn qua nhiều đơn vị, chịu được đỉnh tải vào tuần chốt kỳ đánh giá", "muc_tieu": "Không suy giảm trải nghiệm ở đỉnh tải" },
-    { "nhom": "Khả dụng", "yeu_cau": "Sẵn sàng trong giờ làm việc, có kế hoạch sao lưu và khôi phục", "muc_tieu": "Khôi phục được về thời điểm gần nhất trước sự cố" },
-    { "nhom": "Hạ tầng", "yeu_cau": "Ưu tiên đặt tại Việt Nam, đóng gói theo hạ tầng ảo hoá, triển khai được cả trên hạ tầng nội bộ", "muc_tieu": "Đáp ứng yêu cầu chủ quyền dữ liệu" },
-    { "nhom": "Định danh", "yeu_cau": "Đăng nhập một lần bằng hệ định danh của tập đoàn, cấu trúc quyền khớp sẵn", "muc_tieu": "Không tạo kho mật khẩu riêng" },
-    { "nhom": "Ngôn ngữ", "yeu_cau": "Tiếng Việt là mặc định, sẵn sàng song ngữ Việt – Anh toàn hệ", "muc_tieu": "Vietnamese-first, English-ready" },
-    { "nhom": "Khả năng mở rộng", "yeu_cau": "Thêm đơn vị mới chỉ bằng cấu hình", "muc_tieu": "Không phân nhánh mã nguồn" },
-    { "nhom": "Khả năng quan sát", "yeu_cau": "Theo dõi được sức khoẻ hệ thống, hàng đợi tích hợp và chi phí AI", "muc_tieu": "B3 phát hiện sự cố trước người dùng" },
-    { "nhom": "Khả năng kiểm toán", "yeu_cau": "Mọi thao tác nhạy cảm truy vết được sau nhiều năm", "muc_tieu": "Đáp ứng yêu cầu của B0" }
+    {
+      "nhom": "Quy mô",
+      "yeu_cau": "Phục vụ toàn bộ nhân sự tập đoàn qua nhiều đơn vị, chịu được đỉnh tải vào tuần chốt kỳ đánh giá",
+      "muc_tieu": "Không suy giảm trải nghiệm ở đỉnh tải"
+    },
+    {
+      "nhom": "Khả dụng",
+      "yeu_cau": "Sẵn sàng trong giờ làm việc, có kế hoạch sao lưu và khôi phục",
+      "muc_tieu": "Khôi phục được về thời điểm gần nhất trước sự cố"
+    },
+    {
+      "nhom": "Hạ tầng",
+      "yeu_cau": "Ưu tiên đặt tại Việt Nam, đóng gói theo hạ tầng ảo hoá, triển khai được cả trên hạ tầng nội bộ",
+      "muc_tieu": "Đáp ứng yêu cầu chủ quyền dữ liệu"
+    },
+    {
+      "nhom": "Định danh",
+      "yeu_cau": "Đăng nhập một lần bằng hệ định danh của tập đoàn, cấu trúc quyền khớp sẵn",
+      "muc_tieu": "Không tạo kho mật khẩu riêng"
+    },
+    {
+      "nhom": "Ngôn ngữ",
+      "yeu_cau": "Tiếng Việt là mặc định, sẵn sàng song ngữ Việt – Anh toàn hệ",
+      "muc_tieu": "Vietnamese-first, English-ready"
+    },
+    {
+      "nhom": "Khả năng mở rộng",
+      "yeu_cau": "Thêm đơn vị mới chỉ bằng cấu hình",
+      "muc_tieu": "Không phân nhánh mã nguồn"
+    },
+    {
+      "nhom": "Khả năng quan sát",
+      "yeu_cau": "Theo dõi được sức khoẻ hệ thống, hàng đợi tích hợp và chi phí AI",
+      "muc_tieu": "B3 phát hiện sự cố trước người dùng"
+    },
+    {
+      "nhom": "Khả năng kiểm toán",
+      "yeu_cau": "Mọi thao tác nhạy cảm truy vết được sau nhiều năm",
+      "muc_tieu": "Đáp ứng yêu cầu của B0"
+    }
   ],
-
   "lo_trinh": [
-    { "giai_doan": "Giai đoạn 1 — Nền móng", "muc_tieu": "Mô hình đa đơn vị, phân quyền, nhật ký kiểm toán, cô lập dữ liệu", "ket_qua": "Nền tảng chạy được với một đơn vị thí điểm", "cong_ra": "Bộ kiểm thử rò rỉ dữ liệu chéo đạt toàn bộ" },
-    { "giai_doan": "Giai đoạn 2 — Lõi hiệu suất", "muc_tieu": "Từ điển KPI, thẻ điểm, cây mục tiêu, kho bằng chứng", "ket_qua": "Chấm được điểm từ dữ liệu thật", "cong_ra": "Điểm tính ra khớp bảng tính hiện hành của B1" },
-    { "giai_doan": "Giai đoạn 3 — Trọn vòng đánh giá", "muc_tieu": "Check-in, tự đánh giá, quản lý đánh giá, cân chỉnh, chốt, xuất kết quả", "ket_qua": "Chạy trọn một kỳ đánh giá thật", "cong_ra": "Một kỳ hoàn tất, kết quả bất biến, xuất được sang hệ lương" },
-    { "giai_doan": "Giai đoạn 4 — Tự cấu hình & Tác vụ", "muc_tieu": "Configuration Studio, Từ điển Tác vụ, vòng lặp tối ưu", "ket_qua": "Đơn vị tự cấu hình, phòng ban tự hoàn thiện tác vụ", "cong_ra": "Một đơn vị mới lên nền tảng không cần nhánh mã riêng" },
-    { "giai_doan": "Giai đoạn 5 — AI có kiểm soát", "muc_tieu": "Trợ lý, agent nghiệp vụ, toàn bộ lớp quản trị AI", "ket_qua": "AI hỗ trợ trong khuôn khổ, có nhật ký và hạn mức", "cong_ra": "Bộ kiểm định đạt ngưỡng; 0 sự cố dữ liệu nhạy cảm rời hạ tầng" },
-    { "giai_doan": "Giai đoạn 6 — Cấp tập đoàn", "muc_tieu": "Bảng điều khiển xuyên đơn vị, kết nối IDP, dashboard cho từng khối", "ket_qua": "Lãnh đạo nhìn toàn cảnh trực tiếp trên nền tảng", "cong_ra": "V1, B0, B1, B2, B3, B5 dùng dashboard thay báo cáo thủ công" }
+    {
+      "giai_doan": "Giai đoạn 1 — Nền móng",
+      "muc_tieu": "Mô hình đa đơn vị, phân quyền, nhật ký kiểm toán, cô lập dữ liệu",
+      "ket_qua": "Nền tảng chạy được với một đơn vị thí điểm",
+      "cong_ra": "Bộ kiểm thử rò rỉ dữ liệu chéo đạt toàn bộ"
+    },
+    {
+      "giai_doan": "Giai đoạn 2 — Lõi hiệu suất",
+      "muc_tieu": "Từ điển KPI, thẻ điểm, cây mục tiêu, kho bằng chứng",
+      "ket_qua": "Chấm được điểm từ dữ liệu thật",
+      "cong_ra": "Điểm tính ra khớp bảng tính hiện hành của B1"
+    },
+    {
+      "giai_doan": "Giai đoạn 3 — Trọn vòng đánh giá",
+      "muc_tieu": "Check-in, tự đánh giá, quản lý đánh giá, cân chỉnh, chốt, xuất kết quả",
+      "ket_qua": "Chạy trọn một kỳ đánh giá thật",
+      "cong_ra": "Một kỳ hoàn tất, kết quả bất biến, xuất được sang hệ lương"
+    },
+    {
+      "giai_doan": "Giai đoạn 4 — Tự cấu hình & Tác vụ",
+      "muc_tieu": "Configuration Studio, Từ điển Tác vụ, vòng lặp tối ưu",
+      "ket_qua": "Đơn vị tự cấu hình, phòng ban tự hoàn thiện tác vụ",
+      "cong_ra": "Một đơn vị mới lên nền tảng không cần nhánh mã riêng"
+    },
+    {
+      "giai_doan": "Giai đoạn 5 — AI có kiểm soát",
+      "muc_tieu": "Trợ lý, agent nghiệp vụ, toàn bộ lớp quản trị AI",
+      "ket_qua": "AI hỗ trợ trong khuôn khổ, có nhật ký và hạn mức",
+      "cong_ra": "Bộ kiểm định đạt ngưỡng; 0 sự cố dữ liệu nhạy cảm rời hạ tầng"
+    },
+    {
+      "giai_doan": "Giai đoạn 6 — Cấp tập đoàn",
+      "muc_tieu": "Bảng điều khiển xuyên đơn vị, kết nối IDP, dashboard cho từng khối",
+      "ket_qua": "Lãnh đạo nhìn toàn cảnh trực tiếp trên nền tảng",
+      "cong_ra": "V1, B0, B1, B2, B3, B5 dùng dashboard thay báo cáo thủ công"
+    }
   ],
-
   "rui_ro": [
-    { "ma": "RR-01", "loai": "Dữ liệu", "noi_dung": "Rò rỉ kết quả đánh giá cá nhân hoặc dữ liệu lương ra ngoài phạm vi được phép", "muc": "Cao", "giam_thieu": "Cô lập dữ liệu ở tầng CSDL, phân quyền chặn mặc định, khử định danh trước khi xử lý bằng AI, nhật ký chỉ ghi thêm", "trach_nhiem": "B3 + B5" },
-    { "ma": "RR-02", "loai": "AI", "noi_dung": "Kết quả do AI sinh ra được coi là quyết định chính thức mà không qua người duyệt", "muc": "Cao", "giam_thieu": "Cưỡng chế bằng mã: mọi đề xuất vào hàng chờ; bốn cổng người duyệt bắt buộc; nhật ký AI đầy đủ", "trach_nhiem": "B3 + B5" },
-    { "ma": "RR-03", "loai": "Vận hành", "noi_dung": "Kháng cự tổ chức khi việc đo lường trở nên minh bạch hơn", "muc": "Cao", "giam_thieu": "Triển khai theo đơn vị thí điểm, để trưởng phòng và nhân viên tham gia soạn chính tác vụ của mình, truyền thông rõ mục đích không phải giám sát", "trach_nhiem": "B1" },
-    { "ma": "RR-04", "loai": "Dữ liệu", "noi_dung": "Hệ nguồn không mở giao diện kết nối, chỉ số tự động không có dữ liệu", "muc": "Trung bình", "giam_thieu": "Phương án nạp tệp định kỳ làm dự phòng chuẩn, xác nhận sớm với chủ hệ nguồn", "trach_nhiem": "B3 + OpCo" },
-    { "ma": "RR-05", "loai": "Pháp lý", "noi_dung": "Chưa đáp ứng đủ yêu cầu về thời hạn lưu trữ và xoá dữ liệu cá nhân", "muc": "Trung bình", "giam_thieu": "B5 chủ trì đặt chính sách lưu trữ, xây bộ quy tắc trước khi mở rộng toàn tập đoàn", "trach_nhiem": "B5" },
-    { "ma": "RR-06", "loai": "Tài chính", "noi_dung": "Chi phí gọi mô hình AI vượt dự toán khi mở rộng quy mô người dùng", "muc": "Trung bình", "giam_thieu": "Đo chi phí theo đơn vị và theo agent, đặt hạn mức chặn cứng, ưu tiên mô hình nội bộ cho tác vụ khối lượng lớn", "trach_nhiem": "B3 + B2" },
-    { "ma": "RR-07", "loai": "Kiến trúc", "noi_dung": "Phát sinh nhánh mã nguồn riêng theo yêu cầu đặc thù của từng đơn vị", "muc": "Cao", "giam_thieu": "Mọi đặc thù phải giải quyết bằng cấu hình; yêu cầu vượt khả năng cấu hình phải đưa lên hội đồng kiến trúc của B3", "trach_nhiem": "B3" }
+    {
+      "ma": "RR-01",
+      "loai": "Dữ liệu",
+      "noi_dung": "Rò rỉ kết quả đánh giá cá nhân hoặc dữ liệu lương ra ngoài phạm vi được phép",
+      "muc": "Cao",
+      "giam_thieu": "Cô lập dữ liệu ở tầng CSDL, phân quyền chặn mặc định, khử định danh trước khi xử lý bằng AI, nhật ký chỉ ghi thêm",
+      "trach_nhiem": "B3 + B5"
+    },
+    {
+      "ma": "RR-02",
+      "loai": "AI",
+      "noi_dung": "Kết quả do AI sinh ra được coi là quyết định chính thức mà không qua người duyệt",
+      "muc": "Cao",
+      "giam_thieu": "Cưỡng chế bằng mã: mọi đề xuất vào hàng chờ; bốn cổng người duyệt bắt buộc; nhật ký AI đầy đủ",
+      "trach_nhiem": "B3 + B5"
+    },
+    {
+      "ma": "RR-03",
+      "loai": "Vận hành",
+      "noi_dung": "Kháng cự tổ chức khi việc đo lường trở nên minh bạch hơn",
+      "muc": "Cao",
+      "giam_thieu": "Triển khai theo đơn vị thí điểm, để trưởng phòng và nhân viên tham gia soạn chính tác vụ của mình, truyền thông rõ mục đích không phải giám sát",
+      "trach_nhiem": "B1"
+    },
+    {
+      "ma": "RR-04",
+      "loai": "Dữ liệu",
+      "noi_dung": "Hệ nguồn không mở giao diện kết nối, chỉ số tự động không có dữ liệu",
+      "muc": "Trung bình",
+      "giam_thieu": "Phương án nạp tệp định kỳ làm dự phòng chuẩn, xác nhận sớm với chủ hệ nguồn",
+      "trach_nhiem": "B3 + OpCo"
+    },
+    {
+      "ma": "RR-05",
+      "loai": "Pháp lý",
+      "noi_dung": "Chưa đáp ứng đủ yêu cầu về thời hạn lưu trữ và xoá dữ liệu cá nhân",
+      "muc": "Trung bình",
+      "giam_thieu": "B5 chủ trì đặt chính sách lưu trữ, xây bộ quy tắc trước khi mở rộng toàn tập đoàn",
+      "trach_nhiem": "B5"
+    },
+    {
+      "ma": "RR-06",
+      "loai": "Tài chính",
+      "noi_dung": "Chi phí gọi mô hình AI vượt dự toán khi mở rộng quy mô người dùng",
+      "muc": "Trung bình",
+      "giam_thieu": "Đo chi phí theo đơn vị và theo agent, đặt hạn mức chặn cứng, ưu tiên mô hình nội bộ cho tác vụ khối lượng lớn",
+      "trach_nhiem": "B3 + B2"
+    },
+    {
+      "ma": "RR-07",
+      "loai": "Kiến trúc",
+      "noi_dung": "Phát sinh nhánh mã nguồn riêng theo yêu cầu đặc thù của từng đơn vị",
+      "muc": "Cao",
+      "giam_thieu": "Mọi đặc thù phải giải quyết bằng cấu hình; yêu cầu vượt khả năng cấu hình phải đưa lên hội đồng kiến trúc của B3",
+      "trach_nhiem": "B3"
+    }
   ],
-
   "gia_dinh": [
-    { "ma": "GD-01", "noi_dung": "Hệ nhân sự tập đoàn là nguồn chuẩn cho danh sách nhân sự, chức danh và đơn vị", "anh_huong": "Nếu không, phải bổ sung bước làm sạch và đối soát dữ liệu tổ chức" },
-    { "ma": "GD-02", "noi_dung": "B1 chốt được bộ chỉ số chuẩn cấp tập đoàn trước khi mở rộng ra đơn vị thứ hai", "anh_huong": "Nếu chậm, mỗi đơn vị sẽ tự phát triển bộ chỉ số riêng và mất khả năng so sánh" },
-    { "ma": "GD-03", "noi_dung": "IDP sẵn sàng nhận đăng ký dữ liệu từ iPMS trong giai đoạn 6", "anh_huong": "Nếu chưa, iPMS tạm giữ vai trò hệ ghi nhận độc lập và phải bù bước di trú sau" },
-    { "ma": "GD-04", "noi_dung": "Hệ định danh tập đoàn cho phép đăng ký ứng dụng và cấp quyền đăng nhập một lần", "anh_huong": "Nếu không, phải dùng tài khoản riêng, tăng rủi ro quản trị mật khẩu" }
+    {
+      "ma": "GD-01",
+      "noi_dung": "Hệ nhân sự tập đoàn là nguồn chuẩn cho danh sách nhân sự, chức danh và đơn vị",
+      "anh_huong": "Nếu không, phải bổ sung bước làm sạch và đối soát dữ liệu tổ chức"
+    },
+    {
+      "ma": "GD-02",
+      "noi_dung": "B1 chốt được bộ chỉ số chuẩn cấp tập đoàn trước khi mở rộng ra đơn vị thứ hai",
+      "anh_huong": "Nếu chậm, mỗi đơn vị sẽ tự phát triển bộ chỉ số riêng và mất khả năng so sánh"
+    },
+    {
+      "ma": "GD-03",
+      "noi_dung": "IDP sẵn sàng nhận đăng ký dữ liệu từ iPMS trong giai đoạn 6",
+      "anh_huong": "Nếu chưa, iPMS tạm giữ vai trò hệ ghi nhận độc lập và phải bù bước di trú sau"
+    },
+    {
+      "ma": "GD-04",
+      "noi_dung": "Hệ định danh tập đoàn cho phép đăng ký ứng dụng và cấp quyền đăng nhập một lần",
+      "anh_huong": "Nếu không, phải dùng tài khoản riêng, tăng rủi ro quản trị mật khẩu"
+    }
   ],
-
   "cau_hoi_mo": [
-    { "stt": 1, "noi_dung": "Người được đánh giá có được xem điểm trước khi kết quả chốt cuối cùng không?", "nguoi_tra_loi": "B1", "anh_huong": "BR-M04-07" },
-    { "stt": 2, "noi_dung": "Bộ chỉ số chuẩn cấp tập đoàn gồm bao nhiêu chỉ số và ai là người phê duyệt cuối?", "nguoi_tra_loi": "B1", "anh_huong": "BR-M02-06" },
-    { "stt": 3, "noi_dung": "Mô hình AI nội bộ sẽ chạy trên hạ tầng nào và ngân sách tính toán bao nhiêu?", "nguoi_tra_loi": "B3", "anh_huong": "BR-M09-05, BR-M10-06" },
-    { "stt": 4, "noi_dung": "Chính sách thời hạn lưu trữ dữ liệu đánh giá cá nhân là bao lâu?", "nguoi_tra_loi": "B5", "anh_huong": "BR-M13-06" },
-    { "stt": 5, "noi_dung": "Thứ tự ưu tiên đưa các OpCo lên nền tảng sau đơn vị thí điểm?", "nguoi_tra_loi": "Ban Điều hành", "anh_huong": "Lộ trình giai đoạn 4–6" }
+    {
+      "stt": 1,
+      "noi_dung": "Người được đánh giá có được xem điểm trước khi kết quả chốt cuối cùng không?",
+      "nguoi_tra_loi": "B1",
+      "anh_huong": "BR-M04-07"
+    },
+    {
+      "stt": 2,
+      "noi_dung": "Bộ chỉ số chuẩn cấp tập đoàn gồm bao nhiêu chỉ số và ai là người phê duyệt cuối?",
+      "nguoi_tra_loi": "B1",
+      "anh_huong": "BR-M02-06"
+    },
+    {
+      "stt": 3,
+      "noi_dung": "Mô hình AI nội bộ sẽ chạy trên hạ tầng nào và ngân sách tính toán bao nhiêu?",
+      "nguoi_tra_loi": "B3",
+      "anh_huong": "BR-M09-05, BR-M10-06"
+    },
+    {
+      "stt": 4,
+      "noi_dung": "Chính sách thời hạn lưu trữ dữ liệu đánh giá cá nhân là bao lâu?",
+      "nguoi_tra_loi": "B5",
+      "anh_huong": "BR-M13-06"
+    },
+    {
+      "stt": 5,
+      "noi_dung": "Thứ tự ưu tiên đưa các OpCo lên nền tảng sau đơn vị thí điểm?",
+      "nguoi_tra_loi": "Ban Điều hành",
+      "anh_huong": "Lộ trình giai đoạn 4–6"
+    }
   ]
 }

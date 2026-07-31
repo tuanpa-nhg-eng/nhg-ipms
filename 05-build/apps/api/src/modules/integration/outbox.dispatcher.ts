@@ -1,7 +1,20 @@
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { uuidv7 } from '@ipms/db';
+import { exportDecision } from '@ipms/shared';
 import { PrismaService } from '../../prisma.service';
+import { DataCatalogService } from '../datacatalog/datacatalog.service';
 import { ConnectorRegistry } from './connectors/connector.registry';
+
+/**
+ * [Trục C L6] Khai báo đường xuất của outbox — TRƯỚC ĐÂY nằm ở decorator `@Exported` trên
+ * route HTTP; dời xuống đây vì worker không đi qua route đó. Giữ nguyên nội dung khai báo
+ * (kể cả giả định về mã `system.log`, xem ghi chú ở `integration.controller.ts`).
+ */
+const OUTBOX_EXPORT = {
+  asset: 'system.log',
+  destination: 'integration_connector',
+  destinationKind: 'external_service' as const,
+};
 
 /** Sau MAX_RETRY lần đẩy lỗi → dead-letter (không retry vô hạn). */
 export const OUTBOX_MAX_RETRY = 5;
@@ -30,7 +43,11 @@ export class OutboxDispatcher implements OnModuleDestroy {
   private queue?: import('bullmq').Queue;
   private worker?: import('bullmq').Worker;
 
-  constructor(private prisma: PrismaService, private connectors: ConnectorRegistry) {
+  constructor(
+    private prisma: PrismaService,
+    private connectors: ConnectorRegistry,
+    private catalog: DataCatalogService,
+  ) {
     if (process.env.ENABLE_OUTBOX_WORKER === 'true' && process.env.REDIS_URL) {
       // Nạp lười BullMQ — test/CI không đụng Redis
       // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -39,7 +56,10 @@ export class OutboxDispatcher implements OnModuleDestroy {
       this.queue = new Queue('outbox-dispatch', { connection });
       this.worker = new Worker(
         'outbox-dispatch',
-        async (job) => this.dispatchTenant(job.data.tenantId),
+        // [Trục C L6] Actor đi THEO JOB: người gây ra dòng dữ liệu này là người đã nạp dữ
+        // liệu sinh ra outbox_event. Không có actor thì `dispatchTenant` từ chối đẩy — xem
+        // ghi chú ở đó.
+        async (job) => this.dispatchTenant(job.data.tenantId, 50, job.data.actorUserId),
         { connection, concurrency: 2 },
       );
       this.worker.on('failed', (job, err) =>
@@ -49,20 +69,101 @@ export class OutboxDispatcher implements OnModuleDestroy {
   }
 
   /** Gọi sau khi ghi outbox_event — debounce theo tenant (jobId cố định + delay). */
-  notify(tenantId: string): void {
+  notify(tenantId: string, actorUserId?: string): void {
     // [F61] removeOnFail bắt buộc: job fail mà ở lại failed-set thì jobId cố định
     // chặn mọi notify() sau đó vĩnh viễn (BullMQ bỏ qua add() trùng jobId mọi state)
     void this.queue
-      ?.add('dispatch', { tenantId }, {
+      ?.add('dispatch', { tenantId, actorUserId }, {
         jobId: `t-${tenantId}`, delay: 2_000,
         removeOnComplete: true, removeOnFail: true,
       })
       .catch((e) => this.logger.warn(`notify enqueue lỗi: ${e.message}`));
   }
 
-  /** Đẩy tối đa `max` event pending của tenant. An toàn chạy lặp (idempotent theo sync_record). */
-  async dispatchTenant(tenantId: string, max = 50): Promise<DispatchStats> {
+  /**
+   * [Trục C L6] Ghi vết một lần đẩy BỊ CHẶN — cùng action `export.blocked` mà `ExportGuard`
+   * dùng, nên nó chảy thẳng vào bộ sinh cờ rủi ro của L4 mà không phải khai thêm luật nào.
+   *
+   * Dời cổng xuống service (để worker cũng đi qua) suýt làm MẤT nhánh này: guard ghi vết khi
+   * chặn, service thì ban đầu chỉ ném lỗi. Driver sống bắt được — "chặn xuất nhưng không sinh
+   * cờ". Bài học: khi dời một chốt kiểm soát, phải dời CẢ phần ghi vết của nó, không chỉ phần
+   * từ chối; phần từ chối thì người dùng thấy ngay, phần ghi vết thì không ai thấy thiếu.
+   */
+  private async recordBlocked(
+    tenantId: string, actorUserId: string, reason: string, classification: string,
+  ) {
+    try {
+      await this.prisma.withTenant(tenantId, (tx) =>
+        tx.auditLog.create({
+          data: {
+            tenantId, actorUserId,
+            action: 'export.blocked', entityType: 'export_route', entityId: null,
+            after: {
+              route: 'service OutboxDispatcher.dispatchTenant',
+              reason, asset: OUTBOX_EXPORT.asset, classification,
+              destination: OUTBOX_EXPORT.destination,
+              destination_kind: OUTBOX_EXPORT.destinationKind,
+            } as object,
+          },
+        }),
+      );
+    } catch (e: any) {
+      // Không nuốt im: request này đang bị từ chối vì lý do khác, nhưng mất vết là mất tín
+      // hiệu an ninh — ghi log ứng dụng để còn dấu hiệu điều tra.
+      this.logger.error(`không ghi được vết export.blocked: ${e?.message}`);
+    }
+  }
+
+  /**
+   * Đẩy tối đa `max` event pending của tenant. An toàn chạy lặp (idempotent theo sync_record).
+   *
+   * [Trục C L6 — trám nợ ghi từ L2] CỔNG XUẤT nằm Ở ĐÂY, không ở route HTTP.
+   *
+   * Từ L1 tới L5, `POST /integrations/outbox/dispatch` khai `@Exported` và `ExportGuard` gác
+   * đúng như K2 đòi. Nhưng worker BullMQ gọi thẳng hàm này — không qua HTTP, không qua guard,
+   * không ghi `export_log`. Nghĩa là đường đẩy dữ liệu ra ngoài CHẠY THẬT trong production
+   * (worker) hoàn toàn nằm ngoài cổng, trong khi đường ít dùng hơn (bấm tay qua API) thì được
+   * gác. Đúng họ với bài học `POST /ai/chat` — bề mặt không đi qua guard là bề mặt vô hình.
+   *
+   * Sửa bằng cách dời cổng xuống tầng service: cả hai người gọi đều đi qua cùng một phép kiểm
+   * và cùng một lần ghi vết. Route HTTP đổi sang `@ExportExempt` (kèm lý do trỏ về đây) để
+   * KHÔNG ghi vết hai lần.
+   *
+   * `actorUserId` bắt buộc: không có người chịu trách nhiệm thì không đẩy. Với worker, actor
+   * đi theo job từ `notify()` — người đã nạp dữ liệu sinh ra event. Fail-closed ở đây có giá
+   * đúng chỗ: một job thiếu actor sẽ fail và event nằm lại `pending`, chứ dữ liệu không rời hệ.
+   */
+  async dispatchTenant(tenantId: string, max = 50, actorUserId?: string): Promise<DispatchStats> {
     const stats: DispatchStats = { scanned: 0, dispatched: 0, skipped: 0, retried: 0, dead: 0 };
+
+    if (!actorUserId) {
+      throw new ForbiddenException(
+        'Đẩy outbox phải có người chịu trách nhiệm (K2) — job thiếu actor thì event nằm lại pending.',
+      );
+    }
+    const { classification } = await this.catalog.resolve(tenantId, OUTBOX_EXPORT.asset);
+    const verdict = exportDecision(classification, OUTBOX_EXPORT.destinationKind);
+    if (!verdict.allowed) {
+      await this.recordBlocked(tenantId, actorUserId, verdict.rule, classification);
+      throw new ForbiddenException(
+        `Chặn đẩy outbox: '${OUTBOX_EXPORT.asset}' (${classification}) → `
+        + `${OUTBOX_EXPORT.destination}: ${verdict.rule}`,
+      );
+    }
+    if (verdict.requires) {
+      await this.recordBlocked(
+        tenantId, actorUserId, `thiếu quyền '${verdict.requires}' (job nền không mang quyền của ai)`,
+        classification,
+      );
+      // Worker KHÔNG mang theo quyền của ai (nó không chạy trong ngữ cảnh request). Nên mọi
+      // mã dữ liệu cần quyền bổ sung đều không đẩy tự động được — fail-closed đúng chiều: một
+      // ngày nào đó có người đổi `system.log` thành `confidential`, đường này ĐÓNG chứ không
+      // âm thầm mang dữ liệu nhạy cảm ra ngoài bằng quyền của một tiến trình nền.
+      throw new ForbiddenException(
+        `Đẩy outbox tự động không mang được quyền '${verdict.requires}' — `
+        + `'${OUTBOX_EXPORT.asset}' hiện ở mức '${classification}', cần người bấm qua API có quyền đó.`,
+      );
+    }
 
     // Nạp events + bindings outbound (1 transaction đọc)
     const { events, bindings, connections } = await this.prisma.withTenant(tenantId, async (tx) => {
@@ -170,6 +271,24 @@ export class OutboxDispatcher implements OnModuleDestroy {
         this.logger.warn(`event ${event.id} đẩy lỗi (retry ${retryCount}/${OUTBOX_MAX_RETRY}): ${(e as Error).message}`);
       }
     }
+    // Ghi vết MỘT LẦN cho cả hai đường gọi (API + worker). `recordCount` = số event thực sự
+    // đẩy đi; một lượt quét không đẩy gì vẫn ghi vết (0) — "không có gì để đẩy" cũng là một
+    // sự thật kiểm toán được, và im lặng ở đây sẽ làm sổ vết trông như worker chưa từng chạy.
+    await this.prisma.withTenant(tenantId, (tx) =>
+      tx.exportLog.create({
+        data: {
+          tenantId, actorUserId,
+          assetCode: OUTBOX_EXPORT.asset,
+          classification,
+          destination: OUTBOX_EXPORT.destination,
+          destinationKind: OUTBOX_EXPORT.destinationKind,
+          recordCount: stats.dispatched,
+          route: 'service OutboxDispatcher.dispatchTenant',
+          rule: verdict.rule,
+        },
+      }),
+    );
+
     return stats;
   }
 

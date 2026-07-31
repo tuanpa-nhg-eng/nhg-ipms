@@ -139,14 +139,23 @@ async function main() {
     return msgOf(r).includes('export:confidential') ? true : `thông báo không nêu quyền cần: ${msgOf(r)}`;
   });
 
+  /**
+   * [Sửa lần hai — cùng bẫy với danh sách cờ rủi ro ở L4] Bản trước so `total` của
+   * `/export-log`, mà tới L6 mới lộ ra `total` khi ấy là `rows.length` — bị TRẦN TRANG cắt ở
+   * 200 và đứng yên vĩnh viễn. Nay endpoint trả số đếm thật (đã sửa ở L6), và driver so THÊM
+   * id dòng mới nhất: hai phép đo độc lập cho cùng một sự kiện, không phép nào phụ thuộc trần.
+   */
   await check('Đường xuất `internal` ra hệ ngoài: đi được VÀ sinh thêm đúng 1 dòng sổ vết', async () => {
-    const before = (await req('GET', '/export-log?asset=system.log&limit=200', { ...auditor })).json?.total ?? 0;
+    const b = (await req('GET', '/export-log?asset=system.log&limit=200', { ...auditor })).json;
+    const before = b?.total ?? 0;
+    const beforeTopId = b?.entries?.[0]?.id ?? null;
     const d = await req('POST', '/integrations/outbox/dispatch', { ...hr, body: {} });
     if (![200, 201].includes(d.status)) return is(d, 200, 201);
     const after = await req('GET', '/export-log?asset=system.log&limit=200', { ...auditor });
     const n = after.json?.total ?? 0;
     if (n !== before + 1) return `sổ vết: ${before} → ${n} (mong +1)`;
     const top = after.json.entries[0];
+    if (beforeTopId && top.id === beforeTopId) return 'không có dòng vết MỚI (id đỉnh không đổi)';
     const missing = ['assetCode', 'classification', 'destination', 'recordCount']
       .filter((k) => top[k] === undefined || top[k] === null);
     if (missing.length) return `dòng vết thiếu thông tin: ${missing.join(',')}`;

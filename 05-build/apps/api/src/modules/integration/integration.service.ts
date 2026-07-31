@@ -192,7 +192,9 @@ export class IntegrationService {
       });
 
       // đánh thức worker outbox (debounce theo tenant — no-op khi worker tắt)
-      this.outbox.notify(user.tenantId);
+      // [Trục C L6] Actor đi kèm: người nạp dữ liệu là người chịu trách nhiệm cho dòng dữ
+      // liệu mà lần nạp này sẽ đẩy ra ngoài. Thiếu nó thì worker từ chối đẩy (fail-closed).
+      this.outbox.notify(user.tenantId, user.claims.sub);
 
       return { runId: run.id, status, stats, contractFailed, upsertFailed: result.failed };
     } catch (e: any) {

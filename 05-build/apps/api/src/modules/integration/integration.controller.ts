@@ -102,17 +102,15 @@ export class IntegrationController {
    * Strategic Context §9.3 muốn. Đó là lý do dòng này ghi rõ giả định thay vì chọn một mã
    * chung chung cho tiện.
    *
-   * ⚠️ Worker BullMQ gọi TRỰC TIẾP `dispatchTenant()`, không đi qua HTTP ⇒ không qua guard
-   * này. Bài học `POST /ai/chat` (đường không qua guard) — ghi vào nợ để L7/Reviewer soi.
+   * ⚠️ [Trục C L6 — NỢ ĐÃ TRẢ] Trước lát này, khai báo `@Exported` nằm ở ĐÂY và worker BullMQ
+   * gọi thẳng `dispatchTenant()` nên KHÔNG đi qua cổng: đường chạy thật trong production nằm
+   * ngoài kiểm soát, còn đường bấm tay thì được gác. Cổng + ghi vết đã dời xuống service để cả
+   * hai người gọi đi qua cùng một chỗ; route này chuyển sang `@ExportExempt` để không ghi vết
+   * HAI LẦN cho cùng một lần đẩy.
    */
-  @Exported({
-    asset: 'system.log',
-    destination: 'integration_connector',
-    destinationKind: 'external_service',
-    count: (r) => r?.dispatched ?? 0,
-  })
+  @ExportExempt('Cổng xuất + ghi vết nằm ở OutboxDispatcher.dispatchTenant (worker cũng đi qua đó)')
   dispatchOutbox(@CurrentUser() user: RequestUser) {
-    return this.outbox.dispatchTenant(user.tenantId);
+    return this.outbox.dispatchTenant(user.tenantId, 50, user.claims.sub);
   }
 
   /** [F65] Replay event skipped/dead → pending (vd sau khi thêm binding khớp / hệ ngoài đã phục hồi). */

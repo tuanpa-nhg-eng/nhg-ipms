@@ -27,11 +27,14 @@ export class ExportLogController {
     const n = Number.parseInt(limit ?? '', 10);
     const take = Number.isFinite(n) && n > 0 ? Math.min(n, 200) : 100;
     return this.prisma.withTenant(user.tenantId, async (tx) => {
-      const rows = await tx.exportLog.findMany({
-        where: asset ? { assetCode: asset.slice(0, 120) } : {},
-        orderBy: { id: 'desc' },
-        take,
-      });
+      const where = asset ? { assetCode: asset.slice(0, 120) } : {};
+      const rows = await tx.exportLog.findMany({ where, orderBy: { id: 'desc' }, take });
+      // [Trục C L6 — lỗ nhỏ lộ ra khi soát] `total` TRƯỚC ĐÂY là `rows.length`, tức bị TRẦN
+      // TRANG cắt: sổ có 500 lần xuất thì nó vẫn báo 200 và đứng yên mãi mãi. Một trường tên
+      // `total` mà không phải tổng là kiểu sai lệch không ai kiểm chứng lại — người đọc tin
+      // luôn. Driver sống đã đo nhầm đúng vì nó (lần thứ hai trong trục, sau danh sách cờ rủi
+      // ro ở L4). Nay trả số đếm THẬT, kèm `returned` để phân biệt rõ hai con số.
+      const total = await tx.exportLog.count({ where });
       return {
         entries: rows.map((r) => ({
           // id là BIGSERIAL — trả string, JSON không mang BigInt an toàn.
@@ -48,7 +51,8 @@ export class ExportLogController {
           rule: r.rule,
           policyExceptionId: r.policyExceptionId,
         })),
-        total: rows.length,
+        total,
+        returned: rows.length,
       };
     });
   }
