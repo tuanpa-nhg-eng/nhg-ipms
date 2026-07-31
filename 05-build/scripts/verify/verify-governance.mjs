@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * DRIVER SỐNG — TRỤC C "Lớp bảo vệ niềm tin" · L0 sổ đăng ký dữ liệu + L1 kiểm soát xuất
+ * DRIVER SỐNG — TRỤC C "Lớp bảo vệ niềm tin"
+ *   L0 sổ đăng ký dữ liệu · L1 kiểm soát xuất · L2 quản trị nền tảng · L2b vai `support`
  *
  *   node scripts/verify/verify-governance.mjs
  *
@@ -67,7 +68,7 @@ const msgOf = (r) => String(r.json?.error?.message ?? r.json?.message ?? '');
 
 // ══════════════════════════════════════════════════════════════════════
 async function main() {
-  console.log(`\n${c.y}DRIVER SỐNG — TRỤC C L0 (sổ đăng ký) + L1 (kiểm soát xuất)${c.x}`);
+  console.log(`\n${c.y}DRIVER SỐNG — TRỤC C L0 · L1 · L2 · L2b${c.x}`);
   console.log(`${c.d}${BASE} · tenant ${TENANT}${c.x}`);
 
   const admin = await login('admin');
@@ -389,6 +390,142 @@ async function main() {
     if (![200, 201].includes(on.status)) return `bật: ${is(on, 200, 201)}`;
     const off = await req('PUT', `/platform/flags/${key}`, { ...plat, body: { enabled: false } });
     return is(off, 200, 201);
+  });
+
+  // ═══ L2b — vai `support`: nhìn thấy cái người dùng thấy, không làm được gì ═══
+  group('L2b — support chỉ-đọc: đóng vai được persona thật, ghi thì không');
+
+  const support = await login('support');
+
+  /**
+   * `/me/access` KHÔNG trả `appUserId` (cố ý — nó là bảng quyền của chính mình, không phải
+   * hồ sơ), nên id để đóng vai lấy từ danh bạ quản trị. `limit` đặt rộng: seed H.01 có ~14
+   * tài khoản, nhưng khoá theo email chứ không theo vị trí trong trang — thêm người vào seed
+   * sau này không được làm driver đo nhầm người.
+   */
+  const dir = await req('GET', '/admin/users?limit=200', { ...admin });
+  const idOf = new Map((dir.json?.entries ?? []).map((e) => [String(e.email), e.appUserId]));
+  const uid = (prefix) => idOf.get(`${prefix}@${DOM}`);
+  await check('Danh bạ quản trị tra được id của mọi persona driver cần', () => {
+    const missing = ['emp1', 'mgr', 'hr', 'exec', 'auditor', 'support', 'orgadmin'].filter((p) => !uid(p));
+    return missing.length === 0 ? true : `thiếu id: ${missing.join(', ')}`;
+  });
+
+  /**
+   * Cổng ra chính của lát: bốn persona nghiệp vụ. Trên API THẬT vì đây đúng là chỗ bản cũ
+   * hỏng — J12① đo trên tập quyền lấy từ DB, và cả bốn persona đều giữ quyền ghi.
+   */
+  await check('[J12①] support@ mở được phiên đóng vai với emp1 · mgr · hr · exec', async () => {
+    const refused = [];
+    for (const p of ['emp1', 'mgr', 'hr', 'exec']) {
+      const r = await req('POST', '/admin/impersonation', {
+        ...support,
+        body: {
+          targetUserId: uid(p),
+          reason: 'Người dùng báo lỗi không thấy dữ liệu của mình — hỗ trợ kiểm tra giao diện',
+        },
+      });
+      if (![200, 201].includes(r.status)) refused.push(`${p} → ${r.status} ${msgOf(r).slice(0, 90)}`);
+      else await req('DELETE', '/admin/impersonation/current', { token: r.json.token, tenantId: support.tenantId });
+    }
+    return refused.length === 0 ? true : `bị từ chối: ${refused.join(' · ')}`;
+  });
+
+  /** [K11] Ca đối chứng của kế hoạch: "support@ tự nó gọi mọi endpoint ghi đều 403". */
+  await check('[K11] support@ tự nó bị chặn ở MỌI bề mặt ghi (quét thật)', async () => {
+    const eps = [
+      ['POST', '/goals'], ['POST', '/checkins'], ['POST', '/evidence'], ['POST', '/reviews'],
+      ['POST', '/review-cycles'], ['POST', '/kpis'], ['POST', '/scorecards'], ['POST', '/objectives'],
+      ['POST', '/org-units'], ['POST', '/persons'], ['POST', '/admin/users'],
+      ['PATCH', '/admin/tenant-config'], ['POST', '/config-versions'], ['POST', '/policies'],
+      ['POST', '/processes'], ['POST', '/library/contributions'], ['POST', '/authoring/grants'],
+      ['POST', '/integrations/connections'], ['POST', '/integrations/outbox/dispatch'],
+      ['POST', '/ai/chat'], ['PUT', '/data-catalog/objective.kpi'], ['POST', '/platform/tenants'],
+    ];
+    const leaks = [];
+    for (const [m, u] of eps) {
+      const r = await req(m, u, { ...support, body: {} });
+      if (r.status < 400) leaks.push(`${m} ${u} → ${r.status}`);
+    }
+    if (eps.length < 20) return 'danh sách quét quá mỏng — sửa driver, không sửa ngưỡng';
+    return leaks.length === 0 ? true : `RÒ: ${leaks.join(' · ')}`;
+  });
+
+  await check('[K11 đối chứng] support@ vẫn đọc được màn nghiệp vụ (không chặn oan)', async () => {
+    const blocked = [];
+    for (const u of ['/goals', '/checkins', '/evidence', '/reviews', '/persons', '/admin/users']) {
+      const r = await req('GET', u, { ...support });
+      if (r.status === 401 || r.status === 403) blocked.push(`${u} → ${r.status}`);
+    }
+    return blocked.length === 0 ? true : `bị chặn oan: ${blocked.join(' · ')}`;
+  });
+
+  await check('[J11] trong phiên đóng vai hr@, quyền GHI của hr bị cắt sạch', async () => {
+    const s = await req('POST', '/admin/impersonation', {
+      ...support,
+      body: { targetUserId: uid('hr'), reason: 'Kiểm tra màn hình HR theo phản ánh của người dùng' },
+    });
+    if (![200, 201].includes(s.status)) return `mở phiên: ${is(s, 200, 201)}`;
+    const imp = { token: s.json.token, tenantId: support.tenantId };
+    try {
+      const read = await req('GET', '/persons', { ...imp });
+      if (read.status !== 200) return `đọc trong phiên: ${is(read, 200)}`;
+      for (const [m, u] of [['POST', '/kpis'], ['POST', '/persons'], ['POST', '/calibration-sessions']]) {
+        const r = await req(m, u, { ...imp, body: {} });
+        if (r.status !== 403) return `${m} ${u} không bị chặn: ${is(r, 403)}`;
+      }
+      // đường XUẤT dữ liệu của hr cũng không dùng được qua phiên
+      const ex = await req('GET', '/export/payroll?cycle=00000000-0000-0000-0000-000000000000', { ...imp });
+      return is(ex, 403);
+    } finally {
+      await req('DELETE', '/admin/impersonation/current', { ...imp });
+    }
+  });
+
+  await check('[J12②] support@ KHÔNG đóng vai được auditor@', async () => {
+    const r = await req('POST', '/admin/impersonation', {
+      ...support,
+      body: { targetUserId: uid('auditor'), reason: 'Thử đóng vai kiểm toán viên — phải bị từ chối' },
+    });
+    if (r.status !== 403) return is(r, 403);
+    return msgOf(r).includes('J12②') ? true : `chặn đúng nhưng sai lý do: ${msgOf(r)}`;
+  });
+
+  await check('[J3] support@ không đọc được audit-logs · export-log · nhật ký đóng vai', async () => {
+    for (const u of ['/audit-logs', '/export-log', '/admin/impersonation']) {
+      const r = await req('GET', u, { ...support });
+      if (r.status !== 403) return `${u}: ${is(r, 403)}`;
+    }
+    return true;
+  });
+
+  await check('[J1⑤] SoD cấp vai — support ⟂ tenant_admin/org_admin, chặn CẢ HAI CHIỀU', async () => {
+    const a = await req('POST', `/admin/users/${uid('support')}/roles`,
+      { ...admin, body: { roleCode: 'tenant_admin', scopeType: 'tenant' } });
+    if (a.status !== 409) return `gán tenant_admin cho support@: ${is(a, 409)}`;
+    const b = await req('POST', `/admin/users/${uid('orgadmin')}/roles`,
+      { ...admin, body: { roleCode: 'support', scopeType: 'tenant' } });
+    if (b.status !== 409) return `gán support cho orgadmin@: ${is(b, 409)}`;
+    return msgOf(a).includes('J1⑤') ? true : `chặn đúng nhưng sai lý do: ${msgOf(a)}`;
+  });
+
+  /**
+   * Đối chứng cho chính bản vá J12①: trước lát này ca dưới trả 403 và đó là lý do tính năng
+   * đóng vai không dùng được cho ai. Giữ trong driver để lần chạy sau còn thấy nó xanh.
+   */
+  await check('[đối chứng] admin@ nay đóng vai được emp1@ (quyền ghi của emp1 hết chặn oan)', async () => {
+    const r = await req('POST', '/admin/impersonation', {
+      ...admin,
+      body: { targetUserId: uid('emp1'), reason: 'Kiểm tra bàn làm việc nhân viên theo phản ánh' },
+    });
+    if (![200, 201].includes(r.status)) return is(r, 200, 201);
+    const imp = { token: r.json.token, tenantId: admin.tenantId };
+    try {
+      const w = await req('POST', '/goals', { ...imp, body: {} });
+      return is(w, 403);   // J11 vẫn nguyên
+    } finally {
+      await req('DELETE', '/admin/impersonation/current', { ...imp });
+    }
   });
 
   // ── dọn dẹp ──

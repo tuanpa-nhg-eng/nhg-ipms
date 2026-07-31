@@ -35,7 +35,11 @@ const GROUP_ROLES: Record<string, string[]> = {
   manager: ["manager"],
   hr: ["hrbp"],
   studio: ["config_designer", "config_approver", "bu_author", "library_curator", "staff_author", "dept_head"],
-  admin: ["tenant_admin", "org_admin"],
+  // [Trục C L2b] `support` vào nhóm này để tới được màn Người dùng & Vai trò — nơi duy nhất
+  // có nút "Đóng vai". Không có dòng này thì vai hỗ trợ kỹ thuật giữ `user:impersonate` mà
+  // không có đường nào bấm được nó từ giao diện (đúng loại lỗ "API có, UI không tới" mà
+  // trục B tồn tại để đóng). Các link còn lại trong nhóm gate hẹp hơn ở dưới.
+  admin: ["tenant_admin", "org_admin", "support"],
   audit: ["auditor"], // [J3] tenant_admin CỐ Ý không có audit:read — không được vào danh sách này
   // "reference" không có trong map = luôn hiện (taskdict:read cấp cho MỌI role, seed.ts)
 };
@@ -139,7 +143,11 @@ export function Sidebar() {
     // Đặt trước "Tra cứu" — bất biến "Tra cứu đặt CUỐI sidebar" (mọi persona) giữ nguyên.
     { id: "admin", group: t("nav.groupadmin"), links: [
       { href: "/admin/users", label: t("nav.adminusers"), icon: <Shield size={ICON} /> },
-      { href: "/admin/org", label: t("nav.adminorg"), icon: <Building2 size={ICON} /> },
+      // [J4 — Trục C L2b] `support` KHÔNG thấy link này: đây là màn SỬA cơ cấu (tạo/đổi/lưu
+      // trữ đơn vị, đều đòi org:write mà vai hỗ trợ không có). Hiện nó ra sẽ là một màn mở
+      // được nhưng bấm gì cũng 403 — đúng thứ J4 cấm.
+      { href: "/admin/org", label: t("nav.adminorg"), icon: <Building2 size={ICON} />,
+        roles: ["tenant_admin", "org_admin"] },
       // [J4] org_admin không giữ tenant.config:read/update (khác /admin/users, /admin/org
       // mà org_admin có việc thật) — chỉ tenant_admin mới thấy link này, dù cả nhóm hiện.
       { href: "/admin/config", label: t("nav.adminconfig"), icon: <Settings2 size={ICON} />, roles: ["tenant_admin"] },

@@ -240,6 +240,86 @@ export const IMPERSONATION_READ_WHITELIST: readonly PermissionCode[] = [
   'datacatalog:read',
 ];
 
+/**
+ * [Trục C L2b] QUYỀN HỮU HIỆU của một phiên đóng vai = quyền target thật sự giữ ∩ whitelist
+ * chỉ-đọc. Đây là thứ `PermissionGuard` giao cho request (J11) — nghĩa là con số DUY NHẤT
+ * mô tả "actor nhận được gì khi mở phiên này".
+ *
+ * Tách thành hàm ở @ipms/shared vì nó có HAI chỗ dùng phải luôn khớp nhau: guard (lúc thực
+ * thi) và `ImpersonationService` (lúc quyết cho mở phiên hay không). Hai chỗ tính khác nhau
+ * là kiểu lệch không test nào bắt trực tiếp — nó chỉ hiện ra dưới dạng "chặn oan" hoặc
+ * "cho qua rộng hơn dự tính".
+ */
+export function effectiveImpersonationPermissions(target: Iterable<string>): Set<string> {
+  const wl = new Set<string>(IMPERSONATION_READ_WHITELIST as readonly string[]);
+  return new Set([...target].filter((p) => wl.has(p)));
+}
+
+/**
+ * [Trục C L2b — J12① siết lại theo QUYỀN HỮU HIỆU] Những quyền mà actor sẽ NHẬN ĐƯỢC qua
+ * phiên đóng vai nhưng CHÍNH ACTOR không có. Rỗng ⇒ không leo thang ⇒ được mở phiên.
+ *
+ * Vì sao đổi khỏi bản đầu (so với TOÀN BỘ quyền của target):
+ *
+ * Bản đầu đòi actor ⊇ mọi quyền target giữ, kể cả quyền GHI. Nhưng quyền ghi của target đã
+ * bị guard cắt sạch khỏi phiên (J11) — actor không bao giờ dùng được chúng. Đòi actor phải
+ * giữ sẵn thứ nó không nhận được không mua thêm an toàn nào; cái nó mua là một tính năng
+ * chết: sau khi trục B L0 tước sạch quyền ghi nghiệp vụ khỏi `tenant_admin` (J2), mọi
+ * persona nghiệp vụ đều giữ ít nhất một quyền ghi (`employee` có `goal:write`), nên `admin@`
+ * chỉ còn đóng vai được người KHÔNG có quyền nào — người mà đọc gì cũng 403. Driver sống
+ * trục B đo được đúng hệ quả đó.
+ *
+ * Bản này giữ NGUYÊN bất biến "không leo thang", chỉ phát biểu đúng đối tượng: actor phải
+ * giữ đúng phần nó THỰC SỰ nhận. Chặt ở chỗ nào cần chặt — nếu target đọc được một thứ
+ * whitelisted mà actor không có quyền đọc (vd `datacatalog:read`, `config:read`), phiên vẫn
+ * bị chặn, vì đó mới đúng là mượn tầm nhìn của người khác.
+ *
+ * KHÔNG thay thế J12② (`audit:read`): quyền đó không nằm trong whitelist nên sẽ luôn bị hàm
+ * này cho là "không nhận được" ⇒ vô hình với phép kiểm này. Cấm đóng vai auditor là một luật
+ * RIÊNG, kiểm riêng, trong service — xem `impersonation.service.ts`.
+ */
+export function impersonationEscalation(
+  actor: Iterable<string>, target: Iterable<string>,
+): string[] {
+  const actorSet = new Set<string>(actor);
+  return [...effectiveImpersonationPermissions(target)].filter((p) => !actorSet.has(p)).sort();
+}
+
+/**
+ * [Trục C L2b — K11] Vai `support` — hỗ trợ kỹ thuật: NHÌN THẤY cái người dùng thấy, không
+ * làm được gì. Khai ở đây (không chỉ trong seed) đúng khuôn `PLATFORM_ADMIN_PERMISSIONS`.
+ *
+ * Danh sách SUY RA, không liệt kê tay: `support` = đúng whitelist chỉ-đọc + `user:impersonate`.
+ * Đó không phải mẹo cho gọn, nó là chỗ dựa của cả lát: vì tập quyền của `support` BẰNG
+ * whitelist, `impersonationEscalation(support, bất kỳ ai)` luôn rỗng ⇒ hỗ trợ kỹ thuật đóng
+ * vai được MỌI persona nghiệp vụ mà không cần một ngoại lệ nào trong J12. Liệt kê tay thì
+ * mỗi permission đọc thêm vào whitelist sau này lại lặng lẽ tạo ra một persona `support`
+ * không đóng vai được, và không ai biết cho tới khi có người báo lỗi.
+ *
+ * `user:impersonate` là quyền GHI duy nhất — chính là năng lực định nghĩa vai này. Nó KHÔNG
+ * nằm trong whitelist, nên trong một phiên đang đóng vai nó bị cắt ⇒ không có đóng vai lồng
+ * nhau (J12④ có thêm một phòng tuyến nữa ở service).
+ */
+export const SUPPORT_ROLE_PERMISSIONS: readonly PermissionCode[] = [
+  ...IMPERSONATION_READ_WHITELIST,
+  'user:impersonate',
+];
+
+/**
+ * [Trục C L2b] SoD CẤP VAI — các cặp vai không ai được giữ đồng thời.
+ *
+ * Vì sao không dùng `sod_rule` (bảng, theo cặp QUYỀN) như mọi SoD khác: `support` là tập con
+ * quyền của `tenant_admin` — nó không mang một quyền nào mà `tenant_admin` không có, nên
+ * KHÔNG tồn tại cặp quyền nào phát biểu được "support ⟂ tenant_admin". Ràng buộc ở đây là
+ * ràng buộc VỀ VAI (ai làm hỗ trợ kỹ thuật thì không đồng thời là người quản trị đơn vị —
+ * người mở phiên đóng vai không nên là người tự cấp cho mình quyền mở phiên), nên phải phát
+ * biểu ở cấp vai. Thực thi trong `admin-roles.service.ts` (J1⑤), kiểm cả hai chiều.
+ */
+export const MUTUALLY_EXCLUSIVE_ROLES: ReadonlyArray<readonly [string, string]> = [
+  ['support', 'tenant_admin'],
+  ['support', 'org_admin'],
+];
+
 /** JWT claims chuẩn nội bộ — map sẵn theo Entra ID để cắm SSO sau. */
 export interface IpmsJwtClaims {
   sub: string;          // app_user.id — TRONG phiên đóng vai: là TARGET (quyền tính theo người này)

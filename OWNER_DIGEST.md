@@ -678,3 +678,35 @@ Ba cách làm sai đã cân nhắc và loại: cấp `BYPASSRLS` cho vai ngườ
 **Xác nhận thêm rằng L1 hoạt động:** khi L2 thêm route `/platform/export-activity`, snapshot bề mặt xuất của L1 **đỏ ngay** và buộc tôi phải khai `@ExportExempt` + cập nhật danh sách đã rà. Lớp fail-closed build-time làm đúng việc nó tồn tại để làm — trên một route do chính tôi thêm.
 
 **VERIFY L2:** **687 test / 55 suite** · typecheck `shared`+`db`+`api` sạch · driver sống **25/25** trên API thật đã restart (+7 check cho L2, gồm ca quét 23 endpoint nghiệp vụ → 403 hết và ca chứng minh metrics chỉ chứa số đếm).
+
+---
+
+## Trục C — L2b · **31/07/2026 · Vai `support` chỉ-đọc — và một mâu thuẫn trong chính kế hoạch đã phải sửa**
+
+**Tóm tắt cho người bận:** hỗ trợ kỹ thuật giờ đóng vai được người dùng thật để nhìn đúng cái họ nhìn, mà tự nó không ghi được một dòng nào. Tài khoản demo `support@h01.nhg.local`. Kèm theo: tính năng đóng vai xây ở trục B — vốn **không dùng được cho bất kỳ ai** — nay chạy.
+
+### Việc đầu tiên phải làm là báo rằng kế hoạch sai
+
+Kế hoạch §4 L2b dựa trên một tiền đề: vì `support` giữ *hợp của các quyền đọc*, điều kiện **J12①** ("không đóng vai người giữ quyền mình không có") sẽ **tự thoả với hầu hết persona**. Đọc mã thì tiền đề đó không đứng: J12① so với **toàn bộ** tập quyền của target, mà `employee` giữ `goal:write`/`checkin:write`, `manager` thêm `rating:approve`, `hrbp` thêm `payroll:export`. Một vai không-quyền-ghi (**K11**) không thể bao trùm tập đó. Ba điều **K11 ∧ J12① ∧ "support đóng vai được emp1/mgr/hr/exec"** không cùng đúng được — xây đúng như chữ trong kế hoạch thì 3/4 ca cổng ra đỏ.
+
+Chủ dự án chốt hướng **siết lại phát biểu của J12① thay vì nới nó**: so actor với **quyền HỮU HIỆU** của phiên (= quyền target ∩ whitelist chỉ-đọc), không với toàn bộ quyền target. Đây không phải nới lỏng, và lý do đáng nhớ: thứ actor **thực sự nhận được** khi mở phiên đúng bằng phần giao đó — `PermissionGuard` đã cắt sạch quyền ghi (J11). Đòi actor phải giữ sẵn thứ nó không bao giờ nhận được không mua thêm an toàn nào; cái nó mua là một tính năng chết. Nhánh **chặn** vẫn nguyên: target đọc được thứ gì mà actor không có quyền đọc thì phiên vẫn bị từ chối.
+
+**Hệ quả kèm theo, đáng giá hơn cả lát này:** sau khi sửa, `admin@` đóng vai lại được `emp1@`/`hr@`. Trước đó — do L0 tước sạch quyền ghi nghiệp vụ của `tenant_admin` (J2) giao với J12① bản cũ — `tenant_admin` chỉ đóng vai được người **không có quyền nào**, tức người mà đọc gì cũng 403. Driver sống trục B đã đo được triệu chứng đó; L2b là chỗ chữa nguyên nhân.
+
+### Vai `support`
+
+Tập quyền **suy ra, không liệt kê tay**: đúng bằng whitelist chỉ-đọc + `user:impersonate`. Nhờ nó *bằng* whitelist, `support` đóng vai được **mọi** persona mà không cần một ngoại lệ nào trong J12 — và permission đọc thêm vào whitelist sau này tự động có mặt, không lặng lẽ tạo ra một persona không đóng vai được. `user:impersonate` là quyền ghi duy nhất và cũng là năng lực định nghĩa vai; nó không nằm trong whitelist nên trong một phiên đang đóng vai thì bị cắt ⇒ không có phiên lồng nhau.
+
+### Hai lỗ tự bắt khi dựng lát này
+
+① **J12 chỉ so MÃ QUYỀN, hoàn toàn không xét SCOPE** — trong khi phiên đóng vai giao cho actor đúng **scope của target**. Một người giữ `user:impersonate` ở scope `org_unit`, đóng vai một người scope `tenant`, sẽ đọc được toàn đơn vị: leo thang theo chiều **phạm vi**, không theo chiều mã quyền, nên J12① không nhìn thấy. Hôm nay chưa khai thác được (chỉ `tenant_admin`/`support` giữ quyền này, đều scope tenant) — nhưng "chưa ai cấp sai" không phải một cơ chế bảo vệ, cấp sai chỉ là một lần bấm ở màn Người dùng & Vai trò. Đã thêm **J12⑤**: quyền đóng vai chỉ có hiệu lực ở scope tenant, kèm ca kiểm dựng đúng tình huống đó.
+
+② **SoD "support ⟂ tenant_admin" không phát biểu được bằng `sod_rule`.** Bảng SoD hiện có làm việc theo **cặp quyền**, mà `support` là **tập con** quyền của `tenant_admin` — không tồn tại cặp quyền nào diễn tả được ràng buộc này. Đây là ràng buộc **về vai**, nên đã thêm một cơ chế nhỏ tương ứng (`MUTUALLY_EXCLUSIVE_ROLES`, thực thi **hai chiều** ở J1⑤) thay vì bẻ cong bảng cũ. Ghi lại để lần sau gặp SoD kiểu này biết nó có hai loại.
+
+### Giao diện
+
+`support` thấy đúng **một** mục quản trị: màn Người dùng & Vai trò — nơi duy nhất có nút "Đóng vai". Màn Cơ cấu tổ chức bị ẩn khỏi vai này (J4: không hiện thứ API sẽ từ chối). Các nút sửa/khoá/gán vai trên màn đó vốn đã gate theo permission nên tự động không hiện.
+
+**VERIFY L2b:** **719 test / 56 suite** (baseline 687, +32) · typecheck `shared`+`db`+`api`+`web` sạch · `next build` PASS · driver sống **34/34** trên API :4000 **đã kill+restart** (+9 check cho L2b: quét 22 bề mặt ghi → 403 hết, bốn persona đóng vai được, J12②/J12⑤/J1⑤ hai chiều, và ca đối chứng `admin@ → emp1@`).
+
+**Việc kế tiếp:** L3 — ngoại lệ chính sách có thời hạn (K4 trần 72h, K5 người xin ≠ người duyệt).

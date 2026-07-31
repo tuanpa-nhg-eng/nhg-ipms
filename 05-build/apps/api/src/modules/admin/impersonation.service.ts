@@ -4,25 +4,39 @@ import {
 } from '@nestjs/common';
 import * as jwt from 'jsonwebtoken';
 import { uuidv7, type TenantTx } from '@ipms/db';
+import { impersonationEscalation } from '@ipms/shared';
 import { PrismaService } from '../../prisma.service';
 import type { RequestUser } from '../../common/auth/decorators';
 import { getJwtSecret } from '../../common/auth/jwt.guard';
+import { hasTenantScope } from '../../common/auth/scope.util';
 
 /**
  * [Trục B L4] Impersonation CHỈ ĐỌC có kiểm soát — "cho phép NHÌN THẤY cái người dùng
  * thấy, không cho phép LÀM thay họ". Enforce chỉ-đọc nằm ở `PermissionGuard` (J11);
  * service này CHỈ lo: ai được phép mở phiên với ai (J12, 4 lớp) + vòng đời phiên (J13).
  *
- * 4 lớp J12 (đúng thứ tự, trong transaction — không có race window):
+ * 5 lớp J12 (đúng thứ tự, trong transaction — không có race window):
  *  ① không đóng vai người giữ quyền mà CHÍNH NGƯỜI GỌI không có (không leo thang, dù chỉ
- *     đọc — người đó vẫn KHÔNG được "mượn tầm nhìn" của người quyền lực hơn mình)
+ *     đọc — người đó vẫn KHÔNG được "mượn tầm nhìn" của người quyền lực hơn mình).
+ *     [Trục C L2b] So theo QUYỀN HỮU HIỆU của phiên (= quyền target ∩ whitelist chỉ-đọc),
+ *     không theo toàn bộ quyền target — xem `impersonationEscalation` ở @ipms/shared để
+ *     biết vì sao bản đầu làm chết chính tính năng này.
  *  ② không đóng vai người giữ `audit:read` (J3 mở rộng: không có đường vòng đọc vết qua
- *     việc đóng vai một auditor)
+ *     việc đóng vai một auditor). Luật RIÊNG, không suy ra được từ ①: `audit:read` không
+ *     nằm trong whitelist nên ① không bao giờ nhìn thấy nó.
  *  ③ không tự đóng vai chính mình
  *  ④ không đóng vai lồng nhau (token đang đóng vai không mở được phiên MỚI) — trong thực
  *     tế đã bị PermissionGuard J11 chặn TRƯỚC vì `user:impersonate` không nằm trong
  *     read-whitelist, nhưng vẫn kiểm ở đây làm phòng tuyến thứ hai (bug ở tầng guard trong
  *     tương lai không được để hở đường leo thang này).
+ *  ⑤ [Trục C L2b] người mở phiên phải giữ `user:impersonate` ở SCOPE TENANT.
+ *     Lỗ tự bắt khi dựng vai `support`: J12 chỉ so MÃ QUYỀN, hoàn toàn không xét scope —
+ *     trong khi phiên đóng vai giao cho actor đúng SCOPE CỦA TARGET (guard tính scope từ
+ *     `user_role` của target). Nghĩa là một người giữ `user:impersonate` scope org_unit,
+ *     đóng vai một người scope tenant, sẽ đọc được TOÀN đơn vị — leo thang theo chiều phạm
+ *     vi, không theo chiều mã quyền, nên ① không thấy. Hôm nay chưa khai thác được (chỉ
+ *     `tenant_admin`/`support` giữ quyền này, đều scope tenant), nhưng "chưa ai cấp sai"
+ *     không phải một cơ chế bảo vệ — cấp sai chỉ là một lần bấm ở màn Người dùng & Vai trò.
  */
 const READ_ONLY_TTL_MS = 30 * 60 * 1000; // [J13] TTL cứng — KHÔNG cấu hình được qua env
 const MIN_REASON_LEN = 20;
@@ -71,6 +85,15 @@ export class ImpersonationService {
     if (user.claims.act) {
       throw new ImpersonationViolationError('Đang trong phiên đóng vai — không mở phiên lồng nhau (J12④)', {});
     }
+    // (⑤) [Trục C L2b] scope của quyền `user:impersonate` phải là TENANT — `user.scopes` là
+    // scope của đúng các vai CẤP quyền đang được yêu cầu (PermissionGuard, F6), nên phép kiểm
+    // này nói về quyền đóng vai chứ không về scope chung chung của người gọi.
+    if (!hasTenantScope(user.scopes)) {
+      throw new ImpersonationViolationError(
+        'Quyền đóng vai chỉ có nghĩa ở phạm vi TENANT — vai của bạn cấp nó ở phạm vi hẹp hơn (J12⑤)',
+        { scopes: user.scopes.map((s) => s.scopeType) },
+      );
+    }
 
     return this.prisma.withTenant(user.tenantId, async (tx) => {
       const target = await tx.appUser.findFirst({ where: { id: input.targetUserId, deletedAt: null } });
@@ -98,11 +121,11 @@ export class ImpersonationService {
           'Không đóng vai người giữ audit:read (J12②)', { target_id: input.targetUserId },
         );
       }
-      // (①) không đóng vai người có quyền mình không có
-      const notOwned = [...targetPerms].filter((p) => !user.permissions.has(p));
+      // (①) không nhận được qua phiên thứ quyền mình không có — so theo QUYỀN HỮU HIỆU
+      const notOwned = impersonationEscalation(user.permissions, targetPerms);
       if (notOwned.length > 0) {
         throw new ImpersonationViolationError(
-          `Không đóng vai được — người này giữ quyền bạn không có: ${notOwned.join(', ')} (J12①)`,
+          `Không đóng vai được — phiên này sẽ cho bạn quyền đọc bạn không có: ${notOwned.join(', ')} (J12①)`,
           { target_id: input.targetUserId, missing: notOwned },
         );
       }

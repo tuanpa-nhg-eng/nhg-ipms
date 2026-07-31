@@ -11,7 +11,9 @@
  * thêm một permission mới vào catalog.
  */
 import { createPrismaClient, PrismaClient } from '@ipms/db';
-import { PERMISSIONS, PLATFORM_ADMIN_PERMISSIONS, isBusinessPermission } from '@ipms/shared';
+import {
+  PERMISSIONS, PLATFORM_ADMIN_PERMISSIONS, SUPPORT_ROLE_PERMISSIONS, isBusinessPermission,
+} from '@ipms/shared';
 
 jest.setTimeout(120_000);
 
@@ -127,6 +129,15 @@ const EXPECTED: Record<string, string[]> = {
     'system:health', 'integration:status', 'ai:usage_read',
     'flag:read', 'flag:write',
     'exportlog:read_metadata', 'audit:read_metadata',
+  ],
+  // [Trục C L2b — K11] Hỗ trợ kỹ thuật: đúng whitelist chỉ-đọc + `user:impersonate`. Nguồn
+  // gốc là `SUPPORT_ROLE_PERMISSIONS` trong @ipms/shared — đối chiếu ba bên như platform_admin.
+  support: [
+    'tenant:read', 'org:read', 'person:read', 'user:read', 'role:read',
+    'flag:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read', 'evidence:read',
+    'checkin:read', 'review:read', 'config:read', 'taskcell:read', 'tenant.config:read',
+    'datacatalog:read',
+    'user:impersonate',
   ],
 };
 
@@ -282,6 +293,48 @@ describe('[Trục B L0] Ma trận role→permission — J2 không god-account', 
   it('[K9] platform_admin không giữ quyền NGHIỆP VỤ nào (suy diễn, không liệt kê tay)', () => {
     const business = [...actual['platform_admin']].filter(isBusinessPermission);
     expect(business).toEqual([]);
+  });
+
+  /**
+   * [Trục C L2b — K11] Ba bên khớp nhau cho `support`: mã ↔ snapshot ↔ DB. Trừ đi nhóm quyền
+   * CÁ NHÂN (`*.self:*` + `taskdict:read`) mà seed cấp cho MỌI vai — chúng không thuộc thiết
+   * kế của vai này, và coi chúng là "quyền của support" sẽ làm hằng số trong mã phình theo
+   * một thứ nó không quyết định.
+   */
+  it('[Trục C L2b] allowlist support trong MÃ khớp snapshot ma trận', () => {
+    const fromCode = [...SUPPORT_ROLE_PERMISSIONS].filter((p) => !SELF.includes(p)).sort();
+    expect(fromCode).toEqual([...EXPECTED['support']].sort());
+  });
+
+  /**
+   * [K11] Ca đối chứng ở tầng ma trận — tầng endpoint có ca quét riêng trong `support-role.spec`.
+   * `*.self:*` là ghi trên CHÍNH MÌNH (đổi ngôn ngữ, tắt thông báo), mọi vai đều có, kể cả
+   * `auditor` — coi chúng là quyền ghi thì bất biến này vô nghĩa (cùng carve-out với J2 dưới).
+   * `user:impersonate` là NĂNG LỰC ĐỊNH NGHĨA vai, và nó chỉ mở ra một phiên CHỈ ĐỌC.
+   */
+  it('[K11] support không giữ quyền GHI nào ngoài `user:impersonate`', () => {
+    const isWrite = (p: string) =>
+      !p.includes('.self:') && p !== 'user:impersonate'
+      && (/:(write|approve|publish|verify|export|assign|revoke|invite|deactivate|curate|import|reopen|run|bind|connect|delegate|propose|submit|design|update|archive|impersonate|invoke|assist|eval|feedback)$/.test(p)
+        || p === 'library:import:canonical');
+    expect([...actual['support']].filter(isWrite)).toEqual([]);
+  });
+
+  /**
+   * Bất biến đi kèm J12① (đã siết theo quyền hữu hiệu): `support` phủ trọn whitelist chỉ-đọc
+   * chính là thứ khiến nó đóng vai được mọi persona mà không cần ngoại lệ. Nếu ai đó tước bớt
+   * một quyền đọc khỏi vai này "cho gọn", tính năng hỗ trợ sẽ hỏng lặng lẽ với đúng những
+   * persona giữ quyền đó — test này bắt tại chỗ, ở nguồn.
+   */
+  it('[Trục C L2b] support phủ trọn IMPERSONATION_READ_WHITELIST trong DB', () => {
+    const missing = SUPPORT_ROLE_PERMISSIONS.filter((p) => !actual['support'].has(p));
+    expect(missing).toEqual([]);
+  });
+
+  it('[J12⑤] chỉ tenant_admin và support giữ `user:impersonate`', () => {
+    const holders = Object.entries(actual)
+      .filter(([, ps]) => ps.has('user:impersonate')).map(([r]) => r).sort();
+    expect(holders).toEqual(['support', 'tenant_admin']);
   });
 
   it('[J3] KHÔNG role nào ngoài auditor giữ audit:read', () => {

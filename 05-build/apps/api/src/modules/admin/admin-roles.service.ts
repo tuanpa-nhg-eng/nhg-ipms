@@ -3,6 +3,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { uuidv7 } from '@ipms/db';
+import { MUTUALLY_EXCLUSIVE_ROLES } from '@ipms/shared';
 import { PrismaService } from '../../prisma.service';
 import type { RequestUser } from '../../common/auth/decorators';
 import { effectiveScope } from '../../common/auth/scope.util';
@@ -20,6 +21,8 @@ import { effectiveScope } from '../../common/auth/scope.util';
  *     VÀ người NHẬN cũng phải trong scope đó (không chỉ scope của vai được cấp)
  *  ③ không tự cấp cho chính mình
  *  ④ không vi phạm sod_rule — vai mới không xung đột với quyền grantee ĐANG giữ
+ *  ⑤ [Trục C L2b] không vi phạm SoD CẤP VAI (`MUTUALLY_EXCLUSIVE_ROLES`) — xem ghi chú ở
+ *     hằng số đó: có những cặp vai chỉ phát biểu được ở cấp VAI, không ở cấp quyền
  * Mọi từ chối → audit `admin.role_grant_denied` NGOÀI tx (J6, sống sót rollback).
  *
  * [Tự bắt — mâu thuẫn giữa J1① và chính mục tiêu §1 của trục] L0 tước SẠCH quyền ghi
@@ -264,6 +267,30 @@ export class AdminRolesService {
               );
             }
           }
+        }
+      }
+
+      // (⑤) [Trục C L2b] SoD CẤP VAI — kiểm HAI CHIỀU: cấm cả "đang support, cấp thêm
+      // tenant_admin" lẫn "đang tenant_admin, cấp thêm support". Một chiều thôi thì luật chỉ
+      // là chuyện thứ tự bấm nút.
+      const conflictingCodes = MUTUALLY_EXCLUSIVE_ROLES
+        .filter(([a, b]) => a === input.roleCode || b === input.roleCode)
+        .map(([a, b]) => (a === input.roleCode ? b : a));
+      if (conflictingCodes.length > 0) {
+        const held = await tx.userRole.findMany({
+          where: {
+            appUserId: input.granteeId, deletedAt: null,
+            role: { deletedAt: null, code: { in: conflictingCodes } },
+          },
+          select: { role: { select: { code: true } } },
+        });
+        if (held.length > 0) {
+          const other = held[0].role.code;
+          throw new GrantViolationError(
+            `SoD cấp vai: người nhận đang giữ vai '${other}' — không kiêm được '${input.roleCode}' (J1⑤)`,
+            { grantee_id: input.granteeId, conflict_role: other, role_code: input.roleCode },
+            'conflict',
+          );
         }
       }
 

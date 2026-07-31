@@ -15,7 +15,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import * as jwt from 'jsonwebtoken';
 import request from 'supertest';
-import { createPrismaClient, PrismaClient } from '@ipms/db';
+import { createPrismaClient, PrismaClient, uuidv7 } from '@ipms/db';
 import { AppModule } from '../../src/app.module';
 import { getJwtSecret } from '../../src/common/auth/jwt.guard';
 
@@ -28,9 +28,19 @@ describe('[Trục B L4] Impersonation chỉ-đọc có kiểm soát', () => {
   let owner: PrismaClient;
   let admin: Ctx;      // tenant_admin — có user:impersonate
   let orgadmin: Ctx;   // org_admin — KHÔNG có user:impersonate
-  let hrUser: Ctx;     // hrbp — giữ quyền admin@ KHÔNG có (kpi:write…) → J12①
+  let hrUser: Ctx;     // hrbp — giữ quyền GHI admin@ không có (kpi:write…)
   let auditorUser: Ctx; // auditor — giữ audit:read → J12②
   let execUser: Ctx;   // exec_viewer — perm set ⊆ tenant_admin (ca thành công thuần đọc)
+  /**
+   * [Trục C L2b] Người đóng vai NGHÈO QUYỀN, dựng tại chỗ: giữ `user:impersonate` (scope
+   * tenant, để không rơi vào J12⑤) nhưng chỉ đúng một quyền đọc.
+   *
+   * Vì sao phải dựng thay vì dùng persona seed: sau khi J12① so theo QUYỀN HỮU HIỆU, không
+   * còn cặp persona seed nào làm luật này bật — `tenant_admin` phủ trọn whitelist chỉ-đọc.
+   * Không có ca này thì nhánh CHẶN của J12① mất bằng chứng tích hợp hoàn toàn, và test sẽ
+   * chỉ còn chứng minh phần "cho qua".
+   */
+  const poor = { roleId: '', userId: '', userRoleId: '', token: '' };
 
   async function ctxFor(tenantCode: string, emailPrefix: string): Promise<Ctx> {
     const tenant = await owner.tenant.findUnique({ where: { code: tenantCode } });
@@ -58,9 +68,33 @@ describe('[Trục B L4] Impersonation chỉ-đọc có kiểm soát', () => {
     app.setGlobalPrefix('api/v1');
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
     await app.init();
+
+    const perms = await owner.permission.findMany({
+      where: { code: { in: ['user:impersonate', 'tenant:read'] } },
+    });
+    const role = await owner.role.create({
+      data: { id: uuidv7(), code: 'zz_j12_poor_impersonator', tenantId: admin.id, nameVi: 'test', nameEn: 'test' },
+    });
+    poor.roleId = role.id;
+    for (const p of perms) await owner.rolePermission.create({ data: { roleId: role.id, permissionId: p.id } });
+    const u = await owner.appUser.create({
+      data: { id: uuidv7(), tenantId: admin.id, email: 'zz-j12-poor@h01.nhg.local', status: 'active' },
+    });
+    poor.userId = u.id;
+    const ur = await owner.userRole.create({
+      data: {
+        id: uuidv7(), tenantId: admin.id, appUserId: u.id, roleId: role.id, scopeType: 'tenant',
+      },
+    });
+    poor.userRoleId = ur.id;
+    poor.token = jwt.sign({ sub: u.id, tid: admin.id, email: u.email }, getJwtSecret(), { expiresIn: '1h' });
   });
 
   afterAll(async () => {
+    await owner.userRole.deleteMany({ where: { id: poor.userRoleId } }).catch(() => {});
+    await owner.appUser.deleteMany({ where: { id: poor.userId } }).catch(() => {});
+    await owner.rolePermission.deleteMany({ where: { roleId: poor.roleId } }).catch(() => {});
+    await owner.role.deleteMany({ where: { id: poor.roleId } }).catch(() => {});
     await app?.close();
     await owner?.$disconnect();
   });
@@ -105,16 +139,41 @@ describe('[Trục B L4] Impersonation chỉ-đọc có kiểm soát', () => {
       expect((incident!.after as any).rule).toContain('J12②');
     });
 
-    it('[J12①] đóng vai người giữ quyền mình không có (hrbp giữ kpi:write, admin không có) → 403', async () => {
-      const r = await api().post('/api/v1/admin/impersonation').set(as(admin)).send({
-        targetUserId: hrUser.userId, reason: REASON,
+    /**
+     * [Trục C L2b — bất biến này đã ĐỔI PHÁT BIỂU, không bị nới] J12① so theo QUYỀN HỮU HIỆU
+     * của phiên (quyền target ∩ whitelist chỉ-đọc), không theo toàn bộ quyền target.
+     *
+     * Bản cũ dùng chính ca `admin@ → hr@` để chứng minh J12①, nhưng nó chứng minh sai thứ:
+     * cái chặn là `kpi:write` — một quyền mà phiên đóng vai KHÔNG BAO GIỜ giao cho actor (J11
+     * cắt sạch). Đòi actor giữ sẵn thứ nó không nhận được chỉ làm chết tính năng: sau L0,
+     * `tenant_admin` không giữ quyền ghi nghiệp vụ nào nên không đóng vai được persona nào.
+     * Nay đo đúng thứ cần đo — actor nghèo quyền ĐỌC thì vẫn bị chặn như thường.
+     */
+    it('[J12①] đóng vai người có quyền ĐỌC mình không có → 403 (đo trên quyền hữu hiệu)', async () => {
+      const r = await api().post('/api/v1/admin/impersonation').set(asToken(poor.token, admin.id)).send({
+        targetUserId: execUser.userId, reason: REASON,
       });
       expect(r.status).toBe(403);
       const incident = await owner.auditLog.findFirst({
-        where: { tenantId: admin.id, action: 'admin.impersonation_denied', actorUserId: admin.userId },
+        where: { tenantId: admin.id, action: 'admin.impersonation_denied', actorUserId: poor.userId },
         orderBy: { id: 'desc' },
       });
       expect((incident!.after as any).rule).toContain('J12①');
+      // đúng những quyền ĐỌC bị thiếu, không lẫn quyền ghi nào
+      const missing: string[] = (incident!.after as any).missing;
+      expect(missing).toContain('kpi:read');
+      expect(missing.every((p) => !p.endsWith(':write'))).toBe(true);
+    });
+
+    it('[Trục C L2b] quyền GHI của target KHÔNG còn chặn oan: admin@ đóng vai hr@ → 201', async () => {
+      const r = await api().post('/api/v1/admin/impersonation').set(as(admin)).send({
+        targetUserId: hrUser.userId, reason: REASON,
+      });
+      expect(r.status).toBe(201);
+      // và phiên đó vẫn không ghi được gì (J11 giữ nguyên) — kiểm ngay tại chỗ, không tin suông
+      const w = await api().post('/api/v1/kpis').set(asToken(r.body.token, admin.id)).send({});
+      expect(w.status).toBe(403);
+      await api().delete('/api/v1/admin/impersonation/current').set(asToken(r.body.token, admin.id));
     });
 
     it('thành công: đóng vai exec_viewer (⊆ quyền admin) → 201, ghi session + audit', async () => {

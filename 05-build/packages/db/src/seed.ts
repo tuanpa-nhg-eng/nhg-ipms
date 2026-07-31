@@ -246,6 +246,25 @@ const GLOBAL_ROLES: Record<string, string[]> = {
     'flag:read', 'flag:write',
     'exportlog:read_metadata', 'audit:read_metadata',
   ],
+  /**
+   * [Trục C L2b — K11] Hỗ trợ kỹ thuật. BẢN PHẢN CHIẾU của `SUPPORT_ROLE_PERMISSIONS` trong
+   * `packages/shared/src/index.ts` (nguồn gốc ở MÃ, không ở seed — cùng khuôn platform_admin).
+   *
+   * Danh sách = whitelist chỉ-đọc của impersonation + `user:impersonate`. Viết TAY ở đây vì
+   * `packages/db` không phụ thuộc `@ipms/shared` (món nợ đã ghi ở trục C L0) — `rbac-matrix.spec`
+   * đối chiếu ba bên mã ↔ snapshot ↔ DB nên bản sao lệch sẽ đỏ ngay, không âm thầm.
+   *
+   * KHÔNG một quyền ghi nghiệp vụ nào (K11) · KHÔNG `audit:read` (J3) · KHÔNG `user:write`/
+   * `role:assign` — người hỗ trợ nhìn được mọi thứ người dùng nhìn, và chỉ thế.
+   */
+  support: [
+    'tenant:read', 'org:read', 'person:read', 'user:read', 'role:read',
+    'flag:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read', 'evidence:read',
+    'checkin:read', 'review:read', 'config:read', 'taskcell:read', 'taskdict:read',
+    'tenant.config:read', 'settings.self:read', 'access.self:read', 'notify.self:read',
+    'datacatalog:read',
+    'user:impersonate',
+  ],
   // [Trục C L0] Chủ dữ liệu — B3 (nền tảng, nhật ký) + B5 (tuân thủ). Vai DUY NHẤT được
   // sửa sổ đăng ký dữ liệu. Không kèm quyền nghiệp vụ nào: sổ này quyết định dữ liệu được
   // xử lý thế nào, nên người giữ nó không nên đồng thời là người xử lý dữ liệu đó.
@@ -526,6 +545,12 @@ async function main() {
     // ngay khi API quản trị lên ở L1, thay vì chỉ chứng minh trên tenant_admin scope tenant.
     // [Trục C L0] Chủ dữ liệu — vai DUY NHẤT sửa được sổ đăng ký dữ liệu.
     await seedStudioUser('steward', 'data_steward');
+    /**
+     * [Trục C L2b — K11] Hỗ trợ kỹ thuật. Scope TENANT có chủ đích và BẮT BUỘC: quyền
+     * `user:impersonate` ở scope hẹp hơn bị J12⑤ từ chối thẳng (đóng vai một người scope
+     * tenant từ một vai scope org_unit là leo thang theo chiều phạm vi).
+     */
+    await seedStudioUser('support', 'support');
     /**
      * [Trục C L2] Quản trị nền tảng (B3).
      *

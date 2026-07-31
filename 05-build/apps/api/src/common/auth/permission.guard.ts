@@ -2,11 +2,9 @@ import {
   CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { IMPERSONATION_READ_WHITELIST } from '@ipms/shared';
+import { effectiveImpersonationPermissions } from '@ipms/shared';
 import { PrismaService } from '../../prisma.service';
 import { IMPERSONATION_EXIT_EXEMPT_KEY, PERMISSION_KEY, PUBLIC_KEY, RequestUser } from './decorators';
-
-const READ_WHITELIST = new Set<string>(IMPERSONATION_READ_WHITELIST);
 
 /**
  * PermissionGuard — RBAC fail-closed:
@@ -114,8 +112,13 @@ export class PermissionGuard implements CanActivate {
     // — dùng whitelist TƯỜNG MINH nghĩa là quyền target giữ mà admin quên liệt kê vào
     // whitelist thì mặc định BỊ LOẠI, không phải mặc định lọt qua. Đây là chỗ enforce DUY
     // NHẤT của bất biến J11 — không có đường vòng nào khác chạm được RequestUser.permissions.
+    //
+    // [Trục C L2b] Phép cắt này giờ nằm ở `effectiveImpersonationPermissions` (@ipms/shared)
+    // — CÙNG hàm mà `ImpersonationService` dùng để quyết cho mở phiên hay không (J12①). Hai
+    // nơi phải tính GIỐNG HỆT: chỗ quyết định "actor nhận được gì" và chỗ thật sự giao thứ
+    // đó phải là một, không phải hai bản sao trông giống nhau.
     const effectivePermissions = req.ipmsClaims.act
-      ? new Set([...permissions].filter((p) => READ_WHITELIST.has(p)))
+      ? effectiveImpersonationPermissions(permissions)
       : permissions;
 
     if (!effectivePermissions.has(required)) {
