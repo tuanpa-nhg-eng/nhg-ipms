@@ -136,6 +136,10 @@ const EXPECTED: Record<string, string[]> = {
     'risk:read', 'risk:read_summary', 'incident:read', 'incident:manage',
     // [Trục C L5] B5 đặt chính sách lưu trữ VÀ bấm chạy
     'retention:read', 'retention:manage', 'retention:run',
+    // [Trục D L0] Vai DUY NHẤT sửa được hiến chương agent — cùng chỗ với `datacatalog:write`:
+    // hiến chương phát biểu *dữ liệu nào được đưa cho AI*, nên nó là quyết định quản trị dữ
+    // liệu, không phải của người dựng agent (`config_designer` cố ý KHÔNG có `:write`).
+    'aiagent:read', 'aiagent:write',
   ],
   // [Trục C L1] Vai uỷ nhiệm TRẦN XUẤT — đúng MỘT quyền, không gán sẵn cho ai. Thêm bất kỳ
   // quyền nào vào đây là biến nó từ "nâng trần" thành "vai có năng lực", và khi đó ngoại lệ
@@ -162,6 +166,11 @@ const EXPECTED: Record<string, string[]> = {
     'flag:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read', 'evidence:read',
     'checkin:read', 'review:read', 'config:read', 'taskcell:read', 'tenant.config:read',
     'datacatalog:read',
+    // [Trục D L0] Danh bạ agent là siêu dữ liệu quản trị (mục đích, chủ quản, trần, quyền) —
+    // KHÔNG chứa dữ liệu nghiệp vụ, KHÔNG chứa lượt gọi nào. Người hỗ trợ nhìn thấy nó là
+    // đúng việc: đó là thứ giải thích vì sao một tính năng AI bị chặn. Lịch sử lượt gọi
+    // (`ai_interaction`) KHÔNG ở trong whitelist.
+    'aiagent:read',
     'user:impersonate',
   ],
 };
@@ -171,6 +180,14 @@ const EXPECTED: Record<string, string[]> = {
 // danh sách vai đổi, và snapshot lệch âm thầm thì mất luôn tác dụng đóng đinh.
 for (const r of ['tenant_admin', 'org_admin', 'auditor', 'config_designer', 'config_approver']) {
   if (!EXPECTED[r].includes('datacatalog:read')) EXPECTED[r].push('datacatalog:read');
+}
+
+// [Trục D L0] `aiagent:read` — CÙNG tập vai với `datacatalog:read`, cùng lý do (trước khi
+// duyệt bất cứ việc gì dính AI, phải tra được agent đó là ai và trần bao nhiêu). Viết thành
+// vòng lặp thứ hai chứ KHÔNG gộp vào vòng trên: hai quyền này trùng tập vai *hôm nay* là
+// trùng hợp, không phải ràng buộc — gộp lại là ép chúng phải trùng mãi mãi.
+for (const r of ['tenant_admin', 'org_admin', 'auditor', 'config_designer', 'config_approver']) {
+  if (!EXPECTED[r].includes('aiagent:read')) EXPECTED[r].push('aiagent:read');
 }
 
 /** Quyền tước khỏi tenant_admin ở L0 — mỗi mục kèm vai GIỮ THAY (OWNER_DIGEST trục B L0). */

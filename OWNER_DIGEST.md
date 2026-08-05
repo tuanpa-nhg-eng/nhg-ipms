@@ -5,6 +5,34 @@
 
 ---
 
+## Trục D — "Lớp AI có danh tính" · **05/08/2026 · L0 XONG — danh bạ agent dựng xong, 927/927**
+
+> Kế hoạch L0–L7: `02-dac-ta/NHG_iPMS_Ke_Hoach_Truc_D_Lop_AI_Co_Danh_Tinh.md` (⚠️ `02-dac-ta/` gitignore toàn thư mục — chỉ trên đĩa). Duyệt 05/08. Vé Reviewer từ **F201**. Bất biến **N1–N10** (bỏ `L` vì đụng "Lát", bỏ `M` vì đụng mã module BRD). Baseline `b4570ac` 896/896.
+
+**HAI LỖ TÌM ĐƯỢC KHI ĐỌC MÃ — nền của cả trục, không suy từ tài liệu:**
+
+**① `ai-gateway.service.ts:56` — `scrubbedReq.dataClass ?? 'internal'`.** Người gọi **tự khai** mức nhạy cảm của chính dữ liệu mình đẩy vào LLM, và Egress Policy quyết định chặn/cho đi dựa trên lời khai đó. **Quên khai thì mặc định là mức CHO PHÉP ĐI.** Đây là ảnh phản chiếu LẬT NGƯỢC của K2/`@Exported` (không khai thì không xuất được). Chưa nổ vì `ai_gateway_live` còn TẮT — **ngày cấp khoá API là ngày lỗ này thành đường rò thật.** Vá ở L1.
+
+**② `agent` là chuỗi tự do — ĐO trên DB dev: 397 mã riêng biệt / 14.532 dòng, CHỈ SÁU là thật.** 391 mã còn lại do test đẻ, mỗi lượt chạy mint một "agent" mới nằm lại vĩnh viễn trong bảng append-only (`egress-test-<ts>` ×59 · `anthropic-live-<ts>` ×52 · `inline.test.qualifyB.<ts>` ×53…; riêng `inline.test.readiness` 9.765 lượt — nhiều hơn mọi agent thật cộng lại). Năm bảng khoá theo chính chuỗi đó (`ai_launch_bar`, `ai_agent_model`, `ai_model_qualification`, `ai_eval_suite`, `ai_interaction`) ⇒ **agent không tồn tại thì KHÔNG CÓ BAR NÀO ĐỂ TRƯỢT** — Model-Qualification Gate im lặng cho qua.
+
+**🔴 PHÁT HIỆN THỨ BA (hệ quả của ②, đo được):** báo cáo kinh tế AI 30 ngày gồm 2.993 lượt, **294 lượt là agent bịa**, và **100% chi phí báo cáo ($0,30645) đến TỪ CHÚNG**. `economics.service.ts` chỉ lọc `toolName startsWith 'eval:'` — không bắt được agent bịa. ⇒ **con số PRD §16 dùng để quyết "có bật live không" hiện là số giả hoàn toàn.** Đây là lần thứ BA cùng họ (F163 đếm lượt eval · F191 ghi chú sai về NULL · nay agent bịa). **CỐ Ý KHÔNG vá ở L0:** bộ lọc đúng là *"agent phải có trong danh bạ"*, mà điều đó chỉ thành sự thật được cưỡng chế ở L1 — vá bằng thêm một tiền tố tên nữa là lặp lại chính sai lầm cũ. RED-LINE nguyên vẹn: 0 lượt gọi API thật, chi phí kia do transport GIẢ của `anthropic-live-wiring.spec` sinh.
+
+**✅ L0 XONG** — bảng `ai_agent` (`tenantId NULL` = bản chuẩn tập đoàn, khuôn `data_asset` trục C L0). **Trigger `ai_agent_no_loosen` chặn NĂM chiều nới lỏng**: ① nâng trần phân loại ② thêm quyền ngoài hiến chương ③ thêm nhóm dữ liệu ngoài phạm vi ④ nới HITL ⑤ **tự BẬT agent mà bản chuẩn để `planned`** (chiều dễ bỏ sót nhất — nó vô hiệu hoá cả bốn chiều kia). Kiểm bằng `ipms_owner` (role BỎ QUA RLS) ⇒ chặn ở tầng trigger thật. **CHECK cấp lược đồ: `hitl_mode ∈ {read_only, propose_only}` — KHÔNG giá trị nào cho phép AI ghi thẳng**; muốn có agent tự ghi phải sửa migration có người đọc, không phải truyền chuỗi khác vào cột tự do.
+
+**Hoà giải BRD ⟷ mã, KHÔNG bịa cho khớp** (`packages/db/src/ai-agent-directory.data.ts`): 4/7 agent BRD có mã thật đang chạy · 3/7 chưa có mã ⇒ `planned` · `inline.derivation.rule` **không có trong BRD** nhưng chạy thật 493 lượt ⇒ khai bổ sung, **cần B3 xác nhận khi cập nhật BRD** (không tự sửa BRD từ phía mã) · `mcp` = hạ tầng · `kpi_designer` có PRD riêng + nhánh trong MockLlmClient nhưng **0 caller** ⇒ `planned`. **`eval_harness` CỐ Ý không có trong sổ** — chỉ tồn tại trong một chú thích ví dụ; lượt eval ghi `agent = suite.agent`, nên nó chưa bao giờ là một giá trị `agent` thật. Seed cho "đủ bộ" đúng là kiểu số trông-như-thật mà trục A đã phải xoá bốn khối.
+
+**Hai agent BRD đòi *"Confidential — chỉ mô hình nội bộ"*** (tóm tắt đánh giá · cân chỉnh) để `planned` và **có test đóng đinh không được bật trước L3** — đích hợp lệ cho chúng (self-host) chưa tồn tại; bật sớm làm rỗng nghĩa câu chặn cứng ở `egress-policy.ts:52`.
+
+**NỢ TRẢ Ở L0:** `seed.ts` còn giữ **bản sao tay THỨ BA** của whitelist đóng vai, kèm chú thích biện minh *"`packages/db` không phụ thuộc `@ipms/shared`"* — điều đó **đã hết đúng từ trục C L3**. Chú thích ở lại, bản sao ở lại, và `aiagent:read` làm nó cắn **lần thứ tư** (6 ca `rbac-matrix` đỏ cùng lúc). Nay `support: [...SUPPORT_ROLE_PERMISSIONS]`. Đúng bài học F191: **ghi chú khẳng định sai được đọc như bằng chứng ở mọi lần sửa sau.**
+
+**HAI LẦN TÔI ĐO SAI ĐỐI TƯỢNG trong chính phiên này** (probe psql, rồi test integration) — cùng một chỗ: đòn "nới X" chỉ có nghĩa khi bản chuẩn của agent đó ĐANG chặt về X, mà tôi đánh vào agent bản chuẩn đã mở sẵn. Cả hai lần đều báo "lọt" một lỗ không tồn tại. Lần thứ 5–6 của dự án trong họ **"không chốt mốc trước khi đo"**. Ca test nay dựng nền TỪ chính bản chuẩn để mọi chiều khác đều "bằng".
+
+**VERIFY L0:** **927/927 (67 suite)** — baseline 896/896 (65 suite), đúng +31 ca/+2 suite · typecheck 3 gói sạch · **driver governance trục C 55/55 KHÔNG hồi quy** · **đội đỏ trục C 16/16 KHÔNG hồi quy** · seed idempotent (chạy 3 lần) · cờ `ai_gateway_live` vẫn TẮT.
+
+**Phạm vi L0 — nói rõ để không mạo nhận:** đây mới chỉ là SỔ. `ai-gateway` **CHƯA gọi** `resolve()`; N1/N2/N3 chưa có răng. Cưỡng chế là việc của L1, tách ra có chủ đích: bật chặn trước khi sổ phủ hết mã đang chạy là gãy sản phẩm. **Cổng ra L0 đã đạt:** 6/6 mã sản phẩm tra được trong sổ, và mọi mã KHÔNG tra được đều mang dấu vết test (có test đóng đinh) ⇒ L1 bật N1 được. **Việc L1 phải làm trước:** 5 spec (`egress-policy` · `anthropic-live-wiring` · `ai-readiness` · `model-qualification` · `ai-governance-fixes`) đang bịa mã agent để cô lập lượt chạy — chuyển phần duy nhất đó sang `toolName` (trường tự do, không khoá bảng nào), giữ `agent` là danh tính.
+
+---
+
 ## Trục A — "Chạm người dùng thật" · **22/07/2026 · L0+L1 XONG — chốt hợp đồng API, chờ duyệt trước khi vào FE**
 
 > Kế hoạch: `02-dac-ta/NHG_iPMS_Ke_Hoach_Truc_A_Cham_Nguoi_Dung_That.md`. Mục tiêu: 18 màn persona (employee/manager/hr/exec/audit) đang chạy `lib/mock.ts` → nối backend Phase 1–2 đã build+test đủ. Nhịp đã thoả thuận: **dừng báo cáo hết L1 (hợp đồng API) và hết L3 (mốc demo)**. 2 commit `4b89e78`+`39edc4e`.

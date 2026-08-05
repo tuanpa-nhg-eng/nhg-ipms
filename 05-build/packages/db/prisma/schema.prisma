@@ -1943,6 +1943,51 @@ model ImpersonationSession {
 /// [Trục C L0] Sổ đăng ký dữ liệu — nguồn sự thật DUY NHẤT cho "dữ liệu này thuộc nhóm
 /// nào, mức phân loại nào, ai là chủ". tenantId NULL = bản chuẩn cấp tập đoàn; đơn vị
 /// chỉ SIẾT CHẶT được (trigger data_asset_no_loosen, không phải chỉ validator tầng API).
+/// [Trục D L0] DANH BẠ AGENT — danh tính của mỗi actor AI (BR-M09-02).
+///
+/// Trước bảng này, `LlmRequest.agent` là chuỗi tự do: đo trên DB dev được **397 mã riêng
+/// biệt** trong `ai_interaction` mà chỉ SÁU là thật. Năm bảng khoá theo chính chuỗi đó
+/// (`ai_launch_bar`, `ai_agent_model`, `ai_model_qualification`, `ai_eval_suite`,
+/// `ai_interaction`) ⇒ agent không tồn tại thì không có bar nào để trượt.
+///
+/// `tenantId NULL` = bản chuẩn tập đoàn; đơn vị chỉ SIẾT được (trigger `ai_agent_no_loosen`
+/// chặn năm chiều nới lỏng, kể cả đường ghi trực tiếp bằng owner).
+///
+/// L0 chỉ DỰNG SỔ — cưỡng chế "agent lạ ⇒ 422" (N1) là của L1.
+model AiAgent {
+  id       String  @id @db.Uuid
+  tenantId String? @map("tenant_id") @db.Uuid
+  code     String
+  nameVi   String  @map("name_vi")
+  nameEn   String? @map("name_en")
+  purpose  String
+  /// Chủ quản theo VAI/KHỐI ('B1','B3','B5') — không theo tên người, như `data_asset.ownerRole`.
+  ownerRole String @map("owner_role")
+  /// business = agent nghiệp vụ trong BRD · infrastructure = agent hạ tầng chỉ có trong mã.
+  kind String
+  /// TRẦN phân loại — thuộc tính của AGENT, không phải của phiên gọi (N3, cưỡng chế ở L1).
+  maxDataClass String @map("max_data_class")
+  /// string[] — trỏ `data_asset.code` của trục C. Phạm vi dữ liệu agent được chạm.
+  dataAssetCodes Json @map("data_asset_codes")
+  /// string[] — hiến chương quyền. Quyền hữu hiệu = quyền người gọi ∩ tập này (N4, ở L2).
+  permissions Json
+  /// read_only | propose_only — KHÔNG có giá trị nào cho phép ghi thẳng (CHECK ở DDL).
+  hitlMode String @map("hitl_mode")
+  /// active | planned | retired. `planned` = đã khai danh tính, chưa có đường chạy hợp lệ.
+  status String
+  note   String?
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  version   Int       @default(1)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@index([tenantId, status])
+  @@map("ai_agent")
+}
+
 model DataAsset {
   id             String  @id @db.Uuid
   tenantId       String? @map("tenant_id") @db.Uuid

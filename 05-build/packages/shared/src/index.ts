@@ -87,6 +87,15 @@ export const PERMISSIONS = [
   // thì dữ liệu đã mất. Tách quyền để sau này B5 giao hai việc cho hai người mà không phải
   // sửa mã — hôm nay cùng một vai giữ cả hai, và chốt an toàn là bắt buộc chạy thử trước.
   'retention:read', 'retention:manage', 'retention:run',
+  // [Trục D L0] Danh bạ agent AI (BR-M09-02). Cùng khuôn `datacatalog:*` một tầng bên dưới:
+  // ':read' cấp rộng cho vai quản trị + kiểm toán (trước khi duyệt bất kỳ việc gì liên quan
+  // AI, người ta phải tra được agent đó là ai, trần bao nhiêu); ':write' CHỈ `data_steward`.
+  //
+  // Vì sao ':write' đặt ở data_steward chứ không ở `config_designer` (người cấu hình hệ):
+  // hiến chương agent phát biểu *dữ liệu nào được đưa cho AI*, nên nó là quyết định QUẢN TRỊ
+  // DỮ LIỆU, cùng người đã giữ `datacatalog:write`. Đặt ở người cấu hình hệ thì người dựng
+  // agent tự cấp trần cho chính agent mình dựng.
+  'aiagent:read', 'aiagent:write',
   // [Trục C L2] Quản trị NỀN TẢNG (tầng ①) — vận hành toàn hệ, KHÔNG đọc nội dung nghiệp vụ.
   // Không quyền nào ở đây chạm được một dòng `review`/`scorecard_item`/`evidence`/`person`:
   // chúng chỉ mở read model metadata (`platform_snapshot`) + hai hành động vận hành
@@ -262,6 +271,11 @@ export const IMPERSONATION_READ_WHITELIST: readonly PermissionCode[] = [
   'tenant.config:read', 'settings.self:read', 'access.self:read', 'notify.self:read',
   // [Trục C L0] tra sổ đăng ký dữ liệu — chỉ đọc, an toàn trong phiên đóng vai
   'datacatalog:read',
+  // [Trục D L0] tra danh bạ agent — chỉ đọc. Danh bạ mô tả HIẾN CHƯƠNG của agent (mục đích,
+  // chủ quản, trần, quyền), không chứa dữ liệu nghiệp vụ và không chứa lượt gọi nào; nhân
+  // viên hỗ trợ nhìn thấy nó là đúng việc — đó là thứ giải thích vì sao một tính năng AI bị
+  // chặn. Lịch sử lượt gọi (`ai_interaction`) KHÔNG ở đây và không vào whitelist.
+  'aiagent:read',
 ];
 
 /**

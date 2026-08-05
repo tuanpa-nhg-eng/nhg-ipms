@@ -89,6 +89,9 @@ import { TenantConfigService } from './modules/admin/tenant-config.service';
 // [Trục C L0] Sổ đăng ký dữ liệu
 import { DataCatalogController } from './modules/datacatalog/datacatalog.controller';
 import { DataCatalogService } from './modules/datacatalog/datacatalog.service';
+// [Trục D L0] Danh bạ agent AI — danh tính của mỗi actor AI (BR-M09-02)
+import { AiAgentController } from './modules/ai/agents/ai-agent.controller';
+import { AiAgentService } from './modules/ai/agents/ai-agent.service';
 // [Trục C L1] Kiểm soát xuất dữ liệu — một cổng duy nhất, ghi vết đủ bốn thông tin
 import { ExportGuard } from './common/export/export.guard';
 import { ExportLogInterceptor } from './common/export/export-log.interceptor';
@@ -123,6 +126,8 @@ import { ImpersonationService } from './modules/admin/impersonation.service';
     // [Trục B — L1] quản trị tenant/org
     AdminUsersController, AdminRolesController, TenantConfigController, MeController,
     DataCatalogController,
+    // [Trục D L0] danh bạ agent — gác aiagent:read (vai quản trị + kiểm toán)
+    AiAgentController,
     // [Trục C L1] đọc sổ vết xuất — gác sau exportlog:read (hiện chỉ auditor)
     ExportLogController,
     // [Trục C L2] bề mặt quản trị nền tảng của B3
@@ -171,6 +176,7 @@ import { ImpersonationService } from './modules/admin/impersonation.service';
     TaskLoopService,
     AdminUsersService, AdminRolesService, TenantConfigService, MeService, ImpersonationService,
     DataCatalogService,
+    AiAgentService,
     PlatformService,
     PolicyExceptionService,
     RiskService,

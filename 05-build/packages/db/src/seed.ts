@@ -8,6 +8,8 @@ import { PrismaClient } from '@prisma/client';
 import { uuidv7 } from 'uuidv7';
 import { KPI_DICTIONARY } from './kpi-dictionary.data';
 import { KPI_DICTIONARY_EXT } from './kpi-dictionary-ext.data';
+// [Trục D L0] Danh bạ agent — hằng số tách riêng để unit test đọc thẳng, không cần DB.
+import { GLOBAL_AI_AGENTS } from './ai-agent-directory.data';
 
 const prisma = new PrismaClient(); // DATABASE_URL = owner
 
@@ -25,7 +27,7 @@ const prisma = new PrismaClient(); // DATABASE_URL = owner
  * sinh `@prisma/client`, không đọc file này). Cái giá thật của việc hoãn lớn hơn cái giá của
  * việc làm, và đó chính là lý do ghi lại con số ba lần ở đây.
  */
-import { PERMISSIONS, EXCEPTION_GRANTABLE_PERMISSIONS } from '@ipms/shared';
+import { PERMISSIONS, EXCEPTION_GRANTABLE_PERMISSIONS, SUPPORT_ROLE_PERMISSIONS } from '@ipms/shared';
 
 // [Trục B L0] Quyền cá nhân — MỌI role đều có (đúng khuôn taskdict:read đã dùng ở Go-live Từ điển).
 const SELF_PERMISSIONS = [
@@ -217,21 +219,24 @@ const GLOBAL_ROLES: Record<string, string[]> = {
    * [Trục C L2b — K11] Hỗ trợ kỹ thuật. BẢN PHẢN CHIẾU của `SUPPORT_ROLE_PERMISSIONS` trong
    * `packages/shared/src/index.ts` (nguồn gốc ở MÃ, không ở seed — cùng khuôn platform_admin).
    *
-   * Danh sách = whitelist chỉ-đọc của impersonation + `user:impersonate`. Viết TAY ở đây vì
-   * `packages/db` không phụ thuộc `@ipms/shared` (món nợ đã ghi ở trục C L0) — `rbac-matrix.spec`
-   * đối chiếu ba bên mã ↔ snapshot ↔ DB nên bản sao lệch sẽ đỏ ngay, không âm thầm.
+   * Danh sách = whitelist chỉ-đọc của impersonation + `user:impersonate`, **SUY RA** từ
+   * `SUPPORT_ROLE_PERMISSIONS` của `@ipms/shared` — không liệt kê tay.
+   *
+   * [Trục D L0 — NỢ TRẢ] Tới trước lát này đây là BẢN SAO TAY thứ ba của whitelist, và chú
+   * thích cũ biện minh bằng *"`packages/db` không phụ thuộc `@ipms/shared`"*. Điều đó **đã hết
+   * đúng từ trục C L3**, khi `PERMISSIONS` được gộp về một mối và package.json thêm
+   * `"@ipms/shared": "workspace:*"` (xem chú thích ở đầu tệp). Chú thích ở lại, bản sao ở lại,
+   * và `aiagent:read` của trục D làm nó cắn lần thứ tư — SÁU ca `rbac-matrix.spec` đỏ cùng lúc.
+   *
+   * Đúng bài học F191: **một ghi chú khẳng định sai sẽ được đọc như bằng chứng ở mọi lần sửa
+   * sau.** Chú thích cũ nói "bản sao lệch sẽ đỏ ngay, không âm thầm" — đúng, nhưng "đỏ ngay"
+   * không phải là an toàn, chỉ là phát hiện muộn hơn việc không có bản sao nào.
    *
    * KHÔNG một quyền ghi nghiệp vụ nào (K11) · KHÔNG `audit:read` (J3) · KHÔNG `user:write`/
-   * `role:assign` — người hỗ trợ nhìn được mọi thứ người dùng nhìn, và chỉ thế.
+   * `role:assign` — người hỗ trợ nhìn được mọi thứ người dùng nhìn, và chỉ thế. Ba tính chất
+   * đó nay do CHÍNH whitelist bảo đảm, không do sự cẩn thận khi chép tay.
    */
-  support: [
-    'tenant:read', 'org:read', 'person:read', 'user:read', 'role:read',
-    'flag:read', 'kpi:read', 'scorecard:read', 'strategy:read', 'goal:read', 'evidence:read',
-    'checkin:read', 'review:read', 'config:read', 'taskcell:read', 'taskdict:read',
-    'tenant.config:read', 'settings.self:read', 'access.self:read', 'notify.self:read',
-    'datacatalog:read',
-    'user:impersonate',
-  ],
+  support: [...SUPPORT_ROLE_PERMISSIONS],
   // [Trục C L0] Chủ dữ liệu — B3 (nền tảng, nhật ký) + B5 (tuân thủ). Vai DUY NHẤT được
   // sửa sổ đăng ký dữ liệu. Không kèm quyền nghiệp vụ nào: sổ này quyết định dữ liệu được
   // xử lý thế nào, nên người giữ nó không nên đồng thời là người xử lý dữ liệu đó.
@@ -248,6 +253,10 @@ const GLOBAL_ROLES: Record<string, string[]> = {
     // tách sẵn để sau này giao hai người mà không phải sửa mã; chốt an toàn hôm nay là bắt
     // buộc chạy thử trước, không phải phân người.
     'retention:read', 'retention:manage', 'retention:run',
+    // [Trục D L0] Vai DUY NHẤT sửa được hiến chương agent. Cùng lý do đã đặt
+    // `datacatalog:write` ở đây: hiến chương agent phát biểu *dữ liệu nào được đưa cho AI*,
+    // nên nó là quyết định quản trị dữ liệu — không phải của người dựng agent.
+    'aiagent:read', 'aiagent:write',
   ],
 };
 
@@ -270,6 +279,18 @@ for (const perms of Object.values(GLOBAL_ROLES)) {
 for (const r of ['tenant_admin', 'org_admin', 'auditor', 'config_designer', 'config_approver']) {
   const perms = GLOBAL_ROLES[r];
   if (perms && !perms.includes('datacatalog:read')) perms.push('datacatalog:read');
+}
+
+// [Trục D L0] `aiagent:read` — cùng tập vai với `datacatalog:read` ở trên, và cùng lý do:
+// trước khi duyệt bất cứ việc gì dính AI (bật cờ, cấp ngoại lệ, soát vết), người ta phải tra
+// được agent đó là ai và trần bao nhiêu. `data_steward` nhận cả `:write` (khai tường minh ở
+// GLOBAL_ROLES). KHÔNG cấp cho vai nghiệp vụ thường — họ dùng AI, không quản trị nó.
+//
+// ⚠️ `platform_admin` CỐ Ý không có: K9 (không quyền nghiệp vụ nào). Danh bạ là tài nguyên
+// cấp đơn vị; tầng nền tảng muốn số liệu AI thì đã có `ai:usage_read` (chỉ metadata).
+for (const r of ['tenant_admin', 'org_admin', 'auditor', 'config_designer', 'config_approver']) {
+  const perms = GLOBAL_ROLES[r];
+  if (perms && !perms.includes('aiagent:read')) perms.push('aiagent:read');
 }
 
 /**
@@ -388,6 +409,25 @@ async function main() {
           id: uuidv7(), tenantId: null, code: a.code, groupName: a.group,
           ownerRole: a.owner, classification: a.classification,
           sourceSystem: a.source ?? null, description: a.desc ?? null, legalNote: a.legal ?? null,
+        },
+      });
+    }
+  }
+
+  // 2c. [Trục D L0] Danh bạ agent — bản chuẩn cấp tập đoàn. Idempotent theo `code`; KHÔNG đè
+  // bản đã có (data_steward có thể đã siết trần hoặc bớt quyền), chỉ tạo mới. Cùng khuôn 2a.
+  for (const a of GLOBAL_AI_AGENTS) {
+    const existing = await prisma.aiAgent.findFirst({
+      where: { tenantId: null, code: a.code, deletedAt: null },
+    });
+    if (!existing) {
+      await prisma.aiAgent.create({
+        data: {
+          id: uuidv7(), tenantId: null, code: a.code,
+          nameVi: a.nameVi, nameEn: a.nameEn ?? null, purpose: a.purpose,
+          ownerRole: a.owner, kind: a.kind, maxDataClass: a.maxDataClass,
+          dataAssetCodes: a.assets, permissions: a.permissions,
+          hitlMode: a.hitl, status: a.status, note: a.note ?? null,
         },
       });
     }

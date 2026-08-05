@@ -18,6 +18,8 @@ export * from './task-catalog';
 // Lát G1/G2 (go-live) — Task Catalog V2 (694 tác vụ Archive/Task_Dashboard_v2)
 // + Từ điển KPI mở rộng FIN (ĐỀ XUẤT — B1 hiệu chỉnh) + map tác vụ→KPI explainable
 export * from './task-catalog-v2.data';
+// [Trục D L0] Danh bạ agent AI — bản chuẩn tập đoàn (BR-M09-02)
+export * from './ai-agent-directory.data';
 export * from './task-catalog-v2';
 export * from './kpi-dictionary-ext.data';
 
