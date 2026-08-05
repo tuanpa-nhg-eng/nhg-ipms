@@ -54,8 +54,14 @@ export class EconomicsService {
         //
         // Đây đúng là con số PRD §16 dùng để quyết "có bật live không", nên sai lệch theo
         // hướng đếm thiếu còn nguy hiểm hơn đếm thừa. `toolName` NULL (hầu hết traffic thật)
-        // phải được GIỮ — điều kiện NOT trên cột nullable trong SQL loại luôn NULL, nên viết
-        // tường minh hai nhánh.
+        // phải được GIỮ, nên viết tường minh hai nhánh.
+        //
+        // [F191 — đính chính 05/08] Câu chú thích cũ ở đây giải thích nhánh `{ toolName: null }`
+        // là BẮT BUỘC vì "NOT trên cột nullable loại luôn NULL". Đúng với SQL thuần, SAI với
+        // Prisma từ 4.0: `NOT`/`not` ở tầng Prisma TRẢ VỀ cả hàng NULL. Truy vấn này vẫn đúng
+        // (nhánh thừa chứ không thiếu), nhưng chính câu giải thích sai đó đã được đọc lại như
+        // bằng chứng khi viết bộ lọc khử danh ở `retention.targets.ts` — nơi thiếu vế NULL gây
+        // ghi đè không hoàn tác được. Giữ nguyên hai nhánh cho rõ ý định, sửa lại lý do.
         where: {
           at: { gte: since },
           OR: [{ toolName: null }, { NOT: { toolName: { startsWith: 'eval:' } } }],

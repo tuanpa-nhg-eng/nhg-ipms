@@ -37,6 +37,39 @@ export interface RetentionTarget {
 const ANON = '[đã khử danh theo chính sách lưu trữ]';
 
 /**
+ * [F191 — Reviewer 05/08] "Cột này CÒN thứ để khử danh hay không".
+ *
+ * Ba vế, và thiếu vế đầu là lỗi đã lọt qua toàn bộ bốn lớp kiểm chứng:
+ *   · `not: null`   — cột phải CÓ nội dung. **Từ Prisma 4.0, `not`/`notIn` TRẢ VỀ CẢ HÀNG NULL**
+ *     (thay đổi phá vỡ tương thích; repo đang dùng 5.22). Ghi chú cũ ở đây khẳng định ngược
+ *     lại — rằng `{ not: ANON }` dịch thành `<> ANON` nên loại luôn NULL — và vì tin vào câu
+ *     đó, một review chưa ai viết gì vẫn lọt vào kế hoạch rồi bị GHI ĐÈ sáu chuỗi `ANON`.
+ *     Hỏng theo hướng tệ nhất có thể: không hoàn tác được, và `planned`/`affected` trong hồ sơ
+ *     tuân thủ đếm cả những hàng vốn không có gì để khử.
+ *   · `notIn: ANON` — hàng ĐÃ khử danh thì thôi (khử danh ghi đè chuỗi, không đặt NULL, nên nếu
+ *     không loại thì mỗi lượt chạy lại báo đúng con số cũ và `affected` phồng vô hạn).
+ *   · `notIn: ''`   — chuỗi rỗng cũng không nhận dạng được ai; đánh dấu "đã khử danh" lên nó
+ *     chỉ làm sai phép đếm.
+ *
+ * Bài học chung: một ngữ nghĩa của thư viện mà ta chỉ SUY RA rồi viết vào ghi chú thì cái ghi
+ * chú đó sẽ được đọc như bằng chứng ở mọi lần sửa sau. Vế `not: null` nay có ca kiểm riêng.
+ */
+const HAS_TEXT = { not: null, notIn: [ANON, ''] };
+
+/** Sáu cột văn bản tự do của `review` — thứ duy nhất nhận dạng được một con người cụ thể. */
+const TEXT_FIELD_FILTERS = [
+  { selfReflection: HAS_TEXT }, { managerAssessment: HAS_TEXT }, { strengths: HAS_TEXT },
+  { gaps: HAS_TEXT }, { developmentNeeds: HAS_TEXT }, { finalRationale: HAS_TEXT },
+];
+const TEXT_FIELD_PATCHES = [
+  { selfReflection: ANON }, { managerAssessment: ANON }, { strengths: ANON },
+  { gaps: ANON }, { developmentNeeds: ANON }, { finalRationale: ANON },
+];
+
+/** Hàng còn ít nhất MỘT cột chưa khử — điều kiện dùng chung cho cả `plan` và `apply`. */
+const HAS_ANY_TEXT = { OR: TEXT_FIELD_FILTERS };
+
+/**
  * `review.result` — kết quả đánh giá cá nhân (`confidential`, NĐ13).
  *
  * Hành động là KHỬ DANH, không xoá hàng: điểm số và hạng là dữ liệu thống kê hợp pháp để giữ
@@ -53,22 +86,7 @@ const reviewTarget: RetentionTarget = {
   supports: ['anonymize', 'keep'],
 
   async plan(tx, cutoff) {
-    // "Còn thứ để khử" — phải loại cả hàng ĐÃ khử danh, không chỉ hàng NULL.
-    //
-    // [Lỗi tự bắt ở lần chạy test đầu] Bản đầu lọc `{ not: null }`. Nhưng khử danh GHI ĐÈ một
-    // chuỗi (không đặt NULL), nên hàng đã xử lý vẫn thoả điều kiện: mỗi lượt chạy lại báo đúng
-    // con số cũ, "khử danh" lại chính những hàng đã khử, và `affected_count` phồng lên vô hạn.
-    // Hồ sơ tuân thủ khi đó nói dối theo hướng nguy hiểm nhất — luôn còn việc phải làm, nên
-    // không ai nhận ra công việc đã xong từ lâu. `{ not: ANON }` trong Prisma dịch thành
-    // `<> ANON`, tức loại luôn NULL — đúng cả hai vế trong một điều kiện.
-    const hasText = {
-      OR: [
-        { selfReflection: { not: ANON } }, { managerAssessment: { not: ANON } },
-        { strengths: { not: ANON } }, { gaps: { not: ANON } },
-        { developmentNeeds: { not: ANON } }, { finalRationale: { not: ANON } },
-      ],
-    };
-    const overdue = { createdAt: { lt: cutoff }, deletedAt: null, ...hasText };
+    const overdue = { createdAt: { lt: cutoff }, deletedAt: null, ...HAS_ANY_TEXT };
     const planned = await tx.review.count({
       where: { ...overdue, cycle: { status: 'closed' } },
     });
@@ -91,26 +109,29 @@ const reviewTarget: RetentionTarget = {
     const rows = await tx.review.findMany({
       where: {
         createdAt: { lt: cutoff }, deletedAt: null, cycle: { status: 'closed' },
-        OR: [
-          { selfReflection: { not: ANON } }, { managerAssessment: { not: ANON } },
-          { strengths: { not: ANON } }, { gaps: { not: ANON } },
-          { developmentNeeds: { not: ANON } }, { finalRationale: { not: ANON } },
-        ],
+        ...HAS_ANY_TEXT,
       },
       select: { id: true },
     });
     if (rows.length === 0) return 0;
-    // `updateMany` theo đúng danh sách id đã LẬP KẾ HOẠCH, không update theo điều kiện lần
-    // nữa: giữa lúc lập kế hoạch và lúc chạy, một kỳ có thể vừa được mở lại. Chạy theo id thì
-    // phạm vi đúng bằng thứ đã được người duyệt nhìn thấy.
-    const res = await tx.review.updateMany({
-      where: { id: { in: rows.map((r) => r.id) } },
-      data: {
-        selfReflection: ANON, managerAssessment: ANON, strengths: ANON,
-        gaps: ANON, developmentNeeds: ANON, finalRationale: ANON,
-      },
-    });
-    return res.count;
+    const ids = rows.map((r) => r.id);
+
+    // Hai ràng buộc cùng lúc, nên phải chạy TỪNG CỘT chứ không một lệnh đè cả sáu:
+    //
+    //   · theo DANH SÁCH ID đã lập kế hoạch — giữa lúc lập kế hoạch và lúc chạy, một kỳ có thể
+    //     vừa được mở lại; chạy theo id thì phạm vi đúng bằng thứ người duyệt đã nhìn thấy.
+    //   · [F191] chỉ đụng cột THỰC SỰ còn nội dung. Bản cũ đè `ANON` lên cả sáu cột của mọi
+    //     hàng trúng điều kiện, nên một cột vốn NULL cũng thành "đã khử danh" — đọc hồ sơ sau
+    //     này sẽ tưởng ở đó từng có dữ liệu cá nhân. Khử danh là thao tác không đảo ngược, nên
+    //     phạm vi của nó phải hẹp đúng bằng phần có thật.
+    for (let i = 0; i < TEXT_FIELD_FILTERS.length; i += 1) {
+      await tx.review.updateMany({
+        where: { id: { in: ids }, ...TEXT_FIELD_FILTERS[i] },
+        data: TEXT_FIELD_PATCHES[i],
+      });
+    }
+    // Trả về số HÀNG đã khử danh (khớp `planned`, vốn cũng đếm hàng), không phải tổng số ô đã ghi.
+    return ids.length;
   },
 };
 

@@ -921,3 +921,49 @@ Những đòn đáng kể đã bị chặn: mượn quyền người khác qua p
 Vé đánh số tiếp từ **F191**. Sáu hướng tôi đã tự đánh và không thấy lỗ — nên Reviewer nên soi **những chỗ tôi có thiên kiến**: ① bề mặt nào KHÔNG đi qua guard (job nền, `@Res` raw, SSE) mà chạm được dữ liệu — L6 vừa vá một chỗ như thế, khả năng còn chỗ khác ② chỗ tôi tự viết cả mã lẫn test chứng minh cho cùng một bất biến ③ tương tác GIỮA các lát (ngoại lệ × nền tảng đã lộ ra một cái ở ①; còn cặp nào?) ④ các phép ĐO trong test/driver — trục này đã có **ba lỗi đo** (L4 danh sách có trần, L6 `total` là số dòng trang, L7 đội đỏ bắt nhầm dữ liệu cũ), nên chỗ nào tôi khẳng định "đã chứng minh" cần soi lại cách đo.
 
 **Ba lát cuối không phát sinh vé nào của chính tôi** — mọi lỗi tìm được đều đã vá trong cùng lát và ghi lại ở mục tương ứng.
+
+---
+
+## Trục C — vá theo Reviewer đối kháng · **05/08/2026 · 11/11 vé đã đóng (F191–F200)**
+
+Reviewer đối kháng đã chạy trên toàn trục (`2f5c1ec..d8ce716`, 75 tệp) và trả **11 phát hiện**. Toàn bộ đã vá. Ba trọng tâm nặng nhất mà Reviewer **không** tìm được lỗ vẫn giữ nguyên kết luận: cách ly `withPlatform` (K1), chuỗi trigger K4/K6/K7 ở DB, và K5 ba vế.
+
+### Ba vé đáng đọc kỹ
+
+**F191 — khử danh ghi đè bản ghi vốn rỗng, không hoàn tác được.** Từ Prisma 4.0, `not`/`notIn` **trả về cả hàng NULL** (thay đổi phá vỡ tương thích; repo dùng 5.22). Bộ lọc `{ not: ANON }` vì thế kéo cả những phiếu đánh giá chưa ai viết gì vào kế hoạch, rồi ghi đè sáu chuỗi `[đã khử danh…]` lên chúng. Hai hậu quả: hồ sơ tuân thủ đếm sai, và hồ sơ đọc sau này sẽ tưởng ở đó **từng có** dữ liệu cá nhân.
+
+Điều đáng ghi hơn cả bản vá: **một ghi chú trong mã đã khẳng định điều ngược lại** — và chính câu đó được đọc như bằng chứng khi viết bộ lọc. Câu sai ấy nằm ở `economics.service.ts` từ L3, nay đã đính chính tại chỗ. Bài học: một ngữ nghĩa thư viện mà ta chỉ **suy ra** rồi viết vào ghi chú sẽ được tin ở mọi lần sửa sau. Bản vá thêm hai thứ: điều kiện ba vế (`not: null` + loại `ANON` + loại chuỗi rỗng), và **chạy từng cột** thay vì đè cả sáu — cột vốn NULL nay giữ nguyên NULL.
+
+**F192 — ngoại lệ đã duyệt làm khoá cả bề mặt nền tảng.** Đúng như ghi nhận ① của L7, nhưng Reviewer chỉ ra thêm: `exportlog:read` nằm trong danh mục quyền nới được **kèm đúng ca dùng "B3 điều tra sự cố xuất dữ liệu"** — tức hai danh sách trong mã đang mâu thuẫn nhau. Theo quyết định của chủ dự án (giữ cơ chế, làm cho nó nói rõ), bản vá làm ba việc: cảnh báo hiện **ngay lúc nộp đơn** và **ngay lúc duyệt** khi người nhận là tài khoản nền tảng; 409 nay phân biệt *quyền tạm hợp lệ* (nói rõ hết hạn lúc nào, gỡ bằng `revoke`) với *trôi cấu hình* (rà lại vai trong DB); và vết duyệt ghi luôn `platform_surface_locked` để sau này không ai phải tranh cãi người duyệt có biết hệ quả hay không.
+
+**F195 — cổng GUC ở tầng DB chưa từng có hiệu lực.** `feature_flag` có policy PERMISSIVE `tenant_or_global` khai `FOR ALL` chỉ-USING từ Phase 0; Postgres lấy USING làm WITH CHECK, và nhiều policy PERMISSIVE thì **OR** với nhau ⇒ phép kiểm thật là `(cờ toàn cục hoặc cờ của đơn vị) OR (GUC bật)` — vế trái luôn đúng, vế phải không bao giờ được hỏi tới. Nghĩa là từ L2, tầng ứng dụng ghi được cờ tính năng mà không cần đi qua `withPlatformWrite()`. Chưa có đường khai thác thực tế (permission `flag:write` vẫn chặn ở tầng trên), nhưng lớp phòng thủ dựng ra để **sống sót một lỗi ở tầng trên** thì đã mất từ lâu mà không ai biết. Vá bằng policy **RESTRICTIVE** (được AND vào, nên đúng bất kể sau này ai thêm policy PERMISSIVE nào nữa).
+
+### Tám vé còn lại
+
+| Vé | Nội dung | Ghi chú |
+|---|---|---|
+| F193 | Đường xuất kiểu **đẩy** hỏng giữa chừng không để lại vết | Interceptor chỉ móc nhánh thành công. Nay nhánh lỗi cũng ghi `export_log`, `rule` nói rõ **không hoàn tất** và số bản ghi đã rời hệ **không xác định** — không bịa số 0. Lỗi gốc luôn được ném lại. |
+| F194 | Duyệt không nêu giờ = cấp trần 72h | Thao tác nhanh nhất đang là thao tác nới rộng nhất. Nay lấy đúng số giờ **người xin đề nghị** (đã lưu vào bảng + hiện trên hàng chờ); đơn cũ không có số thì đòi nhập tường minh. |
+| F196 | Mỗi lượt dùng ngoại lệ sinh một cờ rủi ro | 300 lượt xem/ngày = 300 cờ. Nay gom theo **đơn ngoại lệ**; số lần dùng đọc từ `used_count` nên luôn là con số hiện tại. |
+| F197 | `total` bị trần trang cắt ở **bốn** chỗ nữa | Lần thứ tư trong dự án. Nay có `common/list-page.ts`: helper **đòi** một tham số `total` riêng và tự suy `returned`/`capped` — viết sai phải cố tình. |
+| F198 | jobId outbox cố định `t-<tenant>` | Hai người nạp dữ liệu cách nhau <2s ⇒ lô sau ghi vào sổ xuất dưới tên người trước. Nay khoá gồm actor; job cũ thiếu actor bị bỏ qua có tiếng thay vì ném (trước đây làm outbox kẹt `pending` vĩnh viễn). |
+| F199 | `setMonth` tràn ngày cuối tháng | 31/03 lùi 1 tháng ra 03/03 ⇒ mốc cắt chạy về **tương lai**, quét xoá thừa 1–3 ngày. `planHash` không bắt được vì băm số tháng. Nay kẹp về ngày cuối cùng có thật. |
+| F200 | Ô thống kê màn rủi ro tính từ danh sách đã lọc | Lọc "Trung bình" thì ô "Mức cao" hiện 0. Nay lấy từ `/risk/summary`. |
+| — | Ghi chú NULL ở `economics.service.ts` | Đính chính cùng F191, xem trên. |
+
+### Verify
+
+| Phép kiểm | Kết quả |
+|---|---|
+| Bộ test đầy đủ, `runInBand` | **896/896 · 65 suite** (trước khi vá: 869/63 — thêm 27 ca, 2 suite) |
+| Typecheck `shared`+`db`+`api`+`web` | sạch |
+| `next build` | PASS |
+| Driver `verify-governance.mjs` | **55/55** |
+| Đội đỏ `verify-redteam-truc-c.mjs` | **16/16 đòn bị chặn**, 0 lỗ |
+| Render màn đã sửa + bốn màn đối chứng | 200 |
+
+Hai migration mới: `20260805100000_exception_requested_hours` (thêm cột + đóng băng nó trong trigger bất biến) và `20260805110000_feature_flag_write_gate`.
+
+### Ba quyết định chính sách — chủ dự án đã chốt 05/08
+
+① **K9 tự khoá:** giữ cơ chế, làm cho nó nói rõ — đã thực thi ở F192. ② **Trần TỔNG thời gian ngoại lệ:** giữ nguyên, ghi vào sổ nợ; trần 72h là **theo từng đơn**, xin đơn nối nhau thì một quyền có thể duy trì lâu dài, mỗi lần vẫn có người duyệt và vết đầy đủ. Đội đỏ vẫn báo ghi nhận này ở mỗi lượt chạy — đúng như thiết kế. ③ **`cold_archive`:** quyết phân loại sổ kiểm toán trước rồi mới build. Dữ kiện đã tra: `audit.log` hiện là `confidential` (không phải `restricted`), nên kho lạnh **trong hạ tầng NHG** là làm được, **thuê ngoài** thì §9.3 chặn; nếu chuyển kho có xoá bản gốc thì đụng K6 và phải dùng lại khuôn GUC `app.retention_run` của L5. Phương án không phải nới bất biến nào: giữ `confidential` + kho lạnh nội bộ + **không xoá bảng nóng** (partition lạnh + đánh dấu).

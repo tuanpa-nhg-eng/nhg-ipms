@@ -8,6 +8,7 @@ import {
 } from '@ipms/shared';
 import { uuidv7, withRetention, type TenantTx } from '@ipms/db';
 import { PrismaService } from '../../prisma.service';
+import { LIST_PAGE_CAP, pagedList } from '../../common/list-page';
 import type { RequestUser } from '../../common/auth/decorators';
 import { DataCatalogService } from '../datacatalog/datacatalog.service';
 import { findTarget, RETENTION_TARGETS } from './retention.targets';
@@ -29,6 +30,31 @@ import { findTarget, RETENTION_TARGETS } from './retention.targets';
  *   ④ Chạy theo DANH SÁCH ID đã lập kế hoạch, không chạy lại theo điều kiện. Chặn kiểu hỏng
  *      "phạm vi lúc chạy rộng hơn phạm vi lúc duyệt".
  */
+/**
+ * [F199 — Reviewer 05/08] Lùi `months` tháng, CÓ KẸP ngày cuối tháng.
+ *
+ * `d.setMonth(d.getMonth() - n)` tràn ngày một cách im lặng: 31/03 lùi 1 tháng cho ra 31/02,
+ * mà 31/02 không tồn tại nên JavaScript đẩy tiếp thành 03/03 — mốc cắt **chạy về phía tương
+ * lai**, tức quét XOÁ THÊM 1–3 ngày dữ liệu ngoài phạm vi chính sách. Sai lệch chỉ xuất hiện
+ * ở những ngày cuối tháng và với số tháng không phải bội của 12, nên nó vắng mặt trong mọi ca
+ * kiểm thử chạy vào ngày thường.
+ *
+ * `planHash` không bắt được vì vân tay băm SỐ THÁNG, không băm mốc cắt — lượt chạy thử và lượt
+ * chạy thật cùng lệch như nhau nên vẫn khớp vân tay.
+ *
+ * Kẹp về ngày cuối cùng CÓ THẬT của tháng đích (31/03 → 28/02): sai số nghiêng về phía GIỮ LẠI
+ * nhiều hơn, đúng chiều an toàn cho một thao tác không đảo ngược.
+ */
+export function monthsAgo(from: Date, months: number): Date {
+  const d = new Date(from.getTime());
+  const day = d.getDate();
+  d.setDate(1);                      // sang ngày 1 trước, để phép lùi tháng không thể tràn
+  d.setMonth(d.getMonth() - months);
+  const lastDayOfTarget = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  d.setDate(Math.min(day, lastDayOfTarget));
+  return d;
+}
+
 @Injectable()
 export class RetentionService {
   constructor(private prisma: PrismaService, private catalog: DataCatalogService) {}
@@ -192,8 +218,7 @@ export class RetentionService {
       );
     }
 
-    const cutoff = new Date();
-    cutoff.setMonth(cutoff.getMonth() - pol.retentionMonths);
+    const cutoff = monthsAgo(new Date(), pol.retentionMonths);
 
     // Lượt THỬ chạy trong transaction thường; lượt THẬT chạy qua `withRetention` — cùng tenant
     // context, thêm GUC mở cổng xoá. Tách hai đường ở đây (không bật GUC cho mọi lượt) để một
@@ -273,18 +298,22 @@ export class RetentionService {
   /** Sổ các lượt chạy — hồ sơ tuân thủ, B0 đọc được. */
   async listRuns(user: RequestUser, assetCode?: string) {
     return this.prisma.withTenant(user.tenantId, async (tx) => {
+      const where = { ...(assetCode ? { assetCode } : {}) };
       const rows = await tx.retentionRun.findMany({
-        where: { ...(assetCode ? { assetCode } : {}) },
+        where,
         orderBy: { startedAt: 'desc' },
-        take: 100,
+        take: LIST_PAGE_CAP,
       });
+      // [F197] `total` phải là phép ĐẾM riêng, không phải `rows.length`. Xem ghi chú ở
+      // `LIST_PAGE_CAP`: đây là lần thứ tư cùng một lỗi trong trục.
+      const total = await tx.retentionRun.count({ where });
       const ids = [...new Set(rows.map((r) => r.actorUserId))];
       const users = ids.length
         ? await tx.appUser.findMany({ where: { id: { in: ids } }, select: { id: true, email: true } })
         : [];
       const emailOf = new Map(users.map((u) => [u.id, u.email]));
-      return {
-        entries: rows.map((r) => ({
+      return pagedList(
+        rows.map((r) => ({
           id: r.id, mode: r.mode, assetCode: r.assetCode, action: r.action,
           retentionMonths: r.retentionMonths, cutoffAt: r.cutoffAt,
           planned: r.plannedCount, affected: r.affectedCount, skippedProtected: r.skippedProtected,
@@ -292,8 +321,8 @@ export class RetentionService {
           actor: { id: r.actorUserId, email: emailOf.get(r.actorUserId) ?? null },
           startedAt: r.startedAt, finishedAt: r.finishedAt,
         })),
-        total: rows.length,
-      };
+        total,
+      );
     });
   }
 }

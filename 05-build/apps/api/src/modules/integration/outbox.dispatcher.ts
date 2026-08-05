@@ -59,7 +59,27 @@ export class OutboxDispatcher implements OnModuleDestroy {
         // [Trục C L6] Actor đi THEO JOB: người gây ra dòng dữ liệu này là người đã nạp dữ
         // liệu sinh ra outbox_event. Không có actor thì `dispatchTenant` từ chối đẩy — xem
         // ghi chú ở đó.
-        async (job) => this.dispatchTenant(job.data.tenantId, 50, job.data.actorUserId),
+        async (job) => {
+          /**
+           * [F198 — Reviewer 05/08] Job THIẾU actor không được phép ném.
+           *
+           * Job cũ nằm sẵn trong Redis từ trước bản L6 (khi `actorUserId` chưa tồn tại) sẽ làm
+           * `dispatchTenant` ném 403 ⇒ `removeOnFail` xoá job ⇒ và với jobId cố định cũ thì
+           * không notify nào enqueue lại được ⇒ outbox kẹt `pending` vĩnh viễn, im lặng.
+           *
+           * Nay: nhận diện và bỏ qua có tiếng. Event vẫn nằm `pending` (dữ liệu KHÔNG rời hệ
+           * — fail-closed vẫn giữ nguyên), và lượt `notify()` kế tiếp hoặc một lần bấm
+           * `POST /integrations/outbox/dispatch` sẽ quét lại chúng.
+           */
+          if (!job.data?.actorUserId) {
+            this.logger.error(
+              `[F198] Bỏ qua job outbox thiếu actor (tenant ${job.data?.tenantId}) — `
+              + 'event giữ nguyên pending, chờ lượt notify hoặc dispatch thủ công.',
+            );
+            return { scanned: 0, dispatched: 0, skipped: 0, retried: 0, dead: 0 };
+          }
+          return this.dispatchTenant(job.data.tenantId, 50, job.data.actorUserId);
+        },
         { connection, concurrency: 2 },
       );
       this.worker.on('failed', (job, err) =>
@@ -68,13 +88,30 @@ export class OutboxDispatcher implements OnModuleDestroy {
     }
   }
 
-  /** Gọi sau khi ghi outbox_event — debounce theo tenant (jobId cố định + delay). */
+  /**
+   * Gọi sau khi ghi outbox_event — debounce theo (tenant, actor) + delay.
+   *
+   * [F198 — Reviewer 05/08] jobId TRƯỚC ĐÂY là `t-<tenant>`, tức debounce theo ĐƠN VỊ. Hai
+   * người nạp dữ liệu cách nhau dưới 2 giây thì BullMQ bỏ qua lần `add()` thứ hai (trùng jobId
+   * ở mọi trạng thái) ⇒ chỉ còn job của người ĐẦU TIÊN, và cả hai lô dữ liệu ra ngoài đều được
+   * ghi vào `export_log` dưới tên người đó. Sổ vết xuất chỉ có giá trị khi cột "ai" đúng; một
+   * dòng ghi sai người còn tệ hơn không có dòng nào, vì nó trỏ cuộc điều tra sang nhầm hướng.
+   *
+   * Nay khoá gồm cả actor: gộp lô vẫn xảy ra cho cùng một người (đúng ý định debounce), người
+   * khác thì có job riêng. Đổi luôn không-gian khoá so với bản cũ — nên job `t-<tenant>` còn
+   * sót trong Redis không thể chặn job mới nữa.
+   */
   notify(tenantId: string, actorUserId?: string): void {
+    if (!actorUserId) {
+      // Enqueue một job chắc chắn bị từ chối chỉ tạo nhiễu. Event vẫn nằm `pending`.
+      this.logger.warn(`[F198] notify() không có actor (tenant ${tenantId}) — không enqueue.`);
+      return;
+    }
     // [F61] removeOnFail bắt buộc: job fail mà ở lại failed-set thì jobId cố định
     // chặn mọi notify() sau đó vĩnh viễn (BullMQ bỏ qua add() trùng jobId mọi state)
     void this.queue
       ?.add('dispatch', { tenantId, actorUserId }, {
-        jobId: `t-${tenantId}`, delay: 2_000,
+        jobId: `t-${tenantId}-${actorUserId}`, delay: 2_000,
         removeOnComplete: true, removeOnFail: true,
       })
       .catch((e) => this.logger.warn(`notify enqueue lỗi: ${e.message}`));

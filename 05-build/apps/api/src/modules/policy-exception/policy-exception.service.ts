@@ -7,6 +7,8 @@ import {
 } from '@ipms/shared';
 import { uuidv7, type TenantTx } from '@ipms/db';
 import { PrismaService } from '../../prisma.service';
+import { LIST_PAGE_CAP, pagedList } from '../../common/list-page';
+import { notExpiredWhere } from '../../common/auth/user-role.where';
 import type { RequestUser } from '../../common/auth/decorators';
 
 /**
@@ -32,6 +34,28 @@ import type { RequestUser } from '../../common/auth/decorators';
 
 /** Tiền tố vai tạm. Một vai cho mỗi permission, dùng lại — không đẻ vai theo từng đơn. */
 const EXC_ROLE_PREFIX = 'exception:';
+
+/**
+ * [F192 — Reviewer 05/08] Dấu nhận diện tài khoản tầng nền tảng, dùng để CẢNH BÁO TRƯỚC.
+ *
+ * Sự thật cần nói ra: `platform_admin` được cấp thêm bất kỳ quyền nghiệp vụ nào — kể cả qua
+ * một ngoại lệ hoàn toàn hợp lệ, có người duyệt, có vết — thì `assertWithinAllowlist` (K9,
+ * phòng tuyến thứ hai của L2) sẽ khoá TOÀN BỘ bề mặt `/platform/*` bằng 409 cho tới khi ngoại
+ * lệ hết hạn. Hai lớp bảo vệ tương tác đúng chiều: không tồn tại trạng thái "vừa xuyên đơn vị
+ * vừa đọc được nội dung".
+ *
+ * Nhưng người vận hành không suy ra được điều đó từ giao diện: họ xin quyền để điều tra sự cố,
+ * được duyệt, rồi thấy bảng điều khiển nền tảng "hỏng" ngay sau đó. Chủ dự án đã chốt 05/08 là
+ * GIỮ cơ chế và làm cho nó nói rõ — nên chỗ để nói không phải lúc 409 bắn ra, mà là **trước
+ * khi bấm duyệt**.
+ */
+const PLATFORM_MARKER_PERMISSION = 'tenant:list';
+
+const PLATFORM_LOCK_WARNING =
+  'CẢNH BÁO: người nhận là tài khoản quản trị NỀN TẢNG. Duyệt đơn này sẽ khoá toàn bộ bề mặt '
+  + '/platform/* (trả 409) cho tới khi ngoại lệ hết hạn hoặc bị thu hồi — K9 không cho phép '
+  + 'tài khoản nền tảng giữ quyền nghiệp vụ đồng thời với quyền vận hành xuyên đơn vị. '
+  + 'Nếu cần bề mặt nền tảng hoạt động liên tục, hãy thu hồi sớm ngoại lệ sau khi dùng xong.';
 
 @Injectable()
 export class PolicyExceptionService {
@@ -90,6 +114,10 @@ export class PolicyExceptionService {
           permissionCode: input.permissionCode,
           scopeType: input.scopeType ?? 'tenant', scopeId: input.scopeId ?? null,
           reason,
+          // [F194] Lưu con số ĐỀ NGHỊ. Trước đây nó chỉ nằm trong `audit_log` — mà người duyệt
+          // (`data_steward`) cố ý không có `audit:read`, nên trên thực tế không ai duyệt được
+          // "đúng bằng thứ người ta xin".
+          requestedHours: input.requestedHours,
           // `expiresAt` CHỦ ĐÍCH để trống: người xin ĐỀ NGHỊ thời hạn, người duyệt CHỐT nó.
           // Ghi sẵn ở đây rồi "duyệt nguyên trạng" là cách một trần bị người xin tự đặt.
           decisionNote: null,
@@ -108,6 +136,11 @@ export class PolicyExceptionService {
       });
       return {
         id, status: 'pending', requestedHours: input.requestedHours, ttlCapHours: cap,
+        // [F192] Nói ngay từ lúc nộp đơn, không đợi tới lúc duyệt: người xin thường chính là
+        // người sẽ chịu hệ quả, và biết trước thì họ chọn được cách khác (nhờ tài khoản tuân
+        // thủ đọc hộ) thay vì tự làm hỏng bề mặt vận hành của mình.
+        warning: (await this.isPlatformAccount(tx, input.granteeUserId))
+          ? PLATFORM_LOCK_WARNING : null,
       };
     });
   }
@@ -160,7 +193,24 @@ export class PolicyExceptionService {
       }
 
       const cap = await this.ttlCap(tx, user.tenantId);
-      const hours = input.hours ?? cap;
+
+      /**
+       * [F194] Bỏ mặc định `input.hours ?? cap`.
+       *
+       * Cái cũ biến thao tác NHANH NHẤT (bấm duyệt, không điền gì) thành thao tác NỚI RỘNG
+       * NHẤT (cấp đủ 72 giờ), kể cả khi đơn chỉ xin 2 giờ. Một mặc định như thế không phải là
+       * tiện lợi — nó là chính sách ngầm, và là chính sách theo hướng lỏng nhất.
+       *
+       * Nay: không nêu giờ thì lấy đúng SỐ GIỜ NGƯỜI XIN ĐỀ NGHỊ (vẫn kẹp trần). Người duyệt
+       * muốn cấp khác thì phải nói ra con số đó. Đơn cũ (trước 05/08) không có con số đề nghị
+       * ⇒ FAIL-CLOSED: đòi nhập tường minh thay vì đoán hộ.
+       */
+      const hours = input.hours ?? exc.requestedHours ?? null;
+      if (hours === null) {
+        throw new UnprocessableEntityException(
+          'Đơn này không ghi số giờ đề nghị (đơn tạo trước 05/08/2026) — nhập `hours` tường minh khi duyệt.',
+        );
+      }
       if (!Number.isInteger(hours) || hours < 1 || hours > cap) {
         throw new UnprocessableEntityException(`Thời hạn duyệt phải từ 1 đến ${cap} giờ`);
       }
@@ -184,17 +234,26 @@ export class PolicyExceptionService {
           expiresAt, decisionNote: input.note ?? null, version: { increment: 1 },
         },
       });
+      const platformGrantee = await this.isPlatformAccount(tx, exc.granteeUserId);
       await tx.auditLog.create({
         data: {
           tenantId: user.tenantId, actorUserId: user.claims.sub,
           action: 'policy.exception_approved', entityType: 'policy_exception', entityId: id,
           after: {
             grantee_id: exc.granteeUserId, permission_code: exc.permissionCode,
-            expires_at: expiresAt, hours, requester_id: exc.requesterUserId,
+            expires_at: expiresAt, hours, requested_hours: exc.requestedHours,
+            requester_id: exc.requesterUserId,
+            // Ghi cả việc "đã cảnh báo" vào vết: sau này không ai phải tranh cãi xem người
+            // duyệt có biết hệ quả hay không.
+            platform_surface_locked: platformGrantee,
           } as object, ip,
         },
       });
-      return { id, status: 'approved', expiresAt, hours };
+      return {
+        id, status: 'approved', expiresAt, hours,
+        requestedHours: exc.requestedHours,
+        warning: platformGrantee ? PLATFORM_LOCK_WARNING : null,
+      };
     });
   }
 
@@ -244,16 +303,18 @@ export class PolicyExceptionService {
   async list(user: RequestUser, status?: string) {
     const seesAll = user.permissions.has('exception:approve') || user.permissions.has('audit:read');
     return this.prisma.withTenant(user.tenantId, async (tx) => {
+      const where = {
+        ...(status ? { status } : {}),
+        ...(seesAll ? {} : {
+          OR: [{ requesterUserId: user.claims.sub }, { granteeUserId: user.claims.sub }],
+        }),
+      };
       const rows = await tx.policyException.findMany({
-        where: {
-          ...(status ? { status } : {}),
-          ...(seesAll ? {} : {
-            OR: [{ requesterUserId: user.claims.sub }, { granteeUserId: user.claims.sub }],
-          }),
-        },
+        where,
         orderBy: { requestedAt: 'desc' },
-        take: 200,
+        take: LIST_PAGE_CAP,
       });
+      const total = await tx.policyException.count({ where }); // [F197]
       const ids = [...new Set(rows.flatMap((r) => [r.requesterUserId, r.granteeUserId, r.approverUserId].filter(Boolean)))] as string[];
       const users = ids.length
         ? await tx.appUser.findMany({ where: { id: { in: ids } }, select: { id: true, email: true } })
@@ -261,7 +322,7 @@ export class PolicyExceptionService {
       const emailOf = new Map(users.map((u) => [u.id, u.email]));
       const now = Date.now();
       return {
-        entries: rows.map((r) => ({
+        ...pagedList(rows.map((r) => ({
           id: r.id,
           requester: { id: r.requesterUserId, email: emailOf.get(r.requesterUserId) ?? null },
           grantee: { id: r.granteeUserId, email: emailOf.get(r.granteeUserId) ?? null },
@@ -271,6 +332,9 @@ export class PolicyExceptionService {
           scopeType: r.scopeType,
           scopeId: r.scopeId,
           reason: r.reason,
+          // [F194] Người duyệt nhìn thấy con số ĐỀ NGHỊ ngay trên hàng chờ, không phải đi tra
+          // sổ vết (mà `data_steward` cũng không có quyền đọc).
+          requestedHours: r.requestedHours,
           requestedAt: r.requestedAt,
           expiresAt: r.expiresAt,
           decidedAt: r.decidedAt,
@@ -283,8 +347,7 @@ export class PolicyExceptionService {
           // trên `user_role`, không phải chuỗi này.
           status: r.status === 'approved' && r.expiresAt && r.expiresAt.getTime() < now
             ? 'expired' : r.status,
-        })),
-        total: rows.length,
+        })), total),
         seesAll,
       };
     });
@@ -313,6 +376,30 @@ export class PolicyExceptionService {
       });
       return { closed: stale.length, rolesCleaned: roles.count };
     });
+  }
+
+  /**
+   * [F192] Người nhận có phải tài khoản tầng nền tảng không — dùng để cảnh báo, KHÔNG để chặn.
+   *
+   * Cố ý không chặn: chặn ở đây sẽ đóng luôn ca dùng thật đã ghi trong `EXCEPTION_GRANTABLE_
+   * PERMISSIONS` ("B3 điều tra một sự cố xuất dữ liệu ở một đơn vị"), và biến một quyết định
+   * vận hành thành một luật cứng mà B5 không gỡ được khi cần. Việc của mã ở đây là làm cho hệ
+   * quả HIỆN RA TRƯỚC, còn quyết định vẫn là của người duyệt.
+   */
+  private async isPlatformAccount(tx: TenantTx, appUserId: string): Promise<boolean> {
+    const hit = await tx.userRole.findFirst({
+      where: {
+        appUserId,
+        deletedAt: null,
+        ...notExpiredWhere(),
+        role: {
+          deletedAt: null,
+          rolePermissions: { some: { permission: { code: PLATFORM_MARKER_PERMISSION } } },
+        },
+      },
+      select: { id: true },
+    });
+    return !!hit;
   }
 
   /** Trần hiệu lực của đơn vị = min(72h, cấu hình đơn vị) — không bao giờ nâng được. */

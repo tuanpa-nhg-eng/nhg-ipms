@@ -12,7 +12,7 @@
  *  · KHÔNG có nút "bỏ qua/xoá cờ" — cờ là sự kiện ĐÃ xảy ra. Xử lý một cờ nghĩa là gắn nó vào
  *    một sự cố và đóng sự cố đó, có người phụ trách và nguyên nhân gốc.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { TriangleAlert, Lock, ShieldCheck } from "lucide-react";
 import { AppShell } from "@/components/shell/AppShell";
 import { Badge, Card } from "@/components/ui";
@@ -28,6 +28,14 @@ interface Incident {
   id: string; title: string; severity: string; status: string;
   openedAt: string; closedAt: string | null; rootCause: string | null;
   assignee: { email: string | null } | null; flagCount: number; version: number;
+}
+/** [F200] Số đếm toàn đơn vị — nguồn của bốn ô thống kê. Xem ghi chú ở `counts`. */
+interface RiskSummary {
+  total: number;
+  byKind: Record<string, number>;
+  bySeverity: Record<string, number>;
+  openIncidents: number;
+  unlinkedFlags: number;
 }
 
 const KIND_LABEL: Record<string, string> = {
@@ -54,6 +62,7 @@ export default function RiskPage() {
   const [denied, setDenied] = useState(false);
   const [flags, setFlags] = useState<RiskFlag[]>([]);
   const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [summary, setSummary] = useState<RiskSummary | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [sev, setSev] = useState<string>("");
@@ -69,12 +78,16 @@ export default function RiskPage() {
       setMe(m);
       if (!m.permissions?.includes("risk:read")) { setDenied(true); return; }
       setDenied(false);
-      const [f, i] = await Promise.all([
+      const [f, i, s] = await Promise.all([
         call<{ entries: RiskFlag[] }>(`/risk${sev ? `?severity=${sev}` : ""}`),
         call<{ entries: Incident[] }>("/incidents"),
+        // [F200] Số đếm lấy từ máy chủ, KHÔNG tính lại từ danh sách đang hiển thị. Xem ghi chú
+        // ở `counts` bên dưới.
+        call<RiskSummary>("/risk/summary"),
       ]);
       setFlags(f.entries);
       setIncidents(i.entries);
+      setSummary(s);
       setErr(null);
     } catch (e) {
       setErr((e as Error).message);
@@ -82,14 +95,27 @@ export default function RiskPage() {
   }, [call, sev]);
   useEffect(() => { void load(); }, [load]);
 
-  const counts = useMemo(() => {
-    const c = { high: 0, medium: 0, low: 0, unlinked: 0 };
-    for (const f of flags) {
-      c[f.severity] += 1;
-      if (!f.incidentId) c.unlinked += 1;
+  /**
+   * [F200 — Reviewer 05/08] Bốn ô thống kê phải đến từ MÁY CHỦ.
+   *
+   * Bản cũ tính từ `flags`, tức từ danh sách vừa BỊ LỌC (bộ lọc mức độ) vừa BỊ CẮT TRANG (trần
+   * 100 dòng). Hệ quả: lọc "Trung bình" thì ô "Mức cao" hiện 0 — người đọc kết luận không có
+   * cảnh báo nghiêm trọng nào, đúng lúc họ đang tìm chính nó. Và với hơn 100 cờ thì mọi ô đều
+   * đứng yên ở con số của trang đầu.
+   *
+   * Cùng họ với ba lỗi đo trước đó của trục, chỉ khác là lần này nó nằm ở giao diện. `/risk/
+   * summary` đã trả sẵn số đếm thật của toàn đơn vị (`bySeverity`, `unlinkedFlags`,
+   * `openIncidents`) và B5 vốn đọc được nó — nên đây thuần tuý là dùng đúng nguồn có sẵn.
+   */
+  const counts = summary
+    ? {
+      high: summary.bySeverity.high ?? 0,
+      medium: summary.bySeverity.medium ?? 0,
+      low: summary.bySeverity.low ?? 0,
+      unlinked: summary.unlinkedFlags,
+      openIncidents: summary.openIncidents,
     }
-    return c;
-  }, [flags]);
+    : null;
 
   const toggle = (id: string) =>
     setPicked((p) => {
@@ -152,19 +178,19 @@ export default function RiskPage() {
         <>
           <div className="grid g4">
             <Card><div className="stat">
-              <div className="v red numeric">{counts.high}</div>
+              <div className="v red numeric">{counts ? counts.high : "—"}</div>
               <div className="l">Mức cao</div>
             </div></Card>
             <Card><div className="stat">
-              <div className="v numeric">{counts.medium}</div>
+              <div className="v numeric">{counts ? counts.medium : "—"}</div>
               <div className="l">Mức trung bình</div>
             </div></Card>
             <Card><div className="stat">
-              <div className="v numeric">{counts.unlinked}</div>
+              <div className="v numeric">{counts ? counts.unlinked : "—"}</div>
               <div className="l">Chưa gắn sự cố</div>
             </div></Card>
             <Card><div className="stat">
-              <div className="v numeric">{incidents.filter((i) => i.status !== "closed").length}</div>
+              <div className="v numeric">{counts ? counts.openIncidents : "—"}</div>
               <div className="l">Sự cố đang mở</div>
             </div></Card>
           </div>

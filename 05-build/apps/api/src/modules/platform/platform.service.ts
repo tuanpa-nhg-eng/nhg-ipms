@@ -52,9 +52,10 @@ export class PlatformService {
    * mã. RBAC guard đã chặn theo từng permission rồi; hàm này bắt tình huống khác: ai đó cấp
    * THÊM quyền cho vai `platform_admin` trong DB (qua seed sửa tay, qua script vá) mà không
    * sửa allowlist. Khi đó guard vẫn cho qua vì permission có thật — chỉ phép so này phát hiện.
-   * Gọi ở mọi endpoint nền tảng: rẻ (dữ liệu đã nằm trong `user.permissions`), và fail-closed.
+   * Gọi ở mọi endpoint nền tảng: đường chạy bình thường KHÔNG chạm DB (`user.permissions` đã
+   * có sẵn trong request), chỉ nhánh lỗi mới truy vấn để giải thích. Fail-closed.
    */
-  private assertWithinAllowlist(user: RequestUser) {
+  private async assertWithinAllowlist(user: RequestUser) {
     const allowed = new Set<string>(PLATFORM_ADMIN_PERMISSIONS as readonly string[]);
     const extras = [...user.permissions].filter(
       (p) => !allowed.has(p) && !p.includes('.self:') && p !== 'taskdict:read',
@@ -78,15 +79,63 @@ export class PlatformService {
         'Bề mặt quản trị nền tảng chỉ dành cho tài khoản tầng ① (platform_admin)',
       );
     }
+    /**
+     * [F192 — Reviewer 05/08] Phân biệt tiếp MỘT lớp nữa, vì hai nguyên nhân cần hai câu trả
+     * lời khác hẳn nhau:
+     *
+     *   ⓐ quyền đến từ một NGOẠI LỆ CÒN HẠN, đã có người duyệt và có vết — hệ đang chạy đúng
+     *     thiết kế, và điều người vận hành cần biết là "khoá tới bao giờ, gỡ bằng cách nào";
+     *   ⓑ quyền nằm trong một vai THƯỜNG TRỰC — đây mới là trôi cấu hình, và việc cần làm là
+     *     rà lại vai trong DB.
+     *
+     * Bản cũ trả cùng một câu cho cả hai. Với ⓐ, câu đó ("rà lại vai trong DB") dẫn người ta đi
+     * tìm một thứ không tồn tại: vai tạm là hợp lệ, không ai cấp sai cả. Mã lỗi vẫn là 409 vì
+     * trạng thái vẫn là xung đột thật — nhưng câu chữ phải nói đúng cái đang xảy ra.
+     *
+     * Truy vấn chỉ chạy trên NHÁNH LỖI, nên đường chạy bình thường của chín endpoint nền tảng
+     * không phải trả thêm một round-trip nào.
+     */
+    const temporary = await this.activeExceptionGrants(user, extras);
+    if (temporary.length > 0) {
+      const until = temporary
+        .map((t) => `${t.permissionCode} (hết hạn ${t.expiresAt?.toISOString() ?? 'không rõ'})`)
+        .join(', ');
+      throw new ConflictException(
+        `Bề mặt quản trị nền tảng đang TỰ KHOÁ: tài khoản này vừa được cấp quyền tạm qua ngoại `
+        + `lệ chính sách — ${until}. Đây là hành vi đúng thiết kế (K9): một tài khoản không thể `
+        + 'vừa xuyên đơn vị vừa đọc được nội dung nghiệp vụ. Bề mặt mở lại khi ngoại lệ hết hạn, '
+        + 'hoặc ngay lập tức nếu thu hồi sớm ngoại lệ đó (POST /policy-exceptions/:id/revoke).',
+      );
+    }
     throw new ConflictException(
       `Tài khoản nền tảng giữ quyền NGOÀI allowlist: ${extras.join(', ')} — `
       + 'K9 yêu cầu platform_admin không có quyền nghiệp vụ nào. Rà lại vai trong DB.',
     );
   }
 
+  /** Những quyền trong `extras` đang đến từ một ngoại lệ CÒN HIỆU LỰC của chính người này. */
+  private async activeExceptionGrants(user: RequestUser, extras: string[]) {
+    try {
+      return await this.prisma.withTenant(user.tenantId, (tx) =>
+        tx.policyException.findMany({
+          where: {
+            granteeUserId: user.claims.sub,
+            status: 'approved',
+            permissionCode: { in: extras },
+            expiresAt: { gt: new Date() },
+          },
+          select: { permissionCode: true, expiresAt: true },
+          orderBy: { expiresAt: 'asc' },
+        }),
+      );
+      // Không để một lỗi truy vấn ở nhánh giải thích nuốt mất chính phép chặn: hỏng thì rơi về
+      // câu 409 tổng quát, KHÔNG rơi về "cho qua".
+    } catch { return []; }
+  }
+
   /** Danh sách đơn vị + snapshot hiện hành. Đọc xuyên đơn vị qua GUC, KHÔNG có tenant context. */
   async listTenants(user: RequestUser) {
-    this.assertWithinAllowlist(user);
+    await this.assertWithinAllowlist(user);
     return withPlatform(this.prisma.client, async (tx: TenantTx) => {
       const tenants = await tx.tenant.findMany({
         where: { deletedAt: null },
@@ -121,7 +170,7 @@ export class PlatformService {
    * một con số trung bình đẹp che mất nó.
    */
   async health(user: RequestUser) {
-    this.assertWithinAllowlist(user);
+    await this.assertWithinAllowlist(user);
     return withPlatform(this.prisma.client, async (tx: TenantTx) => {
       const snaps = await tx.platformSnapshot.findMany();
       const tenantCount = await tx.tenant.count({ where: { deletedAt: null } });
@@ -147,7 +196,7 @@ export class PlatformService {
 
   /** Mức dùng + chi phí AI theo đơn vị — số tổng, không một dòng hội thoại nào. */
   async aiUsage(user: RequestUser) {
-    this.assertWithinAllowlist(user);
+    await this.assertWithinAllowlist(user);
     return withPlatform(this.prisma.client, async (tx: TenantTx) => {
       const tenants = await tx.tenant.findMany({
         where: { deletedAt: null }, select: { id: true, code: true },
@@ -181,7 +230,7 @@ export class PlatformService {
    * xem chi tiết ⇒ đi qua ngoại lệ có thời hạn ở L3, đúng như kế hoạch đã định.
    */
   async exportActivity(user: RequestUser) {
-    this.assertWithinAllowlist(user);
+    await this.assertWithinAllowlist(user);
     return withPlatform(this.prisma.client, async (tx: TenantTx) => {
       const tenants = await tx.tenant.findMany({
         where: { deletedAt: null }, select: { id: true, code: true },
@@ -205,7 +254,7 @@ export class PlatformService {
 
   /** Trạng thái tích hợp theo đơn vị — số kết nối, số lần chạy lỗi, tồn đọng outbox. */
   async integrationStatus(user: RequestUser) {
-    this.assertWithinAllowlist(user);
+    await this.assertWithinAllowlist(user);
     return withPlatform(this.prisma.client, async (tx: TenantTx) => {
       const tenants = await tx.tenant.findMany({
         where: { deletedAt: null }, select: { id: true, code: true },
@@ -236,7 +285,7 @@ export class PlatformService {
    * vị, đúng thứ K1 tồn tại để chặn.
    */
   async riskOverview(user: RequestUser) {
-    this.assertWithinAllowlist(user);
+    await this.assertWithinAllowlist(user);
     return withPlatform(this.prisma.client, async (tx: TenantTx) => {
       const tenants = await tx.tenant.findMany({
         where: { deletedAt: null }, select: { id: true, code: true },
@@ -390,7 +439,7 @@ export class PlatformService {
 
   /** Cờ tính năng TOÀN CỤC (tenant_id NULL) — bề mặt duy nhất ghi được hàng global. */
   async listFlags(user: RequestUser) {
-    this.assertWithinAllowlist(user);
+    await this.assertWithinAllowlist(user);
     return withPlatform(this.prisma.client, async (tx: TenantTx) => {
       const rows = await tx.featureFlag.findMany({ orderBy: [{ key: 'asc' }] });
       return {
@@ -405,7 +454,7 @@ export class PlatformService {
   }
 
   async setGlobalFlag(user: RequestUser, key: string, enabled: boolean, version?: number) {
-    this.assertWithinAllowlist(user);
+    await this.assertWithinAllowlist(user);
     if (!/^[a-z][a-z0-9_.]{2,63}$/.test(key)) {
       throw new UnprocessableEntityException(
         `Khoá cờ không hợp lệ: '${key}' — chữ thường, số, '_' và '.', 3–64 ký tự`,
@@ -434,7 +483,7 @@ export class PlatformService {
   async createTenant(
     user: RequestUser, input: { code: string; nameVi: string; type: string },
   ) {
-    this.assertWithinAllowlist(user);
+    await this.assertWithinAllowlist(user);
     if (!/^[A-Z0-9][A-Z0-9.\-]{1,15}$/.test(input.code)) {
       throw new UnprocessableEntityException(
         `Mã đơn vị không hợp lệ: '${input.code}' — chữ HOA/số/'.'/'-', 2–16 ký tự`,

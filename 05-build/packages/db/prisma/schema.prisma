@@ -363,6 +363,9 @@ model PolicyException {
   scopeType       String @default("tenant") @map("scope_type")
   scopeId         String? @map("scope_id") @db.Uuid
   reason          String
+  /// [F194] Số giờ NGƯỜI XIN đề nghị — người duyệt phải nhìn thấy nó trước khi chốt.
+  /// NULL với các đơn tạo trước 05/08/2026; khi đó người duyệt buộc phải nhập giờ tường minh.
+  requestedHours  Int? @map("requested_hours")
   requestedAt     DateTime @default(now()) @map("requested_at") @db.Timestamptz(6)
   /// Do NGƯỜI DUYỆT chốt lúc duyệt ⇒ NULL khi còn `pending`.
   expiresAt       DateTime? @map("expires_at") @db.Timestamptz(6)
