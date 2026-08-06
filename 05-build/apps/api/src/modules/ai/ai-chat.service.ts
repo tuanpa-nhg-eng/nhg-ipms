@@ -109,6 +109,10 @@ export class AiChatService {
       {
         agent: 'config_copilot', prompt: message, context: input.context, promptVersion: 'copilot-v1',
         model: input.model, effort: input.effort, // [F147] forward lựa chọn picker cho client thật
+        // [Trục D L1 — N2] Nhóm dữ liệu Copilot chạm tới. Khai TRÙNG hiến chương của
+        // `config_copilot` trong danh bạ — gateway kiểm chéo (khai ngoài phạm vi ⇒ chặn), nên
+        // hai nơi lệch nhau sẽ đỏ chứ không âm thầm nới.
+        dataAssets: ['objective.kpi', 'task.dictionary'],
       },
       'copilot.chat',
     )) {

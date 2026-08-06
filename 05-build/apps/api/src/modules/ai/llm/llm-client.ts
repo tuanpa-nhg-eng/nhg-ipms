@@ -8,7 +8,10 @@
 export const DEFAULT_MODEL = 'claude-opus-4-8';
 
 export interface LlmRequest {
-  /** Agent nghiệp vụ đứng sau lời gọi: 'config_copilot' | 'kpi_designer' | 'eval_harness'... */
+  /**
+   * Mã agent — phải TỒN TẠI và đang `active` trong danh bạ `ai_agent` (N1, trục D L0/L1).
+   * Trước trục D đây là chuỗi tự do: đo được 397 mã trong `ai_interaction` mà chỉ SÁU là thật.
+   */
   agent: string;
   prompt: string;
   /** Ngữ cảnh cấu trúc (org tree, KPI list...) — mock echo lại để test tất định. */
@@ -17,10 +20,21 @@ export interface LlmRequest {
   /** [F147] Model + effort người dùng chọn ở picker — client thật dùng; mock bỏ qua. */
   model?: string;
   effort?: string;
-  /** [Last-mile Lát 2] Phân loại dữ liệu (AI-Native PRD §9) — mặc định 'internal' nếu
-   *  không khai (mọi agent nội bộ hiện có đều thuộc lớp này). Egress Policy Engine
-   *  đọc field này để quyết định request có được rời gateway hay không. */
-  dataClass?: 'public' | 'internal' | 'confidential' | 'pii';
+  /**
+   * [Trục D L1 — N2] Các NHÓM DỮ LIỆU mà lượt gọi này chạm tới (`data_asset.code` của trục C).
+   *
+   * ⚠️ Đây là chỗ thay cho `dataClass?` cũ, và sự khác biệt là toàn bộ điểm của lát này:
+   *
+   *   CŨ: người gọi khai *dữ liệu của tôi nhạy cảm cỡ nào* — tức tự chấm điểm bài của mình.
+   *       Và `?? 'internal'` nghĩa là QUÊN KHAI = mức CHO PHÉP ĐI.
+   *   MỚI: người gọi khai *tôi đang chạm nhóm nào*; MỨC do sổ đăng ký dữ liệu quyết định
+   *       (max rank của các nhóm). Không khai, hoặc khai mã không có trong sổ ⇒ CHẶN.
+   *
+   * Bắt buộc, không optional: một trường tuỳ chọn có mặc định an toàn vẫn là một trường mà
+   * người ta quên — và trục C đã học điều đó ở K2 (`@Exported` fail-closed, không có chế độ
+   * cảnh báo rồi cho qua).
+   */
+  dataAssets: string[];
 }
 
 export interface LlmResponse {

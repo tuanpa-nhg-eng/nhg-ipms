@@ -10,6 +10,7 @@ import request from 'supertest';
 import { createPrismaClient, PrismaClient } from '@ipms/db';
 import { AppModule } from '../../src/app.module';
 import { getJwtSecret } from '../../src/common/auth/jwt.guard';
+import { registerTestAgent, cleanupTestAgents } from '../helpers/test-agent';
 import { seedGoldenFin, BASELINE_SUITE_NAME } from '../../src/scripts/seed-golden-fin';
 
 jest.setTimeout(180_000);
@@ -23,10 +24,21 @@ describe('Learning Loop L2 — eval replay + launch bar + readiness', () => {
   let curator: Ctx;
   let emp: Ctx;
   const uniq = Date.now();
-  const FAKE_AGENT = 'inline.test.readiness'; // startsWith 'inline.' → readiness quét được
+  /**
+   * [Trục D L1] Agent dùng một lần, ĐĂNG KÝ THẬT trong danh bạ.
+   *
+   * Trước lát này là hằng số `'inline.test.readiness'` — chọn tên có tiền tố `inline.` để lọt
+   * heuristic quét của readiness. Nay readiness quét theo DANH BẠ, nên tên không còn phải
+   * đánh lừa bộ lọc nào; agent phải tồn tại thật, như mọi agent khác.
+   *
+   * Ghi để nhớ: chính hằng số này sinh 9.765 dòng `ai_interaction` — nhiều hơn mọi agent thật
+   * cộng lại — vì nó CỐ ĐỊNH qua mọi lượt chạy suốt nhiều tuần.
+   */
+  let FAKE_AGENT: string;
 
   beforeAll(async () => {
     owner = createPrismaClient(process.env.OWNER_DATABASE_URL);
+    FAKE_AGENT = await registerTestAgent(owner, { name: 'readiness', uniq });
     async function ctxFor(tenantCode: string, emailPrefix: string): Promise<Ctx> {
       const tenant = await owner.tenant.findUnique({ where: { code: tenantCode } });
       const user = await owner.appUser.findFirst({
@@ -52,6 +64,7 @@ describe('Learning Loop L2 — eval replay + launch bar + readiness', () => {
   });
 
   afterAll(async () => {
+    await cleanupTestAgents(owner, [FAKE_AGENT]);
     await app?.close();
     await owner?.$disconnect();
   });

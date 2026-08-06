@@ -16,6 +16,7 @@ import request from 'supertest';
 import { createPrismaClient, PrismaClient, uuidv7 } from '@ipms/db';
 import { AppModule } from '../../src/app.module';
 import { getJwtSecret } from '../../src/common/auth/jwt.guard';
+import { registerTestAgent, cleanupTestAgents } from '../helpers/test-agent';
 import { AiGatewayService } from '../../src/modules/ai/ai-gateway.service';
 import { EgressPolicyService } from '../../src/modules/ai/egress/egress-policy.service';
 import type { RequestUser } from '../../src/common/auth/decorators';
@@ -36,6 +37,19 @@ describe('[Last-mile Lát 2] Egress Policy Engine — ai-gateway thật', () => 
   const uniq = Date.now();
   const ORIGINAL_KEY = process.env.ANTHROPIC_API_KEY;
   let flagId: string | undefined;
+  /**
+   * [Trục D L1] Hai agent DÙNG MỘT LẦN, đăng ký thật trong danh bạ.
+   *
+   * Trước lát này spec bịa mã (`egress-test-<ts>`…) — mỗi lượt chạy mint một danh tính mới
+   * nằm lại vĩnh viễn trong `ai_interaction`. N1 nay chặn chuyện đó, và cách xử lý ĐÚNG là
+   * test đi qua chính cánh cửa sản phẩm phải đi qua, KHÔNG phải nới N1 cho môi trường test.
+   *
+   * `sensitive` có trần `confidential` + phạm vi `review.result` — vì lát này chứng minh
+   * "dữ liệu nhạy cảm không rời máy", mà không agent THẬT nào được phép chạm mức đó (hai
+   * agent BRD cần nó đang `planned` chờ self-host ở L3).
+   */
+  let AGENT_SENSITIVE: string;
+  let AGENT_INTERNAL: string;
 
   beforeAll(async () => {
     owner = createPrismaClient(process.env.OWNER_DATABASE_URL);
@@ -51,6 +65,15 @@ describe('[Last-mile Lát 2] Egress Policy Engine — ai-gateway thật', () => 
     const claims = jwt.decode(designerCtx.token) as any;
     user = { claims, tenantId, permissions: new Set(['ai:eval', 'ai:invoke']), scopes: [] };
 
+    AGENT_SENSITIVE = await registerTestAgent(owner, {
+      name: 'egress.sensitive', uniq,
+      maxDataClass: 'confidential', assets: ['review.result'],
+    });
+    AGENT_INTERNAL = await registerTestAgent(owner, {
+      name: 'egress.internal', uniq,
+      maxDataClass: 'internal', assets: ['objective.kpi'],
+    });
+
     const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = mod.createNestApplication();
     app.setGlobalPrefix('api/v1');
@@ -63,6 +86,7 @@ describe('[Last-mile Lát 2] Egress Policy Engine — ai-gateway thật', () => 
   afterAll(async () => {
     if (flagId) await owner.featureFlag.deleteMany({ where: { id: flagId } });
     await owner.aiEgressPolicy.deleteMany({ where: { tenantId, note: { contains: uniq.toString() } } });
+    await cleanupTestAgents(owner, [AGENT_SENSITIVE, AGENT_INTERNAL]);
     if (ORIGINAL_KEY === undefined) delete process.env.ANTHROPIC_API_KEY;
     else process.env.ANTHROPIC_API_KEY = ORIGINAL_KEY;
     await app?.close();
@@ -70,12 +94,17 @@ describe('[Last-mile Lát 2] Egress Policy Engine — ai-gateway thật', () => 
   });
 
   it('mock LUÔN cho phép — pii vẫn chạy được khi backend=mock (flag OFF mặc định)', async () => {
-    const res = await gateway.complete(user, { agent: `egress-test-${uniq}`, prompt: 'không PII', dataClass: 'pii' });
+    const res = await gateway.complete(user, {
+      agent: AGENT_SENSITIVE, prompt: 'không PII', dataAssets: ['review.result'],
+    });
     expect(res.model).toBe('mock');
     const row = await owner.aiInteraction.findFirst({
-      where: { tenantId, agent: `egress-test-${uniq}` }, orderBy: { at: 'desc' },
+      where: { tenantId, agent: AGENT_SENSITIVE }, orderBy: { at: 'desc' },
     });
     expect(row!.status).toBe('ok');
+    // [Trục D L1] mức KHÔNG do người gọi khai — suy từ `data_asset.review.result`.
+    expect(row!.dataClass).toBe('confidential');
+    expect(row!.dataAssets).toEqual(['review.result']);
   });
 
   it('bật flag+key (tenant tạm) → pii tới anthropic LUÔN bị CHẶN, KHÔNG gọi client thật', async () => {
@@ -86,11 +115,13 @@ describe('[Last-mile Lát 2] Egress Policy Engine — ai-gateway thật', () => 
     process.env.ANTHROPIC_API_KEY = 'sk-ant-test-fake-not-real';
 
     await expect(
-      gateway.complete(user, { agent: `egress-pii-${uniq}`, prompt: 'dữ liệu nhạy cảm', dataClass: 'pii' }),
+      gateway.complete(user, {
+        agent: AGENT_SENSITIVE, prompt: 'dữ liệu nhạy cảm', dataAssets: ['review.result'],
+      }),
     ).rejects.toThrow(/egress bị chặn/);
 
     const row = await owner.aiInteraction.findFirst({
-      where: { tenantId, agent: `egress-pii-${uniq}` }, orderBy: { at: 'desc' },
+      where: { tenantId, agent: AGENT_SENSITIVE, status: 'blocked' }, orderBy: { at: 'desc' },
     });
     expect(row!.status).toBe('blocked');
     expect((row!.output as any).reason).toContain('self-host');
@@ -113,7 +144,9 @@ describe('[Last-mile Lát 2] Egress Policy Engine — ai-gateway thật', () => 
     await egress.upsert(user, 'internal', 'anthropic', false, `test-narrow-${uniq}`);
     try {
       await expect(
-        gateway.complete(user, { agent: `egress-narrowed-${uniq}`, prompt: 'x' }),
+        gateway.complete(user, {
+          agent: AGENT_INTERNAL, prompt: 'x', dataAssets: ['objective.kpi'],
+        }),
       ).rejects.toThrow(/egress bị chặn/);
     } finally {
       // dọn — XOÁ hẳn row để trở lại mặc định "chưa cấu hình = cho phép" (không rò rỉ

@@ -22,6 +22,28 @@ export const INLINE_SUGGESTION_TYPE: Record<InlineTask, string> = {
 };
 export const INLINE_SUGGESTION_TYPES = new Set(Object.values(INLINE_SUGGESTION_TYPE));
 
+/**
+ * [Trục D L1 — N2] Nhóm dữ liệu (`data_asset.code`) mà từng tác vụ inline THỰC SỰ chạm.
+ *
+ * Khai ở đây chứ không ở service vì nó là thuộc tính của TÁC VỤ, không của lượt chạy — và vì
+ * ở đây nó unit-test được (đối chiếu với hiến chương agent tương ứng trong danh bạ mà không
+ * cần dựng DB). Gateway kiểm chéo: khai ngoài phạm vi hiến chương ⇒ chặn.
+ *
+ * Nguyên tắc khai: nhóm nào `buildContext()` thật sự đọc, không phải nhóm nào "có thể liên
+ * quan". Khai thừa làm trần bị nâng oan (mức = max rank), khai thiếu là nói dối cổng gác.
+ */
+export const INLINE_TASK_DATA_ASSETS: Record<InlineTask, string[]> = {
+  // soạn nháp Task Cell — đọc thư viện tác vụ
+  'taskcell.draft': ['task.dictionary'],
+  // gợi ý gắn KPI — đọc cả Từ điển KPI lẫn tác vụ
+  'taskcell.kpi_link': ['objective.kpi', 'task.dictionary'],
+  // luật kéo theo — đọc chỉ số + cơ cấu; cơ cấu tổ chức nằm trong `hr.profile`? KHÔNG:
+  // context chỉ có chức năng/ngạch/cấp bậc (thuộc cấu hình), không có hồ sơ cá nhân nào.
+  'derivation.rule': ['objective.kpi', 'task.dictionary'],
+  // phát hiện trùng lặp — quét thư viện tác vụ + chỉ số
+  'curation.dedup': ['task.dictionary', 'objective.kpi'],
+};
+
 export class InlineParseError extends Error {}
 
 const isNonEmptyString = (v: unknown): v is string => typeof v === 'string' && v.trim().length > 0;

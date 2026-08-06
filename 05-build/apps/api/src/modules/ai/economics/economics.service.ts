@@ -40,6 +40,23 @@ export class EconomicsService {
 
   async report(user: RequestUser) {
     const since = new Date(Date.now() - WINDOW_DAYS * 86_400_000);
+    /**
+     * [Trục D L1] Chỉ đếm lượt gọi của agent CÓ TRONG DANH BẠ.
+     *
+     * Vì sao đây là bản vá đúng chứ không phải một bộ lọc tên nữa: tới hết L0 đo được **100%
+     * chi phí trong báo cáo 30 ngày ($0,30645) đến từ agent BỊA của test**, trong khi bộ lọc
+     * duy nhất ở đây là `toolName startsWith 'eval:'`. Thêm một tiền tố tên nữa (`egress-`,
+     * `anthropic-live-`, `inline.test.`…) là đúng cách mà lỗi này đã tái diễn BA LẦN — F163
+     * (đếm lượt eval), F191 (ghi chú sai về NULL), rồi lần này.
+     *
+     * Danh bạ là câu trả lời có nguyên tắc: một agent không đăng ký thì KHÔNG PHẢI đường chạy
+     * sản phẩm, theo đúng định nghĩa mà N1 vừa cưỡng chế ở gateway. Bộ lọc không còn phải
+     * đoán tên nữa, và mọi agent test tương lai tự động nằm ngoài mà không ai phải nhớ gì.
+     */
+    const registered = await this.prisma.withTenant(user.tenantId, (tx) =>
+      tx.aiAgent.findMany({ where: { deletedAt: null }, select: { code: true } }),
+    );
+    const agentCodes = [...new Set(registered.map((a) => a.code))];
     const { rows: rawRows, prices } = await this.prisma.withTenant(user.tenantId, async (tx) => ({
       rows: await tx.aiInteraction.findMany({
         // [F163 — vá lần hai, tự bắt khi chạy L3] Lọc traffic eval NGAY TRONG TRUY VẤN, không
@@ -65,6 +82,11 @@ export class EconomicsService {
         where: {
           at: { gte: since },
           OR: [{ toolName: null }, { NOT: { toolName: { startsWith: 'eval:' } } }],
+          // [Trục D L1] agent phải có trong danh bạ — xem chú thích ở đầu report().
+          // Giữ CẢ hai bộ lọc: `eval:` loại traffic kiểm định của agent THẬT (agent có trong
+          // danh bạ, nhưng lượt gọi không phải hành vi người dùng); danh bạ loại agent không
+          // tồn tại. Hai bộ lọc trả lời hai câu hỏi khác nhau, không thay thế nhau.
+          agent: { in: agentCodes },
         },
         select: {
           agent: true, toolName: true, model: true, status: true,

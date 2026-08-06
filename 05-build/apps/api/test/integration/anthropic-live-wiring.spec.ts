@@ -18,6 +18,7 @@ import * as jwt from 'jsonwebtoken';
 import { createPrismaClient, PrismaClient, uuidv7 } from '@ipms/db';
 import { AppModule } from '../../src/app.module';
 import { getJwtSecret } from '../../src/common/auth/jwt.guard';
+import { registerTestAgent, cleanupTestAgents } from '../helpers/test-agent';
 import { AiGatewayService } from '../../src/modules/ai/ai-gateway.service';
 import { AnthropicLlmClient, AnthropicStreamEvent } from '../../src/modules/ai/llm/anthropic-llm-client';
 import type { RequestUser } from '../../src/common/auth/decorators';
@@ -47,10 +48,16 @@ describe('[Last-mile Lát 3] AnthropicLlmClient thật qua toàn mạch gateway 
   let user: RequestUser;
   const uniq = Date.now();
   const ORIGINAL_KEY = process.env.ANTHROPIC_API_KEY;
+  let AGENT_COMPLETE: string;
+  let AGENT_STREAM: string;
   let flagId: string | undefined;
 
   beforeAll(async () => {
     owner = createPrismaClient(process.env.OWNER_DATABASE_URL);
+    // [Trục D L1] hai agent dùng một lần, ĐĂNG KÝ THẬT (N1). Trần `internal` + phạm vi
+    // `objective.kpi` — spec này đo đường đi của giá và của PII scrub, không đo trần.
+    AGENT_COMPLETE = await registerTestAgent(owner, { name: 'anthropic.complete', uniq, assets: ['objective.kpi'] });
+    AGENT_STREAM = await registerTestAgent(owner, { name: 'anthropic.stream', uniq, assets: ['objective.kpi'] });
     const tenant = await owner.tenant.findUnique({ where: { code: 'T2.TEST' } });
     tenantId = tenant!.id;
     const dbUser = await owner.appUser.findFirst({ where: { tenantId, email: { startsWith: 'designer@' } } });
@@ -63,6 +70,7 @@ describe('[Last-mile Lát 3] AnthropicLlmClient thật qua toàn mạch gateway 
   });
 
   afterAll(async () => {
+    await cleanupTestAgents(owner, [AGENT_COMPLETE, AGENT_STREAM]);
     if (flagId) await owner.featureFlag.deleteMany({ where: { id: flagId } });
     // ai_interaction append-only — KHÔNG xoá được các row costUsd>0 vừa tạo (đúng chủ
     // đích thiết kế audit log). Tenant T2.TEST được chọn CHÍNH VÌ lý do này — không
@@ -94,7 +102,7 @@ describe('[Last-mile Lát 3] AnthropicLlmClient thật qua toàn mạch gateway 
     const email = `khach.hang.${uniq}@nhg.edu.vn`;
     const res = await gateway.complete(
       user,
-      { agent: `anthropic-live-${uniq}`, prompt: `Liên hệ ${email} để duyệt`, dataClass: 'internal' },
+      { agent: AGENT_COMPLETE, prompt: `Liên hệ ${email} để duyệt`, dataAssets: ['objective.kpi'] },
       `test.anthropic.${uniq}`,
     );
 
@@ -117,7 +125,7 @@ describe('[Last-mile Lát 3] AnthropicLlmClient thật qua toàn mạch gateway 
 
     // ai_interaction: audit log giữ bản ĐÃ SCRUB (không email gốc) + costUsd đúng + piiScrubbed đếm
     const row = await owner.aiInteraction.findFirst({
-      where: { tenantId, agent: `anthropic-live-${uniq}` }, orderBy: { at: 'desc' },
+      where: { tenantId, agent: AGENT_COMPLETE }, orderBy: { at: 'desc' },
     });
     expect(row!.status).toBe('ok');
     expect(row!.model).toBe('claude-opus-4-8');
@@ -143,14 +151,14 @@ describe('[Last-mile Lát 3] AnthropicLlmClient thật qua toàn mạch gateway 
     const streamGateway = streamApp.get(AiGatewayService);
     try {
       const chunks = [];
-      for await (const c of streamGateway.stream(user, { agent: `anthropic-stream-${uniq}`, prompt: 'x' }, `test.stream.${uniq}`)) {
+      for await (const c of streamGateway.stream(user, { agent: AGENT_STREAM, prompt: 'x', dataAssets: ['objective.kpi'] }, `test.stream.${uniq}`)) {
         chunks.push(c);
       }
       const done = chunks.find((c) => c.type === 'done');
       expect(done?.usage?.costUsd).toBe(0); // placeholder — chunk KHÔNG mang giá thật
 
       const row = await owner.aiInteraction.findFirst({
-        where: { tenantId, agent: `anthropic-stream-${uniq}` }, orderBy: { at: 'desc' },
+        where: { tenantId, agent: AGENT_STREAM }, orderBy: { at: 'desc' },
       });
       const price = await owner.aiModelPrice.findFirst({ where: { model: 'claude-opus-4-8', tenantId: null, deletedAt: null } });
       const expectedCost = Number(((10 / 1_000_000) * Number(price!.inputUsdPerMTok) + (5 / 1_000_000) * Number(price!.outputUsdPerMTok)).toFixed(6));

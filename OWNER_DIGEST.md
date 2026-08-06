@@ -29,6 +29,26 @@
 
 **VERIFY L0:** **927/927 (67 suite)** — baseline 896/896 (65 suite), đúng +31 ca/+2 suite · typecheck 3 gói sạch · **driver governance trục C 55/55 KHÔNG hồi quy** · **đội đỏ trục C 16/16 KHÔNG hồi quy** · seed idempotent (chạy 3 lần) · cờ `ai_gateway_live` vẫn TẮT.
 
+**✅ L1 XONG 06/08 — 📍 LÁT DỪNG BÁO CÁO. Trần phân loại nay thuộc về AGENT.**
+
+**Đóng đúng dòng `ai-gateway.service.ts:56`.** `LlmRequest.dataClass?` (người gọi tự khai, quên khai = mức cho phép đi) **đã bị GỠ KHỎI HỢP ĐỒNG** — thay bằng `dataAssets: string[]` **bắt buộc**: người gọi khai *tôi chạm nhóm nào*, MỨC do sổ đăng ký dữ liệu (trục C L0) quyết định = **max rank** các nhóm. Không khai ⇒ **chặn**. Có test dùng `@ts-expect-error` gửi kèm `dataClass` để chứng minh không còn đường khai đè.
+
+**Ba cổng, chạy TRƯỚC egress, ở CẢ `complete()` lẫn `stream()`** (bài học `POST /ai/chat`: một đường không qua cổng là đủ vô hiệu cổng): **N1** agent phải tồn tại VÀ đang `active` — `planned` bị chặn, vì *bật một agent là quyết định của chủ dữ liệu, không phải hệ quả của việc có người gọi nó* · **N2** mức suy từ sổ, mã lạ ⇒ chặn · **N3** trần agent + kiểm chéo phạm vi. **N3 độc lập với Egress Policy có chủ đích:** agent trần `internal` chạm `confidential` bị chặn **kể cả khi đích là mock** (không rời máy) — vi phạm hiến chương ≠ vi phạm egress; gộp hai lớp là mất một lớp. Có test đóng đinh đúng ca đó.
+
+**`ai_interaction` +`data_class`/`data_assets`** (Spec §211 khai từ đầu, chưa từng có cột) — ghi **kết quả suy diễn**, không phải lời khai. Cố ý **KHÔNG backfill** 15.365 dòng lịch sử: suy ngược là bịa một con số chưa từng được tính; NULL nói đúng "không biết". Thêm CHECK DDL **`data_class <> 'restricted'`** — tầng thứ ba giữ N6, tầng duy nhất không phụ thuộc mã ứng dụng.
+
+**🔴 VÁ PHÁT HIỆN ③ CỦA L0 — chi phí AI từ $0,30645 (100% giả) → $0,00.** Bộ lọc economics nay là **"agent phải có trong danh bạ"** thay vì đoán tiền tố tên. Báo cáo 30 ngày trước gồm 294 lượt agent bịa, nay **đúng 6 agent đăng ký / 2.695 lượt**. Cùng bản vá áp cho `readiness` (bỏ heuristic `startsWith 'inline.'` — vừa **hụt** vì `config_copilot` không khớp tiền tố nên checklist bỏ sót agent nghiệp vụ thật, vừa **thừa** vì 107 mã `inline.test.*` lọt vào).
+
+**🐞 LỖ TRONG CHÍNH BẢN VÁ CỦA TÔI, DRIVER SỐNG BẮT — JEST KHÔNG:** `readiness()` gộp agent từ **HAI** nguồn (`ai_launch_bar` ∪ `ai_eval_suite`); bản vá đầu chỉ lọc `suites`, để nguyên `bars` ⇒ agent test cũ vẫn hiện qua đường launch bar. **Full suite 940/940 XANH ngay sau bản vá thiếu đó.** Mẫu đáng nhớ: **lọc một nguồn trong khi kết quả gộp từ nhiều nguồn.** Đã thêm ca hồi quy đóng đinh đúng nhánh `bars`.
+
+**KHÔNG NỚI N1 VÌ TEST.** 5 spec bịa mã agent nay **đăng ký agent thật** qua `test/helpers/test-agent.ts` (tiền tố `test.`, dọn ở `afterAll`). Hai cách xử lý và cách chọn nói lên nhiều điều: nới bất biến cho môi trường test là tự huỷ — ngoại lệ nằm đúng nơi ta chứng minh bất biến. Hệ quả phụ đáng giá: mỗi spec đó thành một ca kiểm thêm cho vòng đời danh bạ. **Bản đầu của tôi QUÊN gọi dọn ở `ai-governance-fixes.spec`** ⇒ 4 `test.f159.*` nằm lại sau bốn lượt chạy — đúng loại rác L1 sinh ra để chấm dứt, đã vá.
+
+**Driver sống MỚI `scripts/verify/verify-ai-identity.mjs` — 13/13**, commit như mã nguồn (không lặp lại việc mất driver trục A/B). Chính nó bắt lỗ `bars` ở trên **và** hai lỗi trong chính driver (đường dẫn `/ai/inline/:task` nằm ở URL không ở body; payload phải bọc trong `input.payload`) — loại lỗi typecheck lẫn jest đều không biết.
+
+**VERIFY L1:** **941/941 (68 suite)** — L0 kết ở 927/927, đúng +14 ca/+1 suite · typecheck 3 gói sạch · **driver trục D 13/13** · **governance trục C 55/55** và **đội đỏ 16/16 KHÔNG hồi quy** · 0 agent test còn sót trong danh bạ sau full suite · **tổng chi phí AI thật = 0**, cờ `ai_gateway_live` vẫn TẮT.
+
+**Ranh giới cố ý của L1, ghi để Reviewer soi:** `logToolCall()` (MCP tool đọc, KHÔNG gọi LLM) ghi `agent: 'mcp'` thẳng vào sổ **không qua ba cổng** — không có egress nên N2/N3 không áp dụng theo cùng nghĩa, và tool đã có `scope_permission` + min-permission canonical (F55) gác riêng. Nêu ra vì đây là bề mặt duy nhất còn ghi `ai_interaction` ngoài đường gác.
+
 **Phạm vi L0 — nói rõ để không mạo nhận:** đây mới chỉ là SỔ. `ai-gateway` **CHƯA gọi** `resolve()`; N1/N2/N3 chưa có răng. Cưỡng chế là việc của L1, tách ra có chủ đích: bật chặn trước khi sổ phủ hết mã đang chạy là gãy sản phẩm. **Cổng ra L0 đã đạt:** 6/6 mã sản phẩm tra được trong sổ, và mọi mã KHÔNG tra được đều mang dấu vết test (có test đóng đinh) ⇒ L1 bật N1 được. **Việc L1 phải làm trước:** 5 spec (`egress-policy` · `anthropic-live-wiring` · `ai-readiness` · `model-qualification` · `ai-governance-fixes`) đang bịa mã agent để cô lập lượt chạy — chuyển phần duy nhất đó sang `toolName` (trường tự do, không khoá bảng nào), giữ `agent` là danh tính.
 
 ---

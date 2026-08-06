@@ -1,5 +1,8 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, UnprocessableEntityException } from '@nestjs/common';
+import { DataClassification, dataClassRank } from '@ipms/shared';
 import { PrismaService } from '../../prisma.service';
+import { DataCatalogService } from '../datacatalog/datacatalog.service';
+import { AiAgentService } from './agents/ai-agent.service';
 import type { RequestUser } from '../../common/auth/decorators';
 import { LlmClient, LlmRequest, LlmResponse, LlmStreamChunk, selectLlmBackend } from './llm/llm-client';
 import { MockLlmClient } from './llm/mock-llm-client';
@@ -35,6 +38,11 @@ export class AiGatewayService {
     private egress: EgressPolicyService, private economics: EconomicsService,
     // [Lát 3] DI (không `new` cứng) — test override bằng withTransport() giả.
     private anthropic: AnthropicLlmClient,
+    // [Trục D L1] Hai sổ mà gateway PHẢI tra trước khi cho một lượt gọi đi tiếp:
+    // danh bạ agent (agent là ai, trần bao nhiêu) + sổ đăng ký dữ liệu (nhóm này mức nào).
+    // Không nơi nào trong lớp AI được tự nhớ hai thứ đó lần thứ hai.
+    private agents: AiAgentService,
+    private catalog: DataCatalogService,
   ) {}
 
   /** [Lát 3] Giá THẬT cho 1 lượt anthropic — chỉ gọi khi backend='anthropic' (mock giữ
@@ -51,18 +59,94 @@ export class AiGatewayService {
    */
   private async guardEgress(
     user: RequestUser, scrubbedReq: LlmRequest, piiCounts: Partial<Record<PiiKind, number>>,
-    backend: 'anthropic' | 'mock', toolName?: string,
+    // [Trục D L1] Kiểu SIẾT từ `DataClass` (có bí danh 'pii') xuống `DataClassification` (đúng
+    // bốn mức). Từ nay mức LUÔN suy ra từ `data_asset`, nên bí danh tương thích ngược không
+    // còn đường nào vào đây — để kiểu rộng hơn thực tế là mời một vựng thứ hai quay lại.
+    backend: 'anthropic' | 'mock', dataClass: DataClassification, toolName?: string,
   ) {
-    const dataClass: DataClass = scrubbedReq.dataClass ?? 'internal';
     const destination: EgressDestination = backend === 'anthropic' ? 'anthropic' : 'mock';
     const decision = await this.egress.resolve(user.tenantId, dataClass, destination);
     if (!decision.allowed) {
       await this.log(user, scrubbedReq, toolName, {
         model: backend, output: { blocked: true, reason: decision.reason },
-        latencyMs: 0, status: 'blocked', piiCounts,
+        latencyMs: 0, status: 'blocked', piiCounts, dataClass,
       });
       throw new ForbiddenException(`ai-gateway: egress bị chặn — ${decision.reason}`);
     }
+  }
+
+  /**
+   * [Trục D L1] BA CỔNG TRƯỚC EGRESS — N1 · N2 · N3. Chạy TRƯỚC `guardEgress` có chủ đích:
+   * hai lớp trả lời hai câu hỏi khác nhau và gộp lại là mất một lớp.
+   *
+   *   · N1/N3 (ở đây): **agent này có TƯ CÁCH chạm dữ liệu này không?**
+   *   · Egress Policy (lớp sau): **dữ liệu mức này có được RỜI MÁY tới đích kia không?**
+   *
+   * Một agent trần `internal` xin xử lý `review.result` phải bị chặn NGAY CẢ KHI đích là
+   * `mock` (không rời máy) — vì vi phạm ở đây là vi phạm hiến chương, không phải vi phạm
+   * egress. Ngược lại `restricted` không rời máy kể cả agent có trần đủ. Hai luật độc lập.
+   *
+   * Trả về mức phân loại đã SUY RA để phần còn lại của lượt gọi dùng chung một con số.
+   */
+  private async resolveAndGuardAgent(
+    user: RequestUser, req: LlmRequest, toolName?: string,
+  ): Promise<{ dataClass: DataClassification; assets: string[] }> {
+    // ── N1: agent phải TỒN TẠI và đang `active` trong danh bạ ────────────────────────────
+    // `resolve()` ném 404 nếu chưa đăng ký (fail-closed, không mặc định về agent chung chung).
+    const agent = await this.agents.resolve(user.tenantId, req.agent);
+    if (agent.status !== 'active') {
+      throw new UnprocessableEntityException(
+        `ai-gateway [N1]: agent '${req.agent}' đang ở trạng thái '${agent.status}', chưa được `
+        + 'phép chạy. Bật một agent là quyết định của chủ dữ liệu (aiagent:write), không phải '
+        + 'hệ quả của việc có người gọi nó.',
+      );
+    }
+
+    // ── N2: mức phân loại SUY RA từ sổ đăng ký, KHÔNG do người gọi khai ──────────────────
+    const assets = Array.isArray(req.dataAssets) ? req.dataAssets.filter((a) => typeof a === 'string') : [];
+    if (assets.length === 0) {
+      // Đây là dòng thay cho `?? 'internal'` cũ. Trước đây quên khai = mức CHO PHÉP ĐI; nay
+      // quên khai = CHẶN. Không có chế độ cảnh báo-rồi-cho-qua (cùng ngữ nghĩa K2 của trục C).
+      throw new UnprocessableEntityException(
+        `ai-gateway [N2]: lượt gọi agent '${req.agent}' không khai nhóm dữ liệu nào `
+        + '(`dataAssets`). Mức phân loại phải SUY RA từ sổ đăng ký dữ liệu, không do người gọi '
+        + 'tự khai — không khai được thì không chạy (fail-closed).',
+      );
+    }
+
+    // ── N3': phạm vi — nhóm khai phải nằm TRONG hiến chương của agent ────────────────────
+    const outOfCharter = assets.filter((a) => !agent.dataAssetCodes.includes(a));
+    if (outOfCharter.length > 0) {
+      throw new ForbiddenException(
+        `ai-gateway [N3]: agent '${req.agent}' không được phép chạm nhóm dữ liệu `
+        + `${outOfCharter.join(', ')} — ngoài phạm vi trong danh bạ `
+        + `(${agent.dataAssetCodes.join(', ') || 'rỗng'}).`,
+      );
+    }
+
+    // Mức của lượt gọi = MAX rank của các nhóm chạm tới. Mã chưa đăng ký ⇒ `resolve()` của sổ
+    // ném 404 — và đó là điều đúng: một đường dữ liệu chưa đăng ký phải bị chặn và bị phát
+    // hiện, không được im lặng chảy qua.
+    let dataClass: DataClassification = 'public';
+    for (const code of assets) {
+      const asset = await this.catalog.resolve(user.tenantId, code);
+      if (dataClassRank(asset.classification) > dataClassRank(dataClass)) dataClass = asset.classification;
+    }
+
+    // ── N3: TRẦN của agent ───────────────────────────────────────────────────────────────
+    if (dataClassRank(dataClass) > dataClassRank(agent.maxDataClass)) {
+      await this.log(user, req, toolName, {
+        model: 'blocked', output: { blocked: true, reason: 'vượt trần agent' },
+        latencyMs: 0, status: 'blocked', dataClass,
+      }).catch(() => undefined);
+      throw new ForbiddenException(
+        `ai-gateway [N3]: agent '${req.agent}' có trần '${agent.maxDataClass}' nhưng lượt gọi `
+        + `chạm dữ liệu mức '${dataClass}' (${assets.join(', ')}). Trần là thuộc tính của AGENT, `
+        + 'không phải của phiên gọi — người gọi có đủ quyền cũng không nới được.',
+      );
+    }
+
+    return { dataClass, assets };
   }
 
   /** Flag tenant override thắng global; không có row nào ⇒ OFF (fail-closed). */
@@ -89,13 +173,16 @@ export class AiGatewayService {
 
   /** Gọi LLM + log ai_interaction (kể cả khi lỗi — status='error'). */
   async complete(user: RequestUser, req: LlmRequest, toolName?: string): Promise<LlmResponse> {
+    // [Trục D L1] N1/N2/N3 chạy TRƯỚC MỌI THỨ — trước cả khi chọn backend và trước scrub.
+    // Một lượt gọi của agent không tồn tại / vượt trần thì không có lý do gì để đi xa hơn.
+    const { dataClass, assets } = await this.resolveAndGuardAgent(user, req, toolName);
     const backend = await this.resolveBackend(user.tenantId);
     const client = backend === 'anthropic' ? this.anthropic : this.mock;
     const t0 = Date.now();
     // [F59] scrub TRƯỚC khi rời gateway — client (mock hay thật) chỉ thấy bản đã scrub.
     const { prompt, context, map, counts } = await this.pii.scrubRequest(user.tenantId, req.prompt, req.context);
-    const scrubbedReq: LlmRequest = { ...req, prompt, context };
-    await this.guardEgress(user, scrubbedReq, counts, backend, toolName); // [Lát 2] throws nếu bị chặn — đã tự log
+    const scrubbedReq: LlmRequest = { ...req, prompt, context, dataAssets: assets };
+    await this.guardEgress(user, scrubbedReq, counts, backend, dataClass, toolName); // [Lát 2] throws nếu bị chặn — đã tự log
     try {
       const res = await client.complete(scrubbedReq);
       // [Lát 3] anthropic → costUsd THẬT (client chỉ trả 0 placeholder); mock giữ nguyên.
@@ -105,7 +192,7 @@ export class AiGatewayService {
       await this.log(user, scrubbedReq, toolName, {
         model: res.model, output: res.json ?? res.text,
         tokensIn: res.tokensIn, tokensOut: res.tokensOut, costUsd,
-        latencyMs: Date.now() - t0, status: 'ok', piiCounts: counts,
+        latencyMs: Date.now() - t0, status: 'ok', piiCounts: counts, dataClass,
       });
       // Nghịch — caller nội bộ nhận bản THẬT (map chỉ tồn tại trong RAM lượt gọi này).
       return {
@@ -117,7 +204,7 @@ export class AiGatewayService {
     } catch (e) {
       await this.log(user, scrubbedReq, toolName, {
         model: backend, output: { error: (e as Error).message },
-        latencyMs: Date.now() - t0, status: 'error', piiCounts: counts,
+        latencyMs: Date.now() - t0, status: 'error', piiCounts: counts, dataClass,
       });
       throw e;
     }
@@ -130,6 +217,9 @@ export class AiGatewayService {
    * còn phải là đường đi thường trực như trước lát 3.
    */
   async *stream(user: RequestUser, req: LlmRequest, toolName?: string): AsyncIterable<LlmStreamChunk> {
+    // [Trục D L1] Cùng ba cổng như complete() — đường stream KHÔNG được là cửa sau.
+    // (Bài học `POST /ai/chat` ở trục C: một đường chạy không qua cổng là đủ để vô hiệu cổng.)
+    const { dataClass, assets } = await this.resolveAndGuardAgent(user, req, toolName);
     const backend = await this.resolveBackend(user.tenantId);
     const chosen = backend === 'anthropic' ? this.anthropic : this.mock;
     if (backend === 'anthropic' && !chosen.stream) {
@@ -141,12 +231,12 @@ export class AiGatewayService {
     // [F59] scrub TRƯỚC khi rời gateway; rehydrate TĂNG DẦN trên đường ra (StreamRehydrator
     // giữ lại đuôi token vỡ giữa 2 chunk — không lộ nửa token, không rơi ký tự thật).
     const { prompt, context, map, counts } = await this.pii.scrubRequest(user.tenantId, req.prompt, req.context);
-    const scrubbedReq: LlmRequest = { ...req, prompt, context };
+    const scrubbedReq: LlmRequest = { ...req, prompt, context, dataAssets: assets };
     // [Lát 2] Đánh giá theo `backend` ĐÃ RESOLVE (ý định cấu hình: flag+key), KHÔNG theo
     // `client` fallback thực tế — nếu không, hành vi chặn sẽ đổi âm thầm giữa "trước/sau
     // khi AnthropicLlmClient hỗ trợ stream()" dù cấu hình egress không đổi. throws nếu bị
     // chặn — đã tự log.
-    await this.guardEgress(user, scrubbedReq, counts, backend, toolName);
+    await this.guardEgress(user, scrubbedReq, counts, backend, dataClass, toolName);
     const rehydrator = this.pii.createStreamRehydrator(map);
     let acc = ''; // tích luỹ bản ĐÃ SCRUB (đúng những gì client LLM thực sự thấy) — dùng để log
     let usage: LlmStreamChunk['usage'];
@@ -192,12 +282,12 @@ export class AiGatewayService {
       await this.log(user, scrubbedReq, toolName, {
         model: usage?.model ?? backend, output: acc.slice(0, 4000),
         tokensIn: usage?.tokensIn, tokensOut: usage?.tokensOut, costUsd,
-        latencyMs: Date.now() - t0, status: 'ok', piiCounts: counts,
+        latencyMs: Date.now() - t0, status: 'ok', piiCounts: counts, dataClass,
       });
     } catch (e) {
       await this.log(user, scrubbedReq, toolName, {
         model: backend, output: { error: (e as Error).message },
-        latencyMs: Date.now() - t0, status: 'error', piiCounts: counts,
+        latencyMs: Date.now() - t0, status: 'error', piiCounts: counts, dataClass,
       });
       throw e;
     }
@@ -224,7 +314,9 @@ export class AiGatewayService {
   private log(
     user: RequestUser, req: LlmRequest, toolName: string | undefined,
     r: { model: string; output: unknown; tokensIn?: number; tokensOut?: number;
-         costUsd?: number; latencyMs: number; status: string; piiCounts?: Partial<Record<PiiKind, number>> },
+         costUsd?: number; latencyMs: number; status: string; piiCounts?: Partial<Record<PiiKind, number>>;
+         /** [Trục D L1] mức ĐÃ SUY RA từ sổ đăng ký — không phải lời khai của người gọi. */
+         dataClass?: DataClassification },
   ) {
     // [F59] req đến đây LUÔN LÀ BẢN ĐÃ SCRUB (complete()/stream() truyền scrubbedReq) —
     // audit log không bao giờ giữ PII gốc. piiScrubbed = số lượng theo loại, minh bạch
@@ -239,6 +331,9 @@ export class AiGatewayService {
           output: (r.output ?? undefined) as any,
           tokensIn: r.tokensIn, tokensOut: r.tokensOut, costUsd: r.costUsd,
           latencyMs: r.latencyMs, status: r.status,
+          // [Trục D L1] Spec_AI_Assistant §211 khai hai trường này từ đầu, tới nay mới có cột.
+          dataClass: r.dataClass ?? null,
+          dataAssets: (req.dataAssets ?? undefined) as any,
         },
       }),
     );

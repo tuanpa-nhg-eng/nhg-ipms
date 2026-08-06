@@ -6,6 +6,7 @@ import { AiGatewayService } from '../ai-gateway.service';
 import { DEFAULT_MODEL } from '../llm/llm-client';
 import { evaluateAssertions, EvalAssertion } from './assertions';
 import { INLINE_EVAL_AGENTS, parseInlineOutput } from './inline-replay';
+import { AiAgentService } from '../agents/ai-agent.service';
 
 interface CreateSuiteInput {
   agent: string;
@@ -24,7 +25,14 @@ interface CreateSuiteInput {
  */
 @Injectable()
 export class EvalService {
-  constructor(private prisma: PrismaService, private gateway: AiGatewayService) {}
+  constructor(
+    private prisma: PrismaService,
+    private gateway: AiGatewayService,
+    // [Trục D L1] Eval REPLAY agent đang bị đánh giá, nên phạm vi dữ liệu của lượt replay
+    // đúng bằng hiến chương của chính agent đó — tra danh bạ, không tự khai một danh sách
+    // thứ hai (hai nơi khai khác nhau là kiểu lệch không test nào bắt trực tiếp).
+    private agents: AiAgentService,
+  ) {}
 
   createSuite(user: RequestUser, input: CreateSuiteInput) {
     if (!input.cases?.length) throw new UnprocessableEntityException('Suite cần ≥1 case');
@@ -139,6 +147,11 @@ export class EvalService {
   ) {
     let pass = 0;
     let scoreSum = 0;
+    // [Trục D L1 — N2] Phạm vi dữ liệu của lượt replay = hiến chương của agent bị đánh giá.
+    // Tra MỘT LẦN ngoài vòng lặp case (không N+1, cùng tinh thần F171). Agent không có trong
+    // danh bạ ⇒ `resolve()` ném 404 ngay tại đây — đúng ý: không chạy eval cho một danh tính
+    // không tồn tại, vì kết quả sẽ được ghi vào launch bar / qualification của một agent ma.
+    const agentDef = await this.agents.resolve(user.tenantId, suite.agent);
     const results: Array<{ caseId: string; passed: boolean; score: number; judgeOutput: unknown }> = [];
     for (const c of cases) {
       const input = c.input as { prompt: string; context?: unknown; promptVersion?: string };
@@ -150,6 +163,7 @@ export class EvalService {
           {
             agent: suite.agent, prompt: input.prompt, context: input.context, promptVersion: input.promptVersion,
             model, // [Lát 4] mock bỏ qua field này — anthropic dùng ĐÚNG model đã chốt ở run()
+            dataAssets: agentDef.dataAssetCodes, // [Trục D L1] hiến chương của agent bị đánh giá
           },
           `eval:${suite.name}`,
         );
@@ -249,9 +263,31 @@ export class EvalService {
     // withTenant của phần còn lại để không lồng 2 lượt withTenant lãng phí.
     const liveStatus = await this.gateway.liveStatus(user.tenantId);
     const body = await this.prisma.withTenant(user.tenantId, async (tx) => {
-      const bars = await tx.aiLaunchBar.findMany({ where: { deletedAt: null } });
+      /**
+       * [Trục D L1] Danh bạ là bộ lọc cho CẢ HAI nguồn agent của checklist.
+       *
+       * 🐞 Bản vá đầu của tôi chỉ lọc `suites` và để nguyên `bars` — mà `agents` bên dưới là
+       * HỢP của hai tập. Kết quả: checklist vẫn hiện `inline.test.qualify.*` qua đường launch
+       * bar. Driver sống bắt được, jest thì không: full suite XANH ngay sau bản vá thiếu đó.
+       * Ghi lại vì đây là mẫu lặp — **lọc một nguồn trong khi kết quả gộp từ nhiều nguồn**.
+       */
+      const registered = await tx.aiAgent.findMany({
+        where: { deletedAt: null }, select: { code: true },
+      });
+      const registeredCodes = [...new Set(registered.map((a) => a.code))];
+      const bars = await tx.aiLaunchBar.findMany({
+        where: { deletedAt: null, agent: { in: registeredCodes } },
+      });
+      /**
+       * Quét suite của agent CÓ TRONG DANH BẠ, thay heuristic tiền tố `inline.`.
+       *
+       * Tiền tố cũ vừa hụt vừa thừa: hụt vì `config_copilot` (agent nghiệp vụ thật, có eval
+       * suite) KHÔNG bắt đầu bằng `inline.` nên checklist sẵn-sàng-live bỏ sót nó; thừa vì
+       * mọi `inline.test.*` do test đẻ ra đều lọt vào — 107 mã trên DB dev. Cùng họ với bộ
+       * lọc `economics` đã vá ở lát này.
+       */
       const suites = await tx.aiEvalSuite.findMany({
-        where: { deletedAt: null, agent: { startsWith: 'inline.' } },
+        where: { deletedAt: null, agent: { in: registeredCodes } },
       });
       const agentModels = await tx.aiAgentModel.findMany({ where: { deletedAt: null } });
       const agents = [...new Set([...bars.map((b) => b.agent), ...suites.map((s) => s.agent)])].sort();

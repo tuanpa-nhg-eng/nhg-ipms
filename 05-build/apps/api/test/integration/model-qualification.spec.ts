@@ -15,6 +15,7 @@ import request from 'supertest';
 import { createPrismaClient, PrismaClient, uuidv7 } from '@ipms/db';
 import { AppModule } from '../../src/app.module';
 import { getJwtSecret } from '../../src/common/auth/jwt.guard';
+import { registerTestAgent, cleanupTestAgents } from '../helpers/test-agent';
 import { AnthropicLlmClient, AnthropicStreamEvent } from '../../src/modules/ai/llm/anthropic-llm-client';
 
 jest.setTimeout(180_000);
@@ -37,10 +38,12 @@ describe('[Last-mile Lát 4] Phần A — cổng chặn trên mock (H.01)', () =
   let designer: Ctx;
   let emp: Ctx;
   const uniq = Date.now();
-  const AGENT = `inline.test.qualify.${uniq}`;
+  // [Trục D L1] agent dùng một lần, đăng ký thật trong danh bạ (N1)
+  let AGENT: string;
 
   beforeAll(async () => {
     owner = createPrismaClient(process.env.OWNER_DATABASE_URL);
+    AGENT = await registerTestAgent(owner, { name: 'qualify', uniq });
     async function ctxFor(emailPrefix: string): Promise<Ctx> {
       const tenant = await owner.tenant.findUnique({ where: { code: 'H.01' } });
       const user = await owner.appUser.findFirst({ where: { tenantId: tenant!.id, email: { startsWith: emailPrefix } } });
@@ -57,7 +60,10 @@ describe('[Last-mile Lát 4] Phần A — cổng chặn trên mock (H.01)', () =
     await app.init();
   });
 
-  afterAll(async () => { await app?.close(); await owner?.$disconnect(); });
+  afterAll(async () => {
+    await cleanupTestAgents(owner, [AGENT]);
+    await app?.close(); await owner?.$disconnect();
+  });
 
   const as = (c: Ctx) => ({ Authorization: `Bearer ${c.token}`, 'X-Tenant-Id': c.id });
   const api = () => request(app.getHttpServer());
@@ -128,12 +134,14 @@ describe('[Last-mile Lát 4] Phần B — qualify model THẬT (transport giả,
   let designer: Ctx;
   let tenantId: string;
   const uniq = Date.now() + 1; // lệch mốc thời gian với Phần A
-  const AGENT = `inline.test.qualifyB.${uniq}`;
+  // [Trục D L1] agent dùng một lần, đăng ký thật trong danh bạ (N1)
+  let AGENT: string;
   let flagId: string | undefined;
   const ORIGINAL_KEY = process.env.ANTHROPIC_API_KEY;
 
   beforeAll(async () => {
     owner = createPrismaClient(process.env.OWNER_DATABASE_URL);
+    AGENT = await registerTestAgent(owner, { name: 'qualifyb', uniq });
     const tenant = await owner.tenant.findUnique({ where: { code: 'T2.TEST' } });
     tenantId = tenant!.id;
     const user = await owner.appUser.findFirst({ where: { tenantId, email: { startsWith: 'designer@' } } });
@@ -175,6 +183,7 @@ describe('[Last-mile Lát 4] Phần B — qualify model THẬT (transport giả,
   });
 
   afterAll(async () => {
+    await cleanupTestAgents(owner, [AGENT]);
     if (flagId) await owner.featureFlag.deleteMany({ where: { id: flagId } });
     if (ORIGINAL_KEY === undefined) delete process.env.ANTHROPIC_API_KEY;
     else process.env.ANTHROPIC_API_KEY = ORIGINAL_KEY;

@@ -75,7 +75,12 @@ describe('[Trục D L0] Danh bạ agent AI', () => {
 
   it('data_steward đọc được danh bạ đầy đủ', async () => {
     const res = await request(app.getHttpServer()).get('/api/v1/ai/agents').set(H(steward)).expect(200);
-    expect(res.body.entries.length).toBe(GLOBAL_AI_AGENTS.length);
+    // [Trục D L1] Lọc agent DÙNG MỘT LẦN của các spec khác trước khi so với bộ seed.
+    // Từ L1, spec nào cần agent riêng phải ĐĂNG KÝ THẬT (N1 không có ngoại lệ cho test), nên
+    // danh bạ có thể chứa `test.*` của một suite đang chạy. Phép so đúng là "sổ chứa đủ bộ
+    // chuẩn", không phải "sổ không có gì khác" — cái sau đo lẫn trạng thái của suite khác.
+    const seeded = res.body.entries.filter((e: any) => !e.code.startsWith('test.'));
+    expect(seeded.length).toBe(GLOBAL_AI_AGENTS.length);
     expect(res.body.total).toBe(res.body.entries.length);
     const copilot = res.body.entries.find((e: any) => e.code === 'config_copilot');
     // Sáu trường BR-M09-02 đòi, phải có mặt đủ trên đường đọc — không chỉ trong DB.
@@ -127,9 +132,16 @@ describe('[Trục D L0] Danh bạ agent AI', () => {
       `SELECT DISTINCT i.agent FROM ai_interaction i
         WHERE NOT EXISTS (SELECT 1 FROM ai_agent a WHERE a.tenant_id IS NULL AND a.code = i.agent)`,
     );
-    // Mẫu do CHÍNH các spec trong repo sinh ra — truy được về 5 tệp:
-    // egress-policy · anthropic-live-wiring · ai-readiness · model-qualification · ai-governance-fixes
-    const DAU_VET_TEST = /^(egress-(test|pii|narrowed|internal)-|anthropic-(live|stream)-|inline\.test\.)/;
+    /**
+     * `test.` — tiền tố DUY NHẤT, có nguyên tắc, do `helpers/test-agent.ts` cấp từ trục D L1.
+     *
+     * Sáu mẫu còn lại là DI SẢN: các dòng `ai_interaction` do 5 spec sinh ra TRƯỚC L1, khi mã
+     * agent còn là chuỗi tự do. Bảng append-only nên chúng ở lại vĩnh viễn — liệt kê ra đây
+     * là cách trung thực để nói "đã biết, đã truy được nguồn", thay vì nới phép kiểm cho rộng
+     * ra tới mức không bắt được gì. Danh sách này KHÔNG được dài thêm: một mẫu mới xuất hiện
+     * nghĩa là có spec vừa lách N1, hoặc có đường chạy sản phẩm chưa đăng ký.
+     */
+    const DAU_VET_TEST = /^(test\.|egress-(test|pii|narrowed|internal)-|anthropic-(live|stream)-|inline\.test\.)/;
     const nghi_van = rows.map((r) => r.agent).filter((a) => !DAU_VET_TEST.test(a));
     expect(nghi_van).toEqual([]);
   });

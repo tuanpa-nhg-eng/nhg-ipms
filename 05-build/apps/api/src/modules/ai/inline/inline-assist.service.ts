@@ -11,6 +11,7 @@ import { ConfigService } from '../../config/config.service';
 import { evaluateQualityGate, CellPayload } from '../../library/quality-gate';
 import {
   InlineParseError, InlineTask, INLINE_SUGGESTION_TYPE, INLINE_SUGGESTION_TYPES,
+  INLINE_TASK_DATA_ASSETS,
   parseCurationDedup, parseDerivationRule, parseKpiLink, parseTaskcellDraft,
   promptCurationDedup, promptDerivationRule, promptKpiLink, promptTaskcellDraft,
   validateFinalPayload,
@@ -56,7 +57,11 @@ export class InlineAssistService {
 
     const res = await this.gateway.complete(
       user,
-      { agent: `inline.${task}`, prompt: built.prompt, context: built.context, promptVersion: 'inline-v1' },
+      {
+        agent: `inline.${task}`, prompt: built.prompt, context: built.context, promptVersion: 'inline-v1',
+        // [Trục D L1 — N2] khai theo TÁC VỤ (bảng thuần ở inline-assist.tasks.ts), không hằng số rải rác
+        dataAssets: INLINE_TASK_DATA_ASSETS[task],
+      },
       `inline.${task}`,
     );
 

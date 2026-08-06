@@ -12,6 +12,7 @@ import request from 'supertest';
 import { createPrismaClient, PrismaClient, uuidv7 } from '@ipms/db';
 import { AppModule } from '../../src/app.module';
 import { getJwtSecret } from '../../src/common/auth/jwt.guard';
+import { registerTestAgent, cleanupTestAgents } from '../helpers/test-agent';
 
 jest.setTimeout(120_000);
 
@@ -50,6 +51,11 @@ describe('Reviewer fixes F159–F168 — trục AI Learning Loop', () => {
   });
 
   afterAll(async () => {
+    // [Trục D L1] Dọn agent dùng một lần. Bản đầu của lát này QUÊN dòng này ở đúng spec
+    // đây — bốn `test.f159.*` nằm lại trong danh bạ sau bốn lượt chạy full suite. Đúng loại
+    // rác mà L1 sinh ra để chấm dứt, nên để sót ở đây thì bản vá tự mâu thuẫn.
+    // Gọi KHÔNG kèm danh sách ⇒ dọn theo tiền tố, gồm cả rác của lượt chạy trước bị cắt.
+    await cleanupTestAgents(owner);
     await app?.close();
     await owner?.$disconnect();
   });
@@ -128,7 +134,8 @@ describe('Reviewer fixes F159–F168 — trục AI Learning Loop', () => {
       .set(as(curator)).send({})).status).toBe(422);
 
     // suite đầy: dùng agent inline giả (không đụng suite thật của dev DB)
-    const fakeAgent = `inline.test.f159-${uniq}`;
+    // [Trục D L1] agent dùng một lần, ĐĂNG KÝ THẬT — N1 chặn agent không có trong danh bạ
+    const fakeAgent = await registerTestAgent(owner, { name: 'f159', uniq });
     const suite = await owner.aiEvalSuite.create({
       data: { id: uuidv7(), tenantId: author.id, agent: fakeAgent, name: 'golden-learned' },
     });

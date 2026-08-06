@@ -1552,10 +1552,17 @@ model AiInteraction {
   costUsd       Decimal? @map("cost_usd") @db.Decimal(10, 6)
   latencyMs     Int?     @map("latency_ms")
   status        String   @default("ok") // ok|error|blocked
+  /// [Trục D L1] Mức phân loại của lượt gọi — KẾT QUẢ SUY DIỄN của gateway (max rank các
+  /// nhóm chạm tới, tra `data_asset`), KHÔNG phải lời khai của người gọi. NULL = lượt gọi
+  /// ghi trước trục D (cố ý không backfill: suy ngược là bịa một con số chưa từng được tính).
+  dataClass     String?  @map("data_class")
+  /// string[] — các `data_asset.code` mà lượt gọi khai chạm tới.
+  dataAssets    Json?    @map("data_assets")
   at            DateTime @default(now()) @db.Timestamptz(6)
 
   @@index([tenantId, at])
   @@index([tenantId, toolName])
+  @@index([tenantId, dataClass])
   @@map("ai_interaction")
 }
 
