@@ -414,21 +414,35 @@ async function main() {
     }
   }
 
-  // 2c. [Trục D L0] Danh bạ agent — bản chuẩn cấp tập đoàn. Idempotent theo `code`; KHÔNG đè
-  // bản đã có (data_steward có thể đã siết trần hoặc bớt quyền), chỉ tạo mới. Cùng khuôn 2a.
+  // 2c. [Trục D L0 · RECONCILE thêm ở L2] Danh bạ agent — bản chuẩn cấp tập đoàn.
+  //
+  // Chú thích cũ ở đây viết "KHÔNG đè bản đã có (data_steward có thể đã siết trần hoặc bớt
+  // quyền), chỉ tạo mới" — và lý do đó SAI với chính hàng này: `data_steward` KHÔNG ghi được
+  // bản chuẩn tập đoàn (`tenantId = null`, RLS chặn app ghi); chỗ họ siết là bản RIÊNG của
+  // đơn vị, và bản riêng không bị khối này chạm tới.
+  //
+  // Hệ quả của lý do sai đó: đổi hiến chương trong mã KHÔNG có tác dụng trên bất kỳ DB nào đã
+  // seed — L2 phát hiện khi sửa hiến chương `mcp` mà 3/6 tool vẫn chết. Đây ĐÚNG mẫu mà khối
+  // 2b ngay bên dưới đã phải vá cho role: "upsert chỉ THÊM, không có bước này thì DB đã seed
+  // trước đó vẫn giữ nguyên god-account và cả trục B chỉ đúng trên máy chạy DB sạch."
+  //
+  // Nay reconcile: bản chuẩn LUÔN khớp mã nguồn. Bản riêng của đơn vị không bị chạm — trigger
+  // `ai_agent_no_loosen` vẫn gác mọi lần đơn vị ghi.
   for (const a of GLOBAL_AI_AGENTS) {
     const existing = await prisma.aiAgent.findFirst({
       where: { tenantId: null, code: a.code, deletedAt: null },
     });
-    if (!existing) {
+    const fields = {
+      nameVi: a.nameVi, nameEn: a.nameEn ?? null, purpose: a.purpose,
+      ownerRole: a.owner, kind: a.kind, maxDataClass: a.maxDataClass,
+      dataAssetCodes: a.assets, permissions: a.permissions,
+      hitlMode: a.hitl, status: a.status, note: a.note ?? null,
+    };
+    if (existing) {
+      await prisma.aiAgent.update({ where: { id: existing.id }, data: fields });
+    } else {
       await prisma.aiAgent.create({
-        data: {
-          id: uuidv7(), tenantId: null, code: a.code,
-          nameVi: a.nameVi, nameEn: a.nameEn ?? null, purpose: a.purpose,
-          ownerRole: a.owner, kind: a.kind, maxDataClass: a.maxDataClass,
-          dataAssetCodes: a.assets, permissions: a.permissions,
-          hitlMode: a.hitl, status: a.status, note: a.note ?? null,
-        },
+        data: { id: uuidv7(), tenantId: null, code: a.code, ...fields },
       });
     }
   }

@@ -294,6 +294,52 @@ export function effectiveImpersonationPermissions(target: Iterable<string>): Set
 }
 
 /**
+ * [Trục D L2 — N4] QUYỀN HỮU HIỆU CỦA AGENT = quyền người gọi ∩ hiến chương agent.
+ *
+ * Trước lát này, agent **mượn trọn quyền người gọi**: `admin@` hỏi Copilot thì Copilot có
+ * mọi quyền của `admin@`. Nghĩa là "hiến chương" trong danh bạ chỉ là chữ — nó mô tả agent
+ * mà không ràng buộc được agent. L2 làm nó có răng.
+ *
+ * GIAO hai tập, không phải hợp, và điều đó cắt theo CẢ HAI chiều — đây là toàn bộ điểm:
+ *   · người gọi quyền rộng + agent hiến chương hẹp ⇒ lấy theo HIẾN CHƯƠNG
+ *     (`admin@` không biến một agent tra Từ điển thành công cụ vạn năng)
+ *   · người gọi quyền hẹp + agent hiến chương rộng ⇒ lấy theo NGƯỜI GỌI
+ *     (agent không phải cửa sau để `emp1@` đọc thứ chính mình không được đọc)
+ *
+ * Khuôn lấy nguyên từ `effectiveImpersonationPermissions` (trục C L2b) và vì cùng một lý do:
+ * hàm này có HAI chỗ dùng phải luôn khớp — cổng gác lúc thực thi, và bề mặt giải thích cho
+ * người dùng *"vì sao tính năng này bị chặn"*. Hai nơi tính khác nhau là kiểu lệch không
+ * test nào bắt trực tiếp; nó chỉ hiện ra dưới dạng "chặn oan" hoặc "cho qua rộng hơn dự tính".
+ */
+export function effectiveAgentPermissions(
+  caller: Iterable<string>, charter: Iterable<string>,
+): Set<string> {
+  const ch = new Set<string>(charter);
+  return new Set([...caller].filter((p) => ch.has(p)));
+}
+
+/**
+ * Những quyền một thao tác ĐÒI mà quyền hữu hiệu KHÔNG có. Rỗng ⇒ cho chạy.
+ *
+ * Trả về danh sách (không phải boolean) để thông điệp chặn nói đúng *thiếu cái gì* — và để
+ * phân biệt được hai nguyên nhân khác hẳn nhau khi giải thích cho người dùng:
+ * thiếu vì **người gọi** không có, hay thiếu vì **hiến chương agent** không cho.
+ */
+export function missingForAgent(
+  required: Iterable<string>, caller: Iterable<string>, charter: Iterable<string>,
+): { missing: string[]; doNguoiGoi: string[]; doHienChuong: string[] } {
+  const callerSet = new Set<string>(caller);
+  const charterSet = new Set<string>(charter);
+  const eff = effectiveAgentPermissions(callerSet, charterSet);
+  const missing = [...new Set(required)].filter((p) => !eff.has(p)).sort();
+  return {
+    missing,
+    doNguoiGoi: missing.filter((p) => !callerSet.has(p)),
+    doHienChuong: missing.filter((p) => callerSet.has(p) && !charterSet.has(p)),
+  };
+}
+
+/**
  * [Trục C L2b — J12① siết lại theo QUYỀN HỮU HIỆU] Những quyền mà actor sẽ NHẬN ĐƯỢC qua
  * phiên đóng vai nhưng CHÍNH ACTOR không có. Rỗng ⇒ không leo thang ⇒ được mở phiên.
  *

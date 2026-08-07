@@ -3,11 +3,16 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { uuidv7, TenantTx } from '@ipms/db';
+import { missingForAgent } from '@ipms/shared';
 import { PrismaService } from '../../../prisma.service';
 import type { RequestUser } from '../../../common/auth/decorators';
 import { AiGatewayService } from '../ai-gateway.service';
+import { AiAgentService, ResolvedAgent } from '../agents/ai-agent.service';
 import { ConfigService } from '../../config/config.service';
 import { LearningService } from '../learning/learning.service';
+
+/** [Trục D L2] Mã agent của cổng MCP trong danh bạ — một hằng, không rải chuỗi. */
+const MCP_AGENT_CODE = 'mcp';
 
 interface ProposeArgs {
   configVersionId?: string;
@@ -47,6 +52,9 @@ export class McpService {
     private gateway: AiGatewayService,
     private config: ConfigService,
     private learning: LearningService, // [F168] mọi quyết định suggestion → tín hiệu học
+    // [Trục D L2] Danh bạ agent — hiến chương của `mcp` là cổng thứ ba, cạnh scope_permission
+    // (registry) và canonical của handler (F55).
+    private agents: AiAgentService,
   ) {}
 
   /** Tool visible cho tenant: global + tenant override (cùng name → tenant thắng). */
@@ -79,15 +87,45 @@ export class McpService {
     // Lớp 2 fail-closed: caller phải giữ scope_permission của registry
     // VÀ [F55] canonical permission của handler (override không hạ được gate)
     const required = new Set([tool.scopePermission, HANDLER_MIN_PERMISSION[name]].filter(Boolean) as string[]);
-    const missing = [...required].filter((p) => !user.permissions.has(p));
+
+    /**
+     * [Trục D L2 — N4] Cổng THỨ BA: quyền HỮU HIỆU = quyền người gọi ∩ hiến chương agent `mcp`.
+     *
+     * Trước lát này agent mượn TRỌN quyền người gọi, nên hiến chương trong danh bạ chỉ là chữ.
+     * Nay `admin@` (quyền rộng nhất) gọi tool qua MCP cũng không vượt được hiến chương của
+     * `mcp`; và chiều ngược lại, hiến chương rộng không giúp `emp1@` làm điều chính `emp1@`
+     * không được làm — vì là phép GIAO, cắt cả hai chiều.
+     *
+     * Ba cổng đứng ĐỘC LẬP, không cái nào thay cái nào: `scope_permission` (registry, tenant
+     * sửa được) · canonical của handler (F55, mã cứng) · hiến chương agent (danh bạ, chủ dữ
+     * liệu quyết). Cái nào HẸP hơn thắng.
+     */
+    const agent = await this.agents.resolve(user.tenantId, MCP_AGENT_CODE);
+    if (agent.status !== 'active') {
+      await this.gateway.logToolCall(user, name, args, { blocked: `agent '${MCP_AGENT_CODE}' ${agent.status}` }, 0, 'blocked');
+      throw new ForbiddenException(
+        `Cổng công cụ MCP đang ở trạng thái '${agent.status}', chưa được phép chạy (N1).`,
+      );
+    }
+    const { missing, doNguoiGoi, doHienChuong } = missingForAgent(
+      required, user.permissions, agent.permissions,
+    );
     if (missing.length > 0) {
-      await this.gateway.logToolCall(user, name, args, { blocked: missing }, 0, 'blocked');
-      throw new ForbiddenException(`Tool '${name}' cần permission '${missing.join("', '")}'`);
+      await this.gateway.logToolCall(user, name, args, { blocked: missing, doHienChuong }, 0, 'blocked');
+      // Nói rõ THIẾU VÌ ĐÂU — hai nguyên nhân khác hẳn nhau và cách xử lý cũng khác: xin
+      // quyền cho người dùng, hay mở rộng hiến chương agent (quyết định của chủ dữ liệu).
+      const veAgent = doHienChuong.length > 0
+        ? ` — trong đó '${doHienChuong.join("', '")}' bạn CÓ nhưng hiến chương của agent '${MCP_AGENT_CODE}' không cho (N4)`
+        : '';
+      const veNguoi = doNguoiGoi.length > 0 ? ` — bạn thiếu '${doNguoiGoi.join("', '")}'` : '';
+      throw new ForbiddenException(
+        `Tool '${name}' cần permission '${missing.join("', '")}'${veNguoi}${veAgent}`,
+      );
     }
 
     const t0 = Date.now();
     try {
-      const result = await this.dispatch(user, name, args);
+      const result = await this.dispatch(user, name, args, agent);
       // Log metadata (không log payload đọc lớn — đã có RLS + audit)
       await this.gateway.logToolCall(
         user, name, args,
@@ -102,7 +140,7 @@ export class McpService {
   }
 
   /** Handler từng tool — read-only qua RLS; propose_* CHỈ tạo ai_suggestion. */
-  private dispatch(user: RequestUser, name: string, args: Record<string, unknown>) {
+  private dispatch(user: RequestUser, name: string, args: Record<string, unknown>, agent: ResolvedAgent) {
     switch (name) {
       case 'ipms.get_org':
         return this.prisma.withTenant(user.tenantId, (tx) =>
@@ -147,9 +185,9 @@ export class McpService {
           }),
         );
       case 'ipms.propose_org_change':
-        return this.propose(user, 'org_change', name, args as ProposeArgs);
+        return this.propose(user, 'org_change', name, args as ProposeArgs, agent);
       case 'ipms.propose_derivation_rule':
-        return this.propose(user, 'derivation_rule', name, args as ProposeArgs);
+        return this.propose(user, 'derivation_rule', name, args as ProposeArgs, agent);
       default:
         // Tool có trong registry nhưng chưa có handler — fail tường minh, không im lặng
         throw new UnprocessableEntityException(`Tool '${name}' chưa có handler phía server`);
@@ -157,9 +195,32 @@ export class McpService {
   }
 
   /** propose_* — human-in-the-loop: KHÔNG chạm dữ liệu nghiệp vụ, chỉ xếp hàng chờ duyệt. */
-  private propose(user: RequestUser, type: string, toolName: string, args: ProposeArgs) {
+  private async propose(
+    user: RequestUser, type: string, toolName: string, args: ProposeArgs, agent: ResolvedAgent,
+  ) {
     if (!args.proposal || typeof args.proposal !== 'object') {
       throw new UnprocessableEntityException('Thiếu proposal (object)');
+    }
+    /**
+     * [Trục D L2 — N8] `hitlMode` cưỡng chế TRONG MÃ, không chỉ là một cột mô tả.
+     *
+     * `read_only` ⇒ không đẻ nổi cả một `ai_suggestion`. Cột này tới nay chỉ được CHECK ở
+     * lược đồ (`hitl_mode ∈ {read_only, propose_only}`) và được trigger giữ khỏi bị nới —
+     * nhưng chưa dòng mã nào ĐỌC nó để quyết định. Một bất biến không ai đọc là một bất biến
+     * không tồn tại; đây là chỗ nó bắt đầu có răng.
+     *
+     * Không có nhánh `write`: lược đồ không có giá trị nào cho phép AI ghi thẳng nghiệp vụ,
+     * nên ở đây cũng không có đường nào dẫn tới ghi thẳng.
+     */
+    if (agent.hitlMode !== 'propose_only') {
+      await this.gateway.logToolCall(
+        user, toolName, args as Record<string, unknown>,
+        { blocked: `hitl=${agent.hitlMode}` }, 0, 'blocked',
+      );
+      throw new ForbiddenException(
+        `Agent '${MCP_AGENT_CODE}' đang ở chế độ '${agent.hitlMode}' — không được phép tạo đề `
+        + 'xuất (N8). Chỉ agent `propose_only` mới sinh được `ai_suggestion`.',
+      );
     }
     return this.prisma.withTenant(user.tenantId, async (tx) => {
       if (args.configVersionId) await this.config.mustGetDraft(tx as TenantTx, args.configVersionId);

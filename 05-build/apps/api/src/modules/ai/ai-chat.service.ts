@@ -1,10 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { uuidv7 } from '@ipms/db';
 import { PrismaService } from '../../prisma.service';
 import type { RequestUser } from '../../common/auth/decorators';
 import { AiGatewayService } from './ai-gateway.service';
 import { LlmStreamChunk } from './llm/llm-client';
 import { dataAssetsFor } from './call-site-data-assets';
+import { AiAgentService } from './agents/ai-agent.service';
+
+/** [Trục D L2] Mã agent của Copilot chat trong danh bạ — một hằng, không rải chuỗi. */
+const COPILOT_AGENT_CODE = 'config_copilot';
 
 /**
  * [P1 Copilot] Phiên hội thoại Copilot — persist ai_conversation/ai_message,
@@ -14,7 +18,15 @@ import { dataAssetsFor } from './call-site-data-assets';
  */
 @Injectable()
 export class AiChatService {
-  constructor(private prisma: PrismaService, private gateway: AiGatewayService) {}
+  // [Trục D L2 — N8] Đề xuất bị BỎ phải nhìn thấy được ở log vận hành, không im lặng.
+  private readonly logger = new Logger(AiChatService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private gateway: AiGatewayService,
+    // [Trục D L2] Hiến chương agent — nguồn duy nhất cho hitlMode ở đường chat.
+    private agents: AiAgentService,
+  ) {}
 
   /** Bộ chọn model (picker) — registry tối thiểu; P2 chuyển sang bảng ai_model config-as-data. */
   listModels() {
@@ -128,6 +140,38 @@ export class AiChatService {
     }
 
     // 3) Tạo ai_suggestion pending (HITL) nếu AI đề xuất thay đổi + persist tin AI (1 tx)
+    /**
+     * [Trục D L2 — N8] Copilot chat CŨNG là một bề mặt HITL: nó đẻ `ai_suggestion`. Lỗ này
+     * tìm được khi viết ca kiểm cho "đường 3" — tôi đã đinh ninh đường này chỉ chuyển tiếp
+     * ngữ cảnh và không có hành vi nào cần gác, rồi chính phép đo bác lại.
+     *
+     * `hitlMode` phải gác ở ĐỦ ba đường đẻ suggestion (MCP · inline · chat), nếu không thì
+     * một đường không gác là đủ vô hiệu hoá bất biến — đúng bài học `POST /ai/chat` của trục C
+     * mà L1 đã phải học một lần cho ba cổng N1/N2/N3.
+     */
+    if (suggestion) {
+      const agentDef = await this.agents.resolve(user.tenantId, COPILOT_AGENT_CODE);
+      if (agentDef.hitlMode !== 'propose_only') {
+        /**
+         * BỎ đề xuất, KHÔNG ném — vá theo soát lớp 1.
+         *
+         * Bản đầu của tôi ném `ForbiddenException` ở đây. Nhưng chỗ này nằm SAU khi đã stream
+         * xong câu trả lời và TRƯỚC khi ghi tin nhắn AI: ném ở đây làm người dùng vừa đọc xong
+         * câu trả lời thì thấy lỗi, **và tin nhắn đó biến mất khỏi lịch sử hội thoại**. Một
+         * bất biến về đề xuất không được phép ăn mất phần sản phẩm đang chạy đúng.
+         *
+         * Câu trả lời là thứ người dùng cần và nó hợp lệ; chỉ phần ĐỀ XUẤT là thứ agent
+         * `read_only` không được sinh. Nên bỏ đúng phần đó, ghi log để người vận hành thấy,
+         * và giữ nguyên phần còn lại.
+         */
+        this.logger.warn(
+          `[N8] Agent '${COPILOT_AGENT_CODE}' ở chế độ '${agentDef.hitlMode}' — đã BỎ một đề `
+          + 'xuất do mô hình sinh ra. Câu trả lời vẫn được giữ.',
+        );
+        suggestion = undefined;
+      }
+    }
+
     await this.prisma.withTenant(user.tenantId, async (tx) => {
       let suggestionId: string | undefined;
       if (suggestion) {

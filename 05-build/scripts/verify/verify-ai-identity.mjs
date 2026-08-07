@@ -144,6 +144,49 @@ async function main() {
     else bad('Checklist chỉ xét agent đăng ký', `ngoài sổ: ${ngoai.slice(0, 5).join(', ')}`);
   } else bad('Đọc được checklist sẵn-sàng-live', `status=${ready.status}`);
 
+  // ═══════════════════ L2 — quyền hữu hiệu của agent ═══════════════════
+  section('L2 — quyền hữu hiệu: agent không mượn trọn quyền người gọi nữa');
+
+  // Hiến chương phải mô tả ĐÚNG thứ đường chạy đòi — nếu không, siết là giết tính năng.
+  const mcpAgent = (list.body?.entries ?? []).find((e) => e.code === 'mcp');
+  if (mcpAgent) {
+    const can = ['org:read', 'kpi:read', 'scorecard:read', 'taskcell:read', 'config:write'];
+    const thieu = can.filter((p) => !(mcpAgent.permissions ?? []).includes(p));
+    if (thieu.length === 0) ok('Hiến chương `mcp` phủ đủ quyền mà tool MCP thật sự đòi');
+    else bad('Hiến chương `mcp` phủ đủ quyền tool đòi', `thiếu: ${thieu.join(', ')} ⇒ tool sẽ chết`);
+  } else bad('Danh bạ có agent `mcp`', 'không thấy');
+
+  // ĐỐI CHỨNG TRƯỚC: tool đọc vẫn chạy cho người có quyền — chứng minh KHÔNG chặn oan.
+  const okTool = await call('/mcp/tools/ipms.get_org/invoke', designer, {
+    method: 'POST', body: JSON.stringify({ args: {} }),
+  });
+  if (okTool.status === 200 || okTool.status === 201) ok('ĐỐI CHỨNG — tool MCP hợp lệ vẫn chạy sau khi bật cổng quyền hữu hiệu');
+  else bad('Tool MCP hợp lệ vẫn chạy', `status=${okTool.status} ${JSON.stringify(okTool.body).slice(0, 120)}`);
+
+  // Người gọi KHÔNG có quyền ⇒ chặn, và thông điệp phải nói rõ thiếu gì.
+  const empTool = await call('/mcp/tools/ipms.get_org/invoke', emp, {
+    method: 'POST', body: JSON.stringify({ args: {} }),
+  });
+  if (empTool.status === 403) ok('Nhân viên thường gọi tool MCP ⇒ 403 (quyền hữu hiệu ⊆ quyền người gọi)');
+  else bad('Nhân viên thường bị chặn ở tool MCP', `status=${empTool.status}`);
+
+  // N8 — hitlMode có răng: mọi agent đang chạy phải là propose_only hoặc read_only,
+  // và KHÔNG giá trị nào cho phép ghi thẳng nghiệp vụ.
+  const hitlLa = new Set((list.body?.entries ?? []).map((e) => e.hitlMode));
+  const ngoaiHai = [...hitlLa].filter((m) => m !== 'read_only' && m !== 'propose_only');
+  if (ngoaiHai.length === 0) ok('N8 — mọi agent chỉ ở `read_only` hoặc `propose_only`, không có chế độ ghi thẳng');
+  else bad('N8 — không có chế độ ghi thẳng', `lạ: ${ngoaiHai.join(', ')}`);
+
+  // Đề xuất từ MCP vẫn vào hàng chờ PENDING (không tự áp) — đối chứng cho N8 chiều dương.
+  const prop = await call('/mcp/tools/ipms.propose_org_change/invoke', designer, {
+    method: 'POST',
+    body: JSON.stringify({ args: { proposal: { nameVi: 'driver L2' }, reason: 'driver kiểm N8' } }),
+  });
+  if ((prop.status === 200 || prop.status === 201) && prop.body?.result?.status === 'pending') {
+    ok('ĐỐI CHỨNG N8 — agent `propose_only` vẫn đẻ được đề xuất PENDING, không tự áp');
+    notes.push(`đề xuất driver tạo: ${prop.body.result.id} (pending, không tự áp — dọn tay nếu cần)`);
+  } else bad('Agent propose_only đẻ được đề xuất pending', `status=${prop.status} ${JSON.stringify(prop.body).slice(0, 120)}`);
+
   // ═══════════════════ tổng kết ═══════════════════
   console.log(`\n\x1b[${fail === 0 ? 32 : 31}m${pass}/${pass + fail}\x1b[0m check`);
   if (notes.length > 0) {

@@ -106,6 +106,30 @@
 
 **BA VÉ PHẢI VÁ TRƯỚC KHI VÀO L2:** **F201** (PII vào bảng không xoá được), **F202** (lệch kế hoạch tường minh — và là thứ Reviewer sẽ đối chiếu đầu tiên), **F203** (N6 không có cổng phát biểu trực tiếp). Mười ba vé MÃ còn lại vá cùng đợt. F217–F219 **chờ chủ dự án**; F220 chờ tôi trình bản sửa kế hoạch.
 
+## Trục D · **L2 XONG — quyền hữu hiệu của agent** · 06/08/2026 · **964/964**
+
+**Hôm nay agent mượn TRỌN quyền người gọi** — nghĩa là hiến chương trong danh bạ chỉ MÔ TẢ agent chứ không RÀNG BUỘC được nó. L2 làm nó có răng: `effectiveAgentPermissions(caller, charter)` ở `@ipms/shared` = phép **GIAO**, cắt **cả hai chiều** (người gọi rộng + hiến chương hẹp ⇒ theo hiến chương; người gọi hẹp + hiến chương rộng ⇒ theo người gọi). Kèm `missingForAgent()` tách **thiếu vì người gọi** khỏi **thiếu vì hiến chương** — hai nguyên nhân, hai cửa xin khác nhau; gộp chung là đẩy người dùng đi sai chỗ.
+
+Áp ba đường: **MCP** (cổng thứ ba, cạnh `scope_permission` và canonical F55 — cái nào hẹp hơn thắng) · **inline** (`library:curate` nay đo trên quyền hữu hiệu) · **chat**. **N8 `hitlMode` có răng ở cả ba**: `read_only` không đẻ nổi `ai_suggestion`. Trước lát này cột đó chỉ có CHECK ở lược đồ và trigger giữ khỏi bị nới — **chưa dòng mã nào ĐỌC nó**.
+
+**🔴 BA PHÁT HIỆN — đều từ việc SIẾT, không từ đọc tài liệu:**
+
+**① Hiến chương L0 viết theo BRD, không theo mã ⇒ siết nguyên trạng là GIẾT TÍNH NĂNG.** Đo: tool MCP đòi `org:read · kpi:read · scorecard:read · taskcell:read · config:write`, hiến chương khai `…· taskdict:read` — **3/6 tool chết ngay** (`get_task_dictionary` + hai `propose_*`), và `taskdict:read` thì **không tool nào dùng**. Tương tự, `inline.curation.dedup` không khai `library:curate` — tức chết đúng **ca dùng chính** (curator soi bản gửi của người khác). Đã sửa hiến chương theo ĐO, ghi rõ **cần B3 xác nhận khi cập nhật BRD**. `config:write` trong hiến chương `mcp` KHÔNG cho ghi nghiệp vụ: `hitl=propose_only` chặn cứng, tool chỉ đẻ đề xuất PENDING.
+
+**② `seed.ts` KHÔNG reconcile hiến chương chuẩn.** Chú thích cũ biện minh *"không đè bản đã có vì data_steward có thể đã siết"* — **sai**: data_steward không ghi được bản chuẩn tập đoàn (RLS chặn), chỗ họ siết là bản riêng của đơn vị. Hệ quả: **sửa hiến chương trong mã không có tác dụng trên bất kỳ DB nào đã seed**. Đúng mẫu mà khối `2b` ngay bên dưới đã phải vá cho role (*"upsert chỉ THÊM… cả trục B chỉ đúng trên máy chạy DB sạch"*). Đã reconcile.
+
+**③ Ca kiểm bắt lời khẳng định sai của CHÍNH TÔI.** Tôi viết *"Copilot chat không đọc dữ liệu phía máy chủ"* kèm assert để chứng minh — test ĐỎ. Đọc lại: nó **đẻ `ai_suggestion`**, tức là một bề mặt HITL mà N8 chưa gác. Nếu tin phán đoán thay vì viết phép đo, lát này đã kết thúc với một đường không gác — đúng bài học `POST /ai/chat` của trục C.
+
+**🔎 SOÁT LỚP 1 (nhịp mới, chạy cuối lát) — ba vé tự bắt, đã vá:** ① inline kiểm `hitl` **SAU** `gateway.complete()` ⇒ agent `read_only` vẫn đẩy dữ liệu qua LLM rồi mới 403; nay kiểm **trước**, không chạy lượt gọi nào ② chat **ném** sau khi đã stream xong ⇒ người dùng đọc xong câu trả lời thì thấy lỗi **và tin nhắn AI biến mất khỏi lịch sử**; nay **BỎ đúng phần đề xuất**, giữ câu trả lời, ghi log — một bất biến về đề xuất không được ăn mất phần sản phẩm đang chạy đúng ③ MCP tra danh bạ **hai lượt** trong một `invoke` (đúng họ F205 vừa vá lát trước) — nay hoist một lượt, truyền xuống `dispatch`/`propose`.
+
+**Ghi nhận thật, không giấu:** kế hoạch đòi "2 chiều × 3 đường = 6 ca". **Copilot chat không đọc bảng NGHIỆP VỤ phía máy chủ** (ngữ cảnh do FE gửi; nó chỉ chạm `aiConversation`/`aiMessage` khoá theo chính người gọi, cộng `aiSuggestion`), nên đường đó **không có hành vi cần quyền để cắt** — chỉ có N8. Viết một ca "chứng minh" cho N4 ở đó sẽ là ca xanh không đo gì. Thay vào đó có ca đóng đinh **chính sự thật đó**: liệt kê đúng ba bảng được chạm, nên ngày nào Copilot đọc bảng nghiệp vụ thì ca đỏ và người sửa biết phải thêm cổng.
+
+**VERIFY L2:** **964/964 (70 suite)** — 315 unit + 649 integration, +10 ca/+1 suite · typecheck 3 gói sạch · API **đã restart** rồi mới đo · **driver trục D 18/18** (thêm 5 ca L2) · **governance 55/55 · verify-admin 30/30 · đội đỏ không tìm thấy lỗ** · chi phí AI thật **= 0**, cờ `ai_gateway_live` vẫn TẮT.
+
+**Việc kế: L3 — đa nhà cung cấp + khung self-host. 📍 DỪNG BÁO CÁO, MỐC DEMO.** Đây là lát **MỞ duy nhất** của trục nên nguy hiểm nhất: nó chạm câu chặn cứng `egress-policy.ts:52`.
+
+---
+
 ### ✅ Đã vá 16 vé nhóm MÃ (F201–F216) · **06/08/2026 · 949/949**
 
 **Ba vé chặn L2 đã đóng.** **F201** — nhánh chặn nay ghi `promptOmitted: 'gate-blocked'` thay cho nội dung; bất biến của `log()` được phát biểu lại cho đúng: *nội dung vào đây HOẶC đã scrub HOẶC không được ghi, không có đường thứ ba*. **F202** — cả **bốn** nhánh (agent lạ · `planned` · thiếu `dataAssets` · ngoài phạm vi) đều để lại `status='blocked'`, đúng dòng 117 kế hoạch; lỗi ghi vết báo qua logger thay vì nuốt, nhưng vẫn không biến một lượt bị-chặn-đúng thành 500. **F203** — N6 nay có cổng phát biểu **trực tiếp**, độc lập với trần agent, cộng CHECK `ai_agent_ceiling_not_restricted_check`: hết chuyện "N6 đúng nhờ chưa ai khai trần đó".

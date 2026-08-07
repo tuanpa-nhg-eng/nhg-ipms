@@ -86,7 +86,12 @@ export const GLOBAL_AI_AGENTS: AiAgentSeed[] = [
     purpose: 'Phát hiện tác vụ và chỉ số trùng nhau, đề xuất gộp',
     owner: 'B1', kind: 'business', maxDataClass: 'internal',
     assets: ['task.dictionary', 'objective.kpi'],
-    permissions: ['taskcell:read', 'taskdict:read', 'kpi:read'],
+    // [Trục D L2 — SỬA theo ĐO, cần B3 xác nhận khi cập nhật BRD] `library:curate` là thứ
+    // tính năng này TỒN TẠI để làm: curator soi bản gửi TRÙNG của người khác. Bản L0 không
+    // khai nó, nên siết L2 nguyên trạng sẽ giết đúng ca dùng chính (curator@ đọc contribution
+    // của tác giả khác) — trong khi tác giả tự soi bản của mình vẫn chạy. Hiến chương phải mô
+    // tả đúng năng lực đường chạy thật sự cần, nếu không nó chỉ là chữ.
+    permissions: ['taskcell:read', 'taskdict:read', 'kpi:read', 'library:curate'],
     hitl: 'propose_only', status: 'active',
   },
   {
@@ -104,10 +109,16 @@ export const GLOBAL_AI_AGENTS: AiAgentSeed[] = [
     purpose: 'Hạ tầng: phục vụ các công cụ đọc + đề xuất theo giao thức MCP cho mọi agent',
     owner: 'B3', kind: 'infrastructure', maxDataClass: 'internal',
     assets: ['objective.kpi', 'task.dictionary'],
-    permissions: ['org:read', 'kpi:read', 'scorecard:read', 'taskdict:read'],
+    permissions: ['org:read', 'kpi:read', 'scorecard:read', 'taskcell:read', 'config:write'],
     hitl: 'propose_only', status: 'active',
     note: 'Hạ tầng, không phải agent nghiệp vụ. Cổng per-tool `mcp_tool.scope_permission` + '
-      + 'min-permission canonical trong mã (F55) vẫn đứng ĐỘC LẬP — hiến chương này là lớp thứ ba.',
+      + 'min-permission canonical trong mã (F55) vẫn đứng ĐỘC LẬP — hiến chương này là lớp thứ ba. '
+      + '[Trục D L2 — SỬA theo ĐO, cần B3 xác nhận khi cập nhật BRD] Bản L0 khai '
+      + '`taskdict:read` nhưng KHÔNG tool nào dùng mã đó, trong khi `ipms.get_task_dictionary` '
+      + 'đòi `taskcell:read` và hai tool `propose_*` đòi `config:write` — cả hai đều thiếu. '
+      + 'Siết L2 nguyên trạng sẽ giết 3/6 tool. Hiến chương phải mô tả ĐÚNG thứ đường chạy '
+      + 'thật sự đòi, nếu không nó chỉ là chữ. `config:write` ở đây KHÔNG cho ghi nghiệp vụ: '
+      + 'hitl=propose_only chặn cứng, tool `propose_*` chỉ đẻ `ai_suggestion` PENDING.',
   },
   {
     code: 'goal.risk_alert', nameVi: 'Trợ lý cảnh báo mục tiêu rủi ro', nameEn: 'Goal Risk Alert Assistant',

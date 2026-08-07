@@ -16,6 +16,8 @@ import {
   validateFinalPayload,
 } from './inline-assist.tasks';
 import { dataAssetsFor } from '../call-site-data-assets';
+import { AiAgentService, ResolvedAgent } from '../agents/ai-agent.service';
+import { effectiveAgentPermissions } from '@ipms/shared';
 
 /** [F149] cap context theo BYTES — đồng bộ MCP args + Copilot context. */
 const MAX_CONTEXT_BYTES = 16_384;
@@ -47,10 +49,35 @@ export class InlineAssistService {
     private gateway: AiGatewayService,
     private config: ConfigService,
     private learning: LearningService,
+    // [Trục D L2] Hiến chương agent — nguồn duy nhất cho quyền hữu hiệu và hitlMode.
+    private agents: AiAgentService,
   ) {}
 
   async assist(user: RequestUser, task: InlineTask, input: Record<string, unknown>, configVersionId?: string) {
-    const built = await this.buildContext(user, task, input);
+    /**
+     * [Trục D L2 — N4/N8] Tra danh bạ MỘT lượt, dùng cho cả hai việc bên dưới: cắt quyền theo
+     * hiến chương (trong `buildContext`) và cưỡng chế `hitlMode` trước khi đẻ suggestion.
+     * Tra một lần ngoài mọi nhánh — không N+1, và không hai nơi tự nhớ hiến chương khác nhau.
+     */
+    const agentDef = await this.agents.resolve(user.tenantId, `inline.${task}`);
+
+    /**
+     * [Trục D L2 — N8, vá theo soát lớp 1] Kiểm hitl **TRƯỚC** khi gọi LLM, không phải sau.
+     *
+     * Bản đầu của tôi đặt kiểm này ngay trước lúc tạo suggestion — tức SAU `gateway.complete()`.
+     * Với agent `read_only` thì lượt gọi LLM vẫn xảy ra (dữ liệu vẫn rời gateway, chi phí vẫn
+     * phát sinh) rồi mới 403. Toàn bộ mục đích của đường inline là đẻ ra đề xuất; agent không
+     * được phép đề xuất thì không có lý do gì để chạy lượt gọi đó cả.
+     */
+    if (agentDef.hitlMode !== 'propose_only') {
+      throw new ForbiddenException(
+        `Agent 'inline.${task}' đang ở chế độ '${agentDef.hitlMode}' — không được phép tạo đề `
+        + 'xuất (N8), nên không chạy lượt gọi nào. Chỉ agent `propose_only` mới sinh được '
+        + '`ai_suggestion`.',
+      );
+    }
+
+    const built = await this.buildContext(user, task, input, agentDef);
     if (Buffer.byteLength(JSON.stringify(built.context), 'utf8') > MAX_CONTEXT_BYTES) {
       throw new UnprocessableEntityException('context tối đa 16KB');
     }
@@ -162,7 +189,9 @@ export class InlineAssistService {
 
   // ===== dựng context per-task (chỉ đọc, tenant-scoped qua RLS) =====
 
-  private async buildContext(user: RequestUser, task: InlineTask, input: Record<string, unknown>): Promise<BuiltContext> {
+  private async buildContext(
+    user: RequestUser, task: InlineTask, input: Record<string, unknown>, agentDef: ResolvedAgent,
+  ): Promise<BuiltContext> {
     switch (task) {
       case 'taskcell.draft': {
         const payload = this.requirePayload(input);
@@ -215,8 +244,20 @@ export class InlineAssistService {
           if (!contrib) throw new NotFoundException('Contribution không tồn tại');
           // [F154] dedup data vốn gate library:curate (author chỉ thấy CỦA MÌNH qua listMine).
           // ai:assist không được thành cửa đọc contribution người khác trong tenant.
-          if (contrib.authorId !== user.claims.sub && !user.permissions.has('library:curate')) {
-            throw new ForbiddenException('curation.dedup cần library:curate (hoặc là tác giả contribution)');
+          //
+          // [Trục D L2 — N4] Đo trên quyền HỮU HIỆU, không trên quyền người gọi: hiến chương
+          // của `inline.curation.dedup` KHÔNG khai `library:curate`, nên kể cả `curator@`
+          // (người CÓ quyền đó) gọi qua agent này cũng chỉ đọc được contribution của chính
+          // mình. Đây đúng là điều hiến chương nói, và trước L2 nó chỉ là chữ.
+          const eff = effectiveAgentPermissions(user.permissions, agentDef.permissions);
+          if (contrib.authorId !== user.claims.sub && !eff.has('library:curate')) {
+            const viHienChuong = user.permissions.has('library:curate');
+            throw new ForbiddenException(
+              'curation.dedup cần library:curate (hoặc là tác giả contribution)'
+              + (viHienChuong
+                ? ` — bạn CÓ quyền đó nhưng hiến chương của agent 'inline.curation.dedup' không khai (N4)`
+                : ''),
+            );
           }
           const candidateId = typeof input.candidateId === 'string' ? input.candidateId : undefined;
           const cand = contrib.dedupCandidates.find((d) =>
