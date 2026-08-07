@@ -37,7 +37,18 @@ export class AuthController implements OnModuleDestroy {
   @Public()
   @Get('health')
   health() {
-    return { status: 'ok', service: 'ipms-api' };
+    return {
+      status: 'ok',
+      service: 'ipms-api',
+      /**
+       * [Demo] Cửa dev-token có đang mở không — để FE biết mà ẩn/hiện bộ chuyển vai.
+       *
+       * Suy từ CÙNG hai điều kiện mà `devToken()` bên dưới dùng, không phải một cờ thứ hai:
+       * hai nơi tự nhớ điều kiện khác nhau là chỗ bộ chuyển vai sẽ hiện ở production trong
+       * khi API đã đóng cửa (hoặc ngược lại) — kiểu lệch không test nào bắt trực tiếp.
+       */
+      devTokenEnabled: process.env.ALLOW_DEV_TOKEN === 'true' && process.env.NODE_ENV !== 'production',
+    };
   }
 
   @Public()

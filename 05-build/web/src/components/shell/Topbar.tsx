@@ -5,6 +5,7 @@ import { Search, Moon, Sun, Languages, Bell, PanelLeftClose, PanelLeftOpen, Sett
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { useSidebar } from "@/components/providers/SidebarProvider";
 import { useI18n } from "@/lib/i18n";
+import { PersonaSwitcher } from "./PersonaSwitcher";
 
 /**
  * [Trục B L5] Menu avatar — CHỈ điểm vào User Settings (không nhét vào sidebar, đúng thiết
@@ -62,6 +63,8 @@ export function Topbar({ crumb }: { crumb: { section: string; page: string } }) 
         {theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
       </button>
       <button className="iconbtn" aria-label="notifications"><Bell size={16} /></button>
+      {/* [Demo] Chỉ hiện khi dev-token đang mở — production tự ẩn. */}
+      <PersonaSwitcher />
       <AvatarMenu />
     </header>
   );

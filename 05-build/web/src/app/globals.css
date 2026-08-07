@@ -252,3 +252,44 @@ body.nhg-impersonating .app { margin-top: 38px; }
 /* [Trục C L4] Khoảng cách giữa các khối trên màn Cờ rủi ro & Sự cố — `Card` không nhận
    prop `style`, nên giãn cách đi bằng lớp tiện ích thay vì inline style. */
 .mt-14 { margin-top: 14px; }
+
+/* ===== [Demo] Bộ chuyển vai — chỉ hiện khi dev-token đang mở ===== */
+.persona-switcher { position: relative; }
+.persona-trigger {
+  display: inline-flex; align-items: center; gap: 6px; width: auto;
+  padding: 0 10px; white-space: nowrap;
+}
+.persona-label { font-size: 12.5px; font-weight: 600; }
+.persona-dropdown {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 60;
+  width: 340px; max-height: 70vh; overflow-y: auto;
+  background: var(--nhg-surface); border: 1px solid var(--nhg-border);
+  border-radius: 10px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16); padding: 6px;
+}
+.persona-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding: 8px 10px 4px; font-weight: 700; font-size: 13px;
+}
+.persona-head span { font-weight: 500; font-size: 10.5px; color: var(--nhg-text-secondary); }
+.persona-note {
+  margin: 0 10px 8px; padding-bottom: 8px; font-size: 11.5px; line-height: 1.5;
+  color: var(--nhg-text-secondary); border-bottom: 1px solid var(--nhg-border);
+}
+.persona-item {
+  display: block; position: relative; width: 100%; text-align: left;
+  padding: 8px 10px; border: 0; border-radius: 8px; background: transparent; cursor: pointer;
+}
+.persona-item:hover:not(:disabled) { background: var(--nhg-surface-hover, rgba(0, 0, 0, 0.04)); }
+.persona-item:disabled { opacity: 0.5; cursor: wait; }
+.persona-item.active { background: var(--nhg-primary-soft, rgba(0, 90, 170, 0.08)); }
+.persona-item-main { display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
+.persona-item-main code { font-size: 11px; color: var(--nhg-text-secondary); }
+.persona-item-desc {
+  display: block; margin-top: 2px; font-size: 11.5px; line-height: 1.45;
+  color: var(--nhg-text-secondary);
+}
+.persona-check { position: absolute; right: 10px; top: 10px; color: var(--nhg-primary, #005aaa); }
+.persona-err {
+  margin: 6px 10px 4px; padding: 6px 8px; border-radius: 6px; font-size: 11.5px;
+  background: rgba(200, 30, 30, 0.08); color: #b42318;
+}
