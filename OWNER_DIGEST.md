@@ -5,6 +5,11 @@
 
 ---
 
+> ## ✅ **CI XANH LẦN ĐẦU TRONG LỊCH SỬ DỰ ÁN — 07/08/2026, run `31163834035`, commit `f0b04b2`**
+> 13/13 bước · 2m20s · **unit 315/315 (27 suite) + integration 649/649 (43 suite)** chạy trên DB dựng từ số không mỗi lượt.
+> Trước đó: **7/7 lượt đỏ** từ 19/07 tới 05/08, chết ở bước 2 sau 42 giây. Vé đã đóng: **F224–F226, F228, F229**.
+> Còn treo, cần chủ dự án: **F227** (12 assertion `audit_log` mong manh) · khớp nối ngầm giữa các suite (F228) · ngữ nghĩa `export_log` cho lượt chưa-rời-hệ (F229).
+
 # 🚦 ĐÁNH GIÁ GO-LIVE TOÀN DỰ ÁN · **07/08/2026**
 
 > Chủ dự án yêu cầu đánh giá lại toàn bộ dự án để go-live. **Kết luận: chưa go-live được — và khoảng cách KHÔNG nằm ở tính năng, nó nằm ở vận hành.** Mục này là ảnh chụp trạng thái chính xác tại 07/08/2026 để tra cứu về sau.
