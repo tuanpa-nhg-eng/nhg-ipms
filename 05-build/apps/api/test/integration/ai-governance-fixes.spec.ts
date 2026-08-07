@@ -25,6 +25,8 @@ describe('Reviewer fixes F159–F168 — trục AI Learning Loop', () => {
   let curator: Ctx;
   let designer: Ctx;
   const uniq = Date.now();
+  // [F213] Mã agent do spec này đúc ra — dọn đúng chừng đó, không quét cả tiền tố.
+  const createdAgents: string[] = [];
 
   beforeAll(async () => {
     owner = createPrismaClient(process.env.OWNER_DATABASE_URL);
@@ -54,8 +56,9 @@ describe('Reviewer fixes F159–F168 — trục AI Learning Loop', () => {
     // [Trục D L1] Dọn agent dùng một lần. Bản đầu của lát này QUÊN dòng này ở đúng spec
     // đây — bốn `test.f159.*` nằm lại trong danh bạ sau bốn lượt chạy full suite. Đúng loại
     // rác mà L1 sinh ra để chấm dứt, nên để sót ở đây thì bản vá tự mâu thuẫn.
-    // Gọi KHÔNG kèm danh sách ⇒ dọn theo tiền tố, gồm cả rác của lượt chạy trước bị cắt.
-    await cleanupTestAgents(owner);
+    // [F213] Dọn ĐÚNG mã của suite này. Bản trước gọi không tham số ⇒ quét mọi `test.*`,
+    // tiện nhưng xoá cả agent của suite khác nếu integration từng chạy song song.
+    await cleanupTestAgents(owner, createdAgents);
     await app?.close();
     await owner?.$disconnect();
   });
@@ -136,6 +139,7 @@ describe('Reviewer fixes F159–F168 — trục AI Learning Loop', () => {
     // suite đầy: dùng agent inline giả (không đụng suite thật của dev DB)
     // [Trục D L1] agent dùng một lần, ĐĂNG KÝ THẬT — N1 chặn agent không có trong danh bạ
     const fakeAgent = await registerTestAgent(owner, { name: 'f159', uniq });
+    createdAgents.push(fakeAgent);
     const suite = await owner.aiEvalSuite.create({
       data: { id: uuidv7(), tenantId: author.id, agent: fakeAgent, name: 'golden-learned' },
     });

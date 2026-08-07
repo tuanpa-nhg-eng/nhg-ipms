@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma.service';
 import type { RequestUser } from '../../common/auth/decorators';
 import { AiGatewayService } from './ai-gateway.service';
 import { LlmStreamChunk } from './llm/llm-client';
+import { dataAssetsFor } from './call-site-data-assets';
 
 /**
  * [P1 Copilot] Phiên hội thoại Copilot — persist ai_conversation/ai_message,
@@ -109,10 +110,10 @@ export class AiChatService {
       {
         agent: 'config_copilot', prompt: message, context: input.context, promptVersion: 'copilot-v1',
         model: input.model, effort: input.effort, // [F147] forward lựa chọn picker cho client thật
-        // [Trục D L1 — N2] Nhóm dữ liệu Copilot chạm tới. Khai TRÙNG hiến chương của
-        // `config_copilot` trong danh bạ — gateway kiểm chéo (khai ngoài phạm vi ⇒ chặn), nên
-        // hai nơi lệch nhau sẽ đỏ chứ không âm thầm nới.
-        dataAssets: ['objective.kpi', 'task.dictionary'],
+        // [F220] Không còn literal ở đây. Cùng một sự thật (agent này chạm nhóm nào) trước
+        // đây khai ở BA nơi mà không nơi nào kiểm chéo nơi nào lúc build — lệch chỉ lộ bằng
+        // 403 trên đường người dùng thật. Nay một bảng, có test đối chiếu ⊆ hiến chương.
+        dataAssets: dataAssetsFor('config_copilot'),
       },
       'copilot.chat',
     )) {

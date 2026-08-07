@@ -77,8 +77,26 @@ async function main() {
   const support = await login('support');
   const emp = await login('emp1');
 
-  const dir = await req('GET', '/admin/users?limit=200', { ...admin });
-  const idOf = new Map((dir.json?.entries ?? []).map((e) => [String(e.email), e.appUserId]));
+  /**
+   * [F223] Bản trước nạp `?limit=200` rồi dựng bản đồ persona từ trang đó. Tiền đề "H.01 có
+   * chừng chục tài khoản" đã hết đúng — **đo được 279 tài khoản**, mỗi lượt chạy full suite
+   * integration để lại thêm người. Persona rơi ra ngoài trang ⇒ `uid()` trả `undefined` ⇒
+   * driver báo "LỖ THẬT" ở một chỗ, trong khi thật ra nó không tạo nổi đơn để mà kiểm.
+   *
+   * Một đội đỏ báo lỗ giả nguy hiểm ngang một đội đỏ bỏ sót lỗ thật: cả hai đều làm người đọc
+   * thôi tin vào phép đo. Nay tra từng persona theo email, khoá theo email chứ không theo vị
+   * trí trong trang.
+   */
+  const PERSONA_CAN = ['emp1', 'hr', 'exec', 'auditor', 'platform', 'steward', 'support'];
+  const idOf = new Map();
+  for (const p of PERSONA_CAN) {
+    const email = `${p}@${DOM}`;
+    const r = await req('GET', `/admin/users?q=${encodeURIComponent(email)}`, { ...admin });
+    const hit = (r.json?.entries ?? []).find((e) => String(e.email) === email);
+    if (hit) idOf.set(email, hit.appUserId);
+  }
+  const thieu = PERSONA_CAN.filter((p) => !idOf.get(`${p}@${DOM}`));
+  if (thieu.length > 0) throw new Error(`không tra được id persona: ${thieu.join(', ')} — driver sẽ đo nhầm, dừng`);
   const uid = (p) => idOf.get(`${p}@${DOM}`);
   const REASON = 'Đội đỏ tự đánh trục C trước khi mời Reviewer đối kháng, kiểm đường vòng';
 

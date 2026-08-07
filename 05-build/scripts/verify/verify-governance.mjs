@@ -409,15 +409,37 @@ async function main() {
 
   /**
    * `/me/access` KHÔNG trả `appUserId` (cố ý — nó là bảng quyền của chính mình, không phải
-   * hồ sơ), nên id để đóng vai lấy từ danh bạ quản trị. `limit` đặt rộng: seed H.01 có ~14
-   * tài khoản, nhưng khoá theo email chứ không theo vị trí trong trang — thêm người vào seed
-   * sau này không được làm driver đo nhầm người.
+   * hồ sơ), nên id để đóng vai lấy từ danh bạ quản trị.
+   *
+   * [F223] Bản trước nạp `?limit=200` rồi dựng bản đồ từ trang đó, kèm chú thích "seed H.01
+   * có ~14 tài khoản". Tiền đề ấy hết đúng: **đo được 279 tài khoản trong H.01** — mỗi lượt
+   * chạy full suite integration để lại thêm người. `support@` rơi ra ngoài trang ⇒ `uid()`
+   * trả `undefined` ⇒ SÁU ca phía dưới gửi `undefined` và nhận 400 `must be a UUID`. Driver
+   * báo "lỗ" ở sáu chỗ, trong khi sự thật là nó **đo nhầm đối tượng** ở một chỗ.
+   *
+   * Đây đúng họ lỗi đã lặp trong dự án — "trang đầu / `total` là số dòng của trang" — và
+   * chính file này đã vá nó ở `findUser()` (tìm theo `?q=`), nhưng chỉ ở đó. Nay tra từng
+   * persona theo email, khoá theo email chứ không theo vị trí trong trang.
    */
-  const dir = await req('GET', '/admin/users?limit=200', { ...admin });
-  const idOf = new Map((dir.json?.entries ?? []).map((e) => [String(e.email), e.appUserId]));
+  // Mọi persona mà `uid()` được gọi ở BẤT KỲ đâu trong file — không chỉ các persona của ca
+  // kiểm ngay bên dưới. Thiếu một mã ở đây thì ca dùng nó gửi `undefined` và nhận 400
+  // "must be a UUID", tức báo LỖ ở một chỗ hoàn toàn khác với chỗ thật sự hỏng.
+  const PERSONA_CAN = ['emp1', 'mgr', 'hr', 'exec', 'auditor', 'support', 'orgadmin', 'platform', 'steward'];
+  const idOf = new Map();
+  for (const p of PERSONA_CAN) {
+    const email = `${p}@${DOM}`;
+    const r = await req('GET', `/admin/users?q=${encodeURIComponent(email)}`, { ...admin });
+    const hit = (r.json?.entries ?? []).find((e) => String(e.email) === email);
+    if (hit) idOf.set(email, hit.appUserId);
+  }
   const uid = (prefix) => idOf.get(`${prefix}@${DOM}`);
+  // Ca kiểm ngay dưới đã báo persona thiếu, nhưng nó KHÔNG dừng driver — nên các ca sau vẫn
+  // chạy với `undefined` và đỏ vì một lý do sai. Ca kiểm giữ nguyên (nó nói đúng chỗ hỏng);
+  // dòng này chỉ chặn hiệu ứng lan.
+  const thieuId = PERSONA_CAN.filter((p) => !uid(p));
+  if (thieuId.length > 0) throw new Error(`không tra được id persona: ${thieuId.join(', ')} — driver sẽ đo nhầm, dừng`);
   await check('Danh bạ quản trị tra được id của mọi persona driver cần', () => {
-    const missing = ['emp1', 'mgr', 'hr', 'exec', 'auditor', 'support', 'orgadmin'].filter((p) => !uid(p));
+    const missing = PERSONA_CAN.filter((p) => !uid(p));
     return missing.length === 0 ? true : `thiếu id: ${missing.join(', ')}`;
   });
 

@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, UnprocessableEntityException } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, UnprocessableEntityException } from '@nestjs/common';
 import { DataClassification, dataClassRank } from '@ipms/shared';
 import { PrismaService } from '../../prisma.service';
 import { DataCatalogService } from '../datacatalog/datacatalog.service';
@@ -32,6 +32,9 @@ import { costForUsage } from './economics/economics.util';
 @Injectable()
 export class AiGatewayService {
   private mock: LlmClient = new MockLlmClient();
+
+  // [F202] Lỗi khi GHI VẾT chặn phải nhìn thấy được — nuốt im lặng là mất vết mà không ai biết.
+  private readonly logger = new Logger(AiGatewayService.name);
 
   constructor(
     private prisma: PrismaService, private pii: PiiScrubService,
@@ -93,60 +96,134 @@ export class AiGatewayService {
   ): Promise<{ dataClass: DataClassification; assets: string[] }> {
     // ── N1: agent phải TỒN TẠI và đang `active` trong danh bạ ────────────────────────────
     // `resolve()` ném 404 nếu chưa đăng ký (fail-closed, không mặc định về agent chung chung).
-    const agent = await this.agents.resolve(user.tenantId, req.agent);
+    // [F202] Bắt để GHI VẾT rồi ném lại — không đổi hành vi chặn, chỉ thôi im lặng.
+    let agent;
+    try {
+      agent = await this.agents.resolve(user.tenantId, req.agent);
+    } catch (e) {
+      await this.logGateBlocked(user, req, toolName, `N1: ${(e as Error).message}`);
+      throw e;
+    }
     if (agent.status !== 'active') {
-      throw new UnprocessableEntityException(
-        `ai-gateway [N1]: agent '${req.agent}' đang ở trạng thái '${agent.status}', chưa được `
+      const reason = `N1: agent '${req.agent}' đang ở trạng thái '${agent.status}', chưa được `
         + 'phép chạy. Bật một agent là quyết định của chủ dữ liệu (aiagent:write), không phải '
-        + 'hệ quả của việc có người gọi nó.',
-      );
+        + 'hệ quả của việc có người gọi nó.';
+      await this.logGateBlocked(user, req, toolName, reason);
+      throw new UnprocessableEntityException(`ai-gateway [${reason}`);
     }
 
     // ── N2: mức phân loại SUY RA từ sổ đăng ký, KHÔNG do người gọi khai ──────────────────
-    const assets = Array.isArray(req.dataAssets) ? req.dataAssets.filter((a) => typeof a === 'string') : [];
+    const raw: unknown[] = Array.isArray(req.dataAssets) ? req.dataAssets : [];
+    // [F207] Phần tử dị dạng ⇒ CHẶN, không cắt gọt rồi chạy tiếp. Cắt gọt im lặng ở cổng gác
+    // là fail-open có điều kiện: `[{code:'hr.profile'}, 'objective.kpi']` sẽ suy mức chỉ từ
+    // phần sống sót và cho đi. [F216] Chuỗi rỗng/toàn khoảng trắng tính là dị dạng — nếu để
+    // nó đi tiếp thì cùng một lỗi khai mã trả về hai loại lỗi khác nhau tuỳ hình dạng chuỗi.
+    const malformed = raw.filter((a) => typeof a !== 'string' || a.trim().length === 0);
+    if (malformed.length > 0) {
+      const reason = `N2: \`dataAssets\` của agent '${req.agent}' có ${malformed.length} phần tử `
+        + 'không phải mã hợp lệ (phải là chuỗi không rỗng). Cổng gác KHÔNG cắt gọt đầu vào — '
+        + 'khai sai thì sửa chỗ khai, không để hệ thống đoán phần còn lại.';
+      await this.logGateBlocked(user, req, toolName, reason);
+      throw new UnprocessableEntityException(`ai-gateway [${reason}`);
+    }
+    // [F204] Dedup TRƯỚC mọi việc còn lại. Trùng lặp qua được kiểm hiến chương (mọi bản sao
+    // đều hợp lệ), nên không dedup ở đây nghĩa là người gọi quyết định được số lượt tra sổ.
+    // Sau dedup, độ dài bị chặn bởi chính hiến chương agent — không cần trần rời thứ hai.
+    const assets = [...new Set(raw as string[])];
     if (assets.length === 0) {
       // Đây là dòng thay cho `?? 'internal'` cũ. Trước đây quên khai = mức CHO PHÉP ĐI; nay
       // quên khai = CHẶN. Không có chế độ cảnh báo-rồi-cho-qua (cùng ngữ nghĩa K2 của trục C).
-      throw new UnprocessableEntityException(
-        `ai-gateway [N2]: lượt gọi agent '${req.agent}' không khai nhóm dữ liệu nào `
+      const reason = `N2: lượt gọi agent '${req.agent}' không khai nhóm dữ liệu nào `
         + '(`dataAssets`). Mức phân loại phải SUY RA từ sổ đăng ký dữ liệu, không do người gọi '
-        + 'tự khai — không khai được thì không chạy (fail-closed).',
-      );
+        + 'tự khai — không khai được thì không chạy (fail-closed).';
+      await this.logGateBlocked(user, req, toolName, reason);
+      throw new UnprocessableEntityException(`ai-gateway [${reason}`);
     }
 
     // ── N3': phạm vi — nhóm khai phải nằm TRONG hiến chương của agent ────────────────────
     const outOfCharter = assets.filter((a) => !agent.dataAssetCodes.includes(a));
     if (outOfCharter.length > 0) {
-      throw new ForbiddenException(
-        `ai-gateway [N3]: agent '${req.agent}' không được phép chạm nhóm dữ liệu `
+      const reason = `N3: agent '${req.agent}' không được phép chạm nhóm dữ liệu `
         + `${outOfCharter.join(', ')} — ngoài phạm vi trong danh bạ `
-        + `(${agent.dataAssetCodes.join(', ') || 'rỗng'}).`,
-      );
+        + `(${agent.dataAssetCodes.join(', ') || 'rỗng'}).`;
+      await this.logGateBlocked(user, req, toolName, reason);
+      throw new ForbiddenException(`ai-gateway [${reason}`);
     }
 
-    // Mức của lượt gọi = MAX rank của các nhóm chạm tới. Mã chưa đăng ký ⇒ `resolve()` của sổ
-    // ném 404 — và đó là điều đúng: một đường dữ liệu chưa đăng ký phải bị chặn và bị phát
-    // hiện, không được im lặng chảy qua.
+    // Mức của lượt gọi = MAX rank của các nhóm chạm tới. [F205] Tra sổ MỘT LƯỢT cho cả danh
+    // sách (trước đây một `withTenant` cho mỗi mã — N+1 ngay trong cổng gác, ngược đúng bài
+    // học F171 mà `eval.service` áp trong cùng commit). Mã chưa đăng ký ⇒ `resolveMany()` ném
+    // và nêu ĐỦ các mã thiếu: một đường dữ liệu chưa đăng ký phải bị chặn và bị phát hiện.
     let dataClass: DataClassification = 'public';
-    for (const code of assets) {
-      const asset = await this.catalog.resolve(user.tenantId, code);
-      if (dataClassRank(asset.classification) > dataClassRank(dataClass)) dataClass = asset.classification;
+    try {
+      const classes = await this.catalog.resolveMany(user.tenantId, assets);
+      for (const cls of classes.values()) {
+        if (dataClassRank(cls) > dataClassRank(dataClass)) dataClass = cls;
+      }
+    } catch (e) {
+      await this.logGateBlocked(user, req, toolName, `N2: ${(e as Error).message}`);
+      throw e;
+    }
+
+    // ── N6: `restricted` KHÔNG BAO GIỜ là mức của một lượt gọi AI ─────────────────────────
+    // [F203] Cổng phát biểu N6 TRỰC TIẾP, và đứng ĐỘC LẬP với trần agent. Trước bản vá này,
+    // N6 chỉ đúng NHỜ một sự tình cờ: không agent nào trong danh bạ khai trần `restricted`.
+    // Nhưng `ai_agent_max_data_class_check` CHO PHÉP giá trị đó, trong khi
+    // `ai_interaction_no_restricted_check` lại CẤM ghi nó — hai DDL nói ngược nhau, và cây
+    // cầu duy nhất là một unit test trên dữ liệu seed. Một agent trần `restricted` sẽ qua
+    // được kiểm trần bên dưới (rank bằng nhau), chạy tới mock, RỒI mới nổ ở CHECK lúc ghi
+    // sổ ⇒ 500 sau khi việc đã xảy ra, thay vì 403 trước khi nó xảy ra. Nay chặn tại đây.
+    if (dataClass === 'restricted') {
+      const reason = `N6: lượt gọi agent '${req.agent}' chạm dữ liệu mức 'restricted' `
+        + `(${assets.join(', ')}). Dữ liệu 'restricted' không tới BẤT KỲ nhà cung cấp nào, kể `
+        + 'cả self-host, kể cả mock, kể cả khi trần của agent đủ cao — không có ngoại lệ.';
+      // CỐ Ý không truyền `dataClass`: `ai_interaction_no_restricted_check` cấm ghi giá trị
+      // đó, và đúng như vậy — cột ghi mức của một lượt gọi ĐÃ CHẠY. Lý do đã nêu đủ trong
+      // `reason`, nên vết vẫn tra được mà không phải nới một CHECK đang giữ N6.
+      await this.logGateBlocked(user, req, toolName, reason);
+      throw new ForbiddenException(`ai-gateway [${reason}`);
     }
 
     // ── N3: TRẦN của agent ───────────────────────────────────────────────────────────────
     if (dataClassRank(dataClass) > dataClassRank(agent.maxDataClass)) {
-      await this.log(user, req, toolName, {
-        model: 'blocked', output: { blocked: true, reason: 'vượt trần agent' },
-        latencyMs: 0, status: 'blocked', dataClass,
-      }).catch(() => undefined);
-      throw new ForbiddenException(
-        `ai-gateway [N3]: agent '${req.agent}' có trần '${agent.maxDataClass}' nhưng lượt gọi `
+      const reason = `N3: agent '${req.agent}' có trần '${agent.maxDataClass}' nhưng lượt gọi `
         + `chạm dữ liệu mức '${dataClass}' (${assets.join(', ')}). Trần là thuộc tính của AGENT, `
-        + 'không phải của phiên gọi — người gọi có đủ quyền cũng không nới được.',
-      );
+        + 'không phải của phiên gọi — người gọi có đủ quyền cũng không nới được.';
+      await this.logGateBlocked(user, req, toolName, reason, dataClass);
+      throw new ForbiddenException(`ai-gateway [${reason}`);
     }
 
     return { dataClass, assets };
+  }
+
+  /**
+   * [F202] Vết của MỘT nhánh chặn ở ba cổng. Kế hoạch trục D §Lát-1 yêu cầu tường minh:
+   * *"⇒ 422, không gọi client, ghi `ai_interaction` `status='blocked'` kèm lý do đọc được"*.
+   * Bản đầu của L1 chỉ ghi cho nhánh vượt-trần; ba nhánh còn lại (agent lạ · agent `planned`
+   * · ngoài phạm vi) ném câm ⇒ dò mã agent là hành vi không để lại dấu.
+   *
+   * ⚠️ [F201] KHÔNG ghi `prompt`/`context`. Ba cổng chạy TRƯỚC `pii.scrubRequest` có chủ đích
+   * (một lượt gọi của agent không tồn tại thì không có lý do gì đi xa hơn), nên đây là đường
+   * log DUY NHẤT không đi qua scrub — bản đầu truyền thẳng `req` THÔ vào `log()`, tức ghi
+   * prompt chưa khử PII vào một bảng append-only mà trigger chặn cả UPDATE lẫn DELETE. Nhánh
+   * này lại kích hoạt đúng lúc lượt gọi chạm dữ liệu trên trần agent — đường rò trùng với dữ
+   * liệu nhạy cảm nhất. Vết của một lượt BỊ CHẶN cần danh tính + lý do, không cần nội dung.
+   *
+   * Lỗi ghi vết KHÔNG được nuốt im lặng (mất vết mà không ai biết) và cũng KHÔNG được biến
+   * một lượt bị-chặn-đúng thành 500 — nên: báo qua logger, rồi vẫn ném lỗi chặn gốc.
+   */
+  private async logGateBlocked(
+    user: RequestUser, req: LlmRequest, toolName: string | undefined,
+    reason: string, dataClass?: DataClassification,
+  ): Promise<void> {
+    await this.log(user, req, toolName, {
+      model: 'blocked', output: { blocked: true, reason },
+      latencyMs: 0, status: 'blocked', dataClass, omitPrompt: true,
+    }).catch((e: unknown) => {
+      this.logger.error(
+        `[F202] không ghi được vết chặn cho agent '${req.agent}': ${(e as Error).message}`,
+      );
+    });
   }
 
   /** Flag tenant override thắng global; không có row nào ⇒ OFF (fail-closed). */
@@ -316,18 +393,26 @@ export class AiGatewayService {
     r: { model: string; output: unknown; tokensIn?: number; tokensOut?: number;
          costUsd?: number; latencyMs: number; status: string; piiCounts?: Partial<Record<PiiKind, number>>;
          /** [Trục D L1] mức ĐÃ SUY RA từ sổ đăng ký — không phải lời khai của người gọi. */
-         dataClass?: DataClassification },
+         dataClass?: DataClassification;
+         /** [F201] Không ghi nội dung — dùng cho nhánh chặn chạy TRƯỚC scrub. */
+         omitPrompt?: boolean },
   ) {
-    // [F59] req đến đây LUÔN LÀ BẢN ĐÃ SCRUB (complete()/stream() truyền scrubbedReq) —
-    // audit log không bao giờ giữ PII gốc. piiScrubbed = số lượng theo loại, minh bạch
-    // cho dashboard governance mà KHÔNG lộ giá trị thật.
+    // [F59 + F201] Bất biến ĐÚNG của hàm này, sau khi bản đầu của trục D L1 phá nó:
+    // nội dung vào đây HOẶC là bản đã scrub (complete()/stream() truyền `scrubbedReq`),
+    // HOẶC không được ghi (`omitPrompt` — ba cổng N1/N2/N3 chạy TRƯỚC scrub). Không có
+    // đường thứ ba. Bản đầu chỉ khẳng định vế thứ nhất, trong khi một caller mới đã đi vào
+    // bằng `req` thô — đúng họ F191: chú thích khẳng định được đọc như bằng chứng ở lần sửa
+    // sau. piiScrubbed = số lượng theo loại, minh bạch cho dashboard mà KHÔNG lộ giá trị.
     const piiScrubbed = r.piiCounts && Object.keys(r.piiCounts).length > 0 ? r.piiCounts : undefined;
+    const input = r.omitPrompt
+      ? { promptOmitted: 'gate-blocked', piiScrubbed }
+      : { prompt: req.prompt, context: req.context ?? null, piiScrubbed };
     return this.prisma.withTenant(user.tenantId, (tx) =>
       tx.aiInteraction.create({
         data: {
           tenantId: user.tenantId, actorUserId: user.claims.sub, agent: req.agent,
           toolName, model: r.model, promptVersion: req.promptVersion,
-          input: { prompt: req.prompt, context: req.context ?? null, piiScrubbed } as any,
+          input: input as any,
           output: (r.output ?? undefined) as any,
           tokensIn: r.tokensIn, tokensOut: r.tokensOut, costUsd: r.costUsd,
           latencyMs: r.latencyMs, status: r.status,

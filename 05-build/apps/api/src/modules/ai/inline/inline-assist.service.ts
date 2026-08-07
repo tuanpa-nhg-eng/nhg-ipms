@@ -11,11 +11,11 @@ import { ConfigService } from '../../config/config.service';
 import { evaluateQualityGate, CellPayload } from '../../library/quality-gate';
 import {
   InlineParseError, InlineTask, INLINE_SUGGESTION_TYPE, INLINE_SUGGESTION_TYPES,
-  INLINE_TASK_DATA_ASSETS,
   parseCurationDedup, parseDerivationRule, parseKpiLink, parseTaskcellDraft,
   promptCurationDedup, promptDerivationRule, promptKpiLink, promptTaskcellDraft,
   validateFinalPayload,
 } from './inline-assist.tasks';
+import { dataAssetsFor } from '../call-site-data-assets';
 
 /** [F149] cap context theo BYTES — đồng bộ MCP args + Copilot context. */
 const MAX_CONTEXT_BYTES = 16_384;
@@ -59,8 +59,9 @@ export class InlineAssistService {
       user,
       {
         agent: `inline.${task}`, prompt: built.prompt, context: built.context, promptVersion: 'inline-v1',
-        // [Trục D L1 — N2] khai theo TÁC VỤ (bảng thuần ở inline-assist.tasks.ts), không hằng số rải rác
-        dataAssets: INLINE_TASK_DATA_ASSETS[task],
+        // [F220] Một bảng khai theo mã agent, dùng chung với Copilot chat — và có test đối
+        // chiếu ⊆ hiến chương trong danh bạ lúc build, không đợi 403 lúc chạy.
+        dataAssets: dataAssetsFor(`inline.${task}`),
       },
       `inline.${task}`,
     );

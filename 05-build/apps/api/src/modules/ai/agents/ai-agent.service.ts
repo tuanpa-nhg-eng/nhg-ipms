@@ -96,7 +96,11 @@ export class AiAgentService {
       purpose: row.purpose,
       ownerRole: row.ownerRole,
       kind: row.kind,
-      maxDataClass: cls ?? (normalizeDataClass(row.maxDataClass) ?? 'restricted'),
+      // [F203 — cùng họ] Giá trị dự phòng phải là mức THẤP NHẤT, không phải cao nhất. Với một
+      // TRẦN, `restricted` là giá trị DỄ DÃI NHẤT (cho qua mọi mức), nên đặt nó làm dự phòng
+      // là fail-OPEN đội lốt fail-closed. Đường gọi của cổng gác không tới đây (`resolve()`
+      // ném trước khi shape được gọi mà thiếu `cls`), nhưng để nguyên là để sẵn một cái bẫy.
+      maxDataClass: cls ?? (normalizeDataClass(row.maxDataClass) ?? 'public'),
       dataAssetCodes: toStringArray(row.dataAssetCodes),
       permissions: toStringArray(row.permissions),
       hitlMode: row.hitlMode,
@@ -155,6 +159,16 @@ export class AiAgentService {
       if (gCls !== null && dataClassRank(nCls) > dataClassRank(gCls)) {
         throw new UnprocessableEntityException(
           `'${code}': đơn vị không được NÂNG trần phân loại (chuẩn='${gCls}', đặt='${nCls}')`,
+        );
+      }
+      // [F203] `restricted` không bao giờ là trần hợp lệ của một agent — N6 nói dữ liệu mức đó
+      // không tới BẤT KỲ nhà cung cấp nào, nên một agent được phép chạm nó là một câu vô nghĩa.
+      // Kiểm ở đây để trả 422 đọc được; CHECK `ai_agent_ceiling_not_restricted_check` giữ ở DB
+      // để không đường ghi nào lách được. Cùng khuôn "kiểm hai lần" của năm chiều bên dưới.
+      if (nCls === 'restricted') {
+        throw new UnprocessableEntityException(
+          `'${code}': không agent nào được đặt trần 'restricted' — dữ liệu mức đó không tới bất `
+          + 'kỳ nhà cung cấp nào, kể cả self-host (N6). Trần cao nhất hợp lệ là confidential.',
         );
       }
       // ② quyền ⊆ chuẩn

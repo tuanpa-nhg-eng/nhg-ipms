@@ -188,16 +188,63 @@ async function main() {
 
   const LY_DO = 'Driver kiem chung truc B — phien doc-thoi tu dong';
 
-  await check('J12① — admin@ KHÔNG đóng vai được người giữ quyền mình không có (emp1: goal:write…)',
+  /**
+   * [F222 — vé Reviewer 06/08] Ca này TRƯỚC ĐÂY đòi `admin@` KHÔNG đóng vai được `emp1@`.
+   *
+   * Phát biểu đó đã hết đúng từ **trục C L2b (`d607c4a`, 31/07)**, khi chủ dự án chốt hướng
+   * **siết lại phát biểu J12① thay vì nới nó**: so actor với **quyền HỮU HIỆU** của phiên
+   * (= quyền target ∩ whitelist chỉ-đọc), không với toàn bộ quyền target. Lý do ghi trong
+   * digest L2b: thứ actor thực sự nhận được khi mở phiên đúng bằng phần giao đó — đòi actor
+   * giữ sẵn thứ nó không bao giờ nhận được không mua thêm an toàn nào, chỉ mua một tính năng
+   * chết. Digest L2b nói thẳng hệ quả: *"sau khi sửa, `admin@` đóng vai lại được `emp1@`/`hr@`"*.
+   *
+   * Driver thì không được cập nhật, và **không lát nào của trục C hay D chạy lại nó** — nên
+   * nó báo "LỌT" suốt sáu ngày cho một hành vi đã được duyệt. Một driver báo lỗ GIẢ nguy hiểm
+   * ngang một driver bỏ sót lỗ THẬT: cả hai đều làm người đọc thôi tin vào phép đo.
+   *
+   * ⚠️ Nhánh CHẶN của J12① không có ca sống nào hôm nay: chỉ `tenant_admin` và `support` giữ
+   * `user:impersonate`, mà **cả hai đều phủ trọn whitelist chỉ-đọc** ⇒ `impersonationEscalation`
+   * luôn rỗng. Đo được bằng chính driver này: admin@ mở được phiên với emp1/mgr/hr/exec/support,
+   * chỉ auditor@ bị chặn (và bị chặn bởi **J12②**, không phải J12①). Nhánh chặn được phủ ở
+   * `test/integration/impersonation.spec.ts:152`, nơi **dựng riêng một người dùng** giữ quyền
+   * đọc mà admin@ không có — đúng chỗ để kiểm một luật chưa có persona thật nào chạm tới.
+   */
+  await check('J12① [L2b] — admin@ ĐÓNG VAI ĐƯỢC emp1@ (quyền hữu hiệu ⊆ quyền admin) — không chặn oan',
     async () => {
       const r = await req('POST', '/admin/impersonation',
         { ...admin, body: { targetUserId: empUser.appUserId, reason: LY_DO } });
-      if (r.status === 200 || r.status === 201) {
-        await req('DELETE', '/admin/impersonation/current',
-          { token: r.json?.access_token ?? r.json?.token, tenantId: T });
-        return 'LỌT — đóng vai được người giữ quyền cao hơn mình (leo thang qua impersonation)';
+      if (r.status !== 200 && r.status !== 201) {
+        return `CHẶN OAN — L2b đã chốt admin@ đóng vai được emp1@, nhận ${r.status} ${JSON.stringify(r.json).slice(0, 140)}`;
       }
-      return is(r, 403);
+      await req('DELETE', '/admin/impersonation/current',
+        { token: r.json?.access_token ?? r.json?.token, tenantId: T });
+      return true;
+    });
+
+  await check('J12① [nhánh chặn] — không persona seed nào kích hoạt được, đúng như L2b dự báo',
+    async () => {
+      /**
+       * Ca ĐO GIỚI HẠN, không phải ca kiểm bảo mật: nó khẳng định rằng phép đo bằng persona
+       * seed KHÔNG chứng minh được nhánh chặn của J12①, để người sau không tưởng driver đã
+       * phủ. Nếu ngày nào đó ca này đỏ (một persona seed bỗng bị chặn bởi J12①), nghĩa là
+       * catalog quyền đã đổi và nhánh chặn đã có ca sống — lúc đó đưa nó lên thành ca thật.
+       */
+      const msgOf = (r) => String(r.json?.error?.message ?? r.json?.message ?? '');
+      const chanBoiJ12mot = [];
+      for (const [ten, u] of [['emp1', empUser], ['admin(chính mình)', null]]) {
+        if (!u) continue;
+        const r = await req('POST', '/admin/impersonation',
+          { ...admin, body: { targetUserId: u.appUserId, reason: LY_DO } });
+        if (r.status === 200 || r.status === 201) {
+          await req('DELETE', '/admin/impersonation/current',
+            { token: r.json?.access_token ?? r.json?.token, tenantId: T });
+        } else if (msgOf(r).includes('J12①')) {
+          chanBoiJ12mot.push(`${ten}: ${msgOf(r)}`);
+        }
+      }
+      return chanBoiJ12mot.length === 0
+        ? true
+        : `một persona seed nay BỊ J12① chặn (${chanBoiJ12mot.join(' · ')}) — nhánh chặn đã có ca sống, nâng thành ca kiểm thật`;
     });
 
   await check('F187 + J3 — admin@ KHÔNG đóng vai được `auditor` ⇒ không có đường đọc vết kiểm toán',

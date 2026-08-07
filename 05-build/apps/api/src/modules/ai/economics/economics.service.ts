@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma.service';
 import type { RequestUser } from '../../../common/auth/decorators';
 import { buildProjections, callsPerMonth, dedupeModelPrices, percentile } from './economics.util';
@@ -53,10 +53,56 @@ export class EconomicsService {
      * sản phẩm, theo đúng định nghĩa mà N1 vừa cưỡng chế ở gateway. Bộ lọc không còn phải
      * đoán tên nữa, và mọi agent test tương lai tự động nằm ngoài mà không ai phải nhớ gì.
      */
+    /**
+     * [F217 — chủ dự án chốt 06/08] HAI CON SỐ, HAI CÂU HỎI KHÁC NHAU.
+     *
+     * Bản trước lọc `deletedAt: null`, nên **xoá mềm một agent làm chi phí lịch sử của nó biến
+     * khỏi báo cáo 30 ngày** — một thao tác quản trị viết lại quá khứ theo chiều giảm, trên dữ
+     * liệu vốn append-only. Cùng họ "số trông-như-thật" mà L1 vừa vá, chỉ đổi chiều: trước là
+     * agent bịa cộng thêm, sau là xoá mềm trừ bớt.
+     *
+     *   · **"Đã chi thật"** — mọi agent TỪNG đăng ký, kể cả đã xoá mềm / `retired`. Số này chỉ
+     *     có thể tăng theo thời gian; không thao tác quản trị nào bẻ nó xuống được.
+     *   · **"Run-rate"** — chỉ agent ĐANG hoạt động. Đây mới là số dùng để chiếu chi phí tương
+     *     lai, nên agent đã ngừng dùng không được kéo nó lệch.
+     *
+     * Gộp hai thứ này làm một là chỗ mà mọi cách trả lời đều sai với một trong hai câu hỏi.
+     */
     const registered = await this.prisma.withTenant(user.tenantId, (tx) =>
-      tx.aiAgent.findMany({ where: { deletedAt: null }, select: { code: true } }),
+      tx.aiAgent.findMany({ select: { code: true, status: true, deletedAt: true, tenantId: true } }),
     );
-    const agentCodes = [...new Set(registered.map((a) => a.code))];
+    // Bản của đơn vị thắng bản chuẩn — cùng luật với `AiAgentService.resolve()`. Không tự nhớ
+    // luật này lần thứ hai bằng cách khác, vì hai nơi hiểu khác nhau là kiểu lệch không test
+    // nào bắt trực tiếp.
+    const hieuLuc = new Map<string, { status: string; deletedAt: Date | null }>();
+    for (const r of registered) {
+      const cur = hieuLuc.get(r.code);
+      if (!cur || r.tenantId !== null) hieuLuc.set(r.code, { status: r.status, deletedAt: r.deletedAt });
+    }
+    const agentCodes = [...hieuLuc.keys()];
+    const dangHoatDong = new Set(
+      [...hieuLuc.entries()].filter(([, v]) => v.deletedAt === null && v.status === 'active').map(([c]) => c),
+    );
+    const trangThaiSo = (code: string): string => {
+      const r = hieuLuc.get(code);
+      if (!r) return 'khong_trong_danh_ba';
+      return r.deletedAt !== null ? 'da_xoa_mem' : r.status;
+    };
+    /**
+     * [F206] Danh bạ rỗng ⇒ `agent: { in: [] }` khớp 0 dòng ⇒ báo cáo trả **$0.00**.
+     *
+     * Con số đó không phân biệt được với "không có chi tiêu", trong khi sự thật là "không đo
+     * được". Đây đúng là thứ [khong-bia-so.md] cấm — và nguy hiểm hơn ở CHÍNH báo cáo này,
+     * vì nó là con số chủ dự án dùng để quyết có bật `ai_gateway_live` hay không. Thà nói rõ
+     * thiếu gì còn hơn một số 0 trông-như-thật.
+     */
+    if (agentCodes.length === 0) {
+      throw new UnprocessableEntityException(
+        'Không đo được chi phí AI: danh bạ agent (`ai_agent`) rỗng cho đơn vị này. Báo cáo lọc '
+        + 'theo danh bạ, nên danh bạ rỗng cho ra $0.00 giả — chạy `pnpm db:seed` để nạp danh bạ '
+        + 'chuẩn tập đoàn rồi xem lại. (Số 0 ở đây nghĩa là KHÔNG BIẾT, không phải không tốn.)',
+      );
+    }
     const { rows: rawRows, prices } = await this.prisma.withTenant(user.tenantId, async (tx) => ({
       rows: await tx.aiInteraction.findMany({
         // [F163 — vá lần hai, tự bắt khi chạy L3] Lọc traffic eval NGAY TRONG TRUY VẤN, không
@@ -125,8 +171,14 @@ export class EconomicsService {
       const avgIn = Math.round(avg(tokensIn));
       const avgOut = Math.round(avg(tokensOut));
       const cpm = callsPerMonth(list.length, WINDOW_DAYS);
+      // [F217] Agent đã ngừng dùng vẫn giữ nguyên phần "đã chi", nhưng KHÔNG chiếu tương lai:
+      // mảng rỗng thay vì con số "dự kiến/tháng nếu live" cho một agent sẽ không chạy nữa.
+      // Giữ kiểu mảng (không phải null) để hợp đồng với FE không đổi hình.
+      const trongRunRate = dangHoatDong.has(agent);
       return {
         agent,
+        registryStatus: trangThaiSo(agent),
+        countsTowardRunRate: trongRunRate,
         calls: list.length,
         errors: list.length - ok.length,
         models: [...new Set(list.map((r) => r.model).filter(Boolean))].sort(),
@@ -140,7 +192,7 @@ export class EconomicsService {
         latencyMs: { p50: percentile(latencies, 50), p95: percentile(latencies, 95) },
         callsPerMonth: cpm,
         // Projection nếu bật live — sensitivity ×0.5/×1/×2 (PRD §16)
-        projections: buildProjections(avgIn, avgOut, cpm, priceRows),
+        projections: trongRunRate ? buildProjections(avgIn, avgOut, cpm, priceRows) : [],
       };
     });
 
@@ -148,8 +200,15 @@ export class EconomicsService {
       windowDays: WINDOW_DAYS,
       sampled: rows.length === SAMPLE_CAP,
       estimated: true,
-      basis: 'token = heuristic mock (~4 ký tự/token, gồm context) · giá = niêm yết Anthropic (as-of theo ai_model_price) · ĐÃ LOẠI traffic eval replay (F163) · KHÔNG phải hóa đơn thật',
+      basis: 'token = heuristic mock (~4 ký tự/token, gồm context) · giá = niêm yết Anthropic (as-of theo ai_model_price) · ĐÃ LOẠI traffic eval replay (F163) · KHÔNG phải hóa đơn thật'
+        + ' · [F217] "đã chi" gồm MỌI agent từng đăng ký (kể cả đã xoá mềm/retired) — không thao tác quản trị nào bẻ số này xuống được; "run-rate" chỉ gồm agent đang hoạt động',
+      /** [F217] Đã chi thật — mọi agent TỪNG đăng ký. Chỉ tăng theo thời gian. */
       totalActualCostUsd: Number(rows.reduce((s, r) => s + Number(r.costUsd ?? 0), 0).toFixed(6)),
+      /** [F217] Cơ sở chiếu tương lai — chỉ agent đang hoạt động. */
+      totalRunRateCostUsd: Number(
+        rows.filter((r) => dangHoatDong.has(r.agent))
+          .reduce((s, r) => s + Number(r.costUsd ?? 0), 0).toFixed(6),
+      ),
       agents,
     };
   }

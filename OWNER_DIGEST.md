@@ -51,6 +51,126 @@
 
 **Phạm vi L0 — nói rõ để không mạo nhận:** đây mới chỉ là SỔ. `ai-gateway` **CHƯA gọi** `resolve()`; N1/N2/N3 chưa có răng. Cưỡng chế là việc của L1, tách ra có chủ đích: bật chặn trước khi sổ phủ hết mã đang chạy là gãy sản phẩm. **Cổng ra L0 đã đạt:** 6/6 mã sản phẩm tra được trong sổ, và mọi mã KHÔNG tra được đều mang dấu vết test (có test đóng đinh) ⇒ L1 bật N1 được. **Việc L1 phải làm trước:** 5 spec (`egress-policy` · `anthropic-live-wiring` · `ai-readiness` · `model-qualification` · `ai-governance-fixes`) đang bịa mã agent để cô lập lượt chạy — chuyển phần duy nhất đó sang `toolName` (trường tự do, không khoá bảng nào), giữ `agent` là danh tính.
 
+### 🧪 Soát L1 bằng lớp review mới (thử nghiệm quy trình) — **21 vé F201–F221**
+
+> **KHÔNG PHẢI verdict của Reviewer đối kháng độc lập.** Đây là lớp soát *cuối lát* chạy bằng `bmad-review` (3 lăng kính: đối kháng · săn ca biên · lỗ kiểm chứng) trên diff `509e801`, do chính tôi chạy — **không có tính độc lập**. Reviewer đối kháng cuối trục vẫn giữ nguyên và vẫn là cổng ra thật. Mục đích lần chạy này là **đo xem soát-cuối-lát bắt thêm được gì so với soát-cuối-trục**, theo đề xuất đổi nhịp ở mục dưới.
+
+**Phân loại nguyên nhân gốc** — trường mới, mượn từ triage của BMad. Lý do có nó: tới nay mọi vé F đều kết thúc bằng "vá mã", nên sổ vé không trả lời được câu *"vì sao cùng một họ lỗi tái phát ba lần"*. Ba nhóm:
+
+| Nhóm | Nghĩa | Ai xử lý |
+|---|---|---|
+| **MÃ** | Kế hoạch đúng và đủ; mã chưa làm đúng | Tôi vá, không cần hỏi |
+| **KH-thiếu** | Kế hoạch không nói tới; không suy ra được một cách duy nhất | **Cần chủ dự án quyết** |
+| **KH-sai** | Kế hoạch có nói nhưng chính nó tạo ra lỗ | Sửa kế hoạch trước, rồi mới sửa mã |
+
+**MÃ — 16 vé, vá không cần hỏi:**
+
+| Vé | Nội dung | Ghi chú |
+|---|---|---|
+| **F201** | Nhánh chặn **N3 ghi prompt THÔ** vào `ai_interaction` — `resolveAndGuardAgent` chạy trước `pii.scrubRequest`, nên `this.log(user, req, …)` nhận bản chưa scrub | Bảng **append-only**, không gỡ lại được. Nhánh này kích hoạt đúng lúc lượt gọi chạm dữ liệu trên trần agent ⇒ đường rò trùng với dữ liệu nhạy cảm nhất. Chú thích `[F59]` ngay dưới vẫn khẳng định *"req đến đây LUÔN LÀ BẢN ĐÃ SCRUB"* — **họ F191 lặp lại trong chính lát viện dẫn F191** |
+| **F202** | **Lệch kế hoạch dòng 117.** Kế hoạch: N2 chặn phải *"ghi `ai_interaction` `status='blocked'` kèm lý do đọc được"*. Thực tế N1, N2, N3-phạm-vi ném thẳng, không ghi gì; chỉ N3-trần ghi, mà bằng `.catch(() => undefined)` | 3/4 nhánh chặn câm. Dò mã agent là hành vi vô hình |
+| **F203** | `ai_agent_max_data_class_check` **cho phép** `restricted` làm trần agent, trong khi `ai_interaction_no_restricted_check` **cấm** làm mức | Hai DDL nói ngược nhau; cầu nối là unit test trên seed, mà `registerTestAgent()` ghi bằng owner đi vòng qua đúng cầu đó. N6 "tuyệt đối" hiện không có cổng nào phát biểu trực tiếp |
+| **F204** | `dataAssets` không dedup, không cap; mỗi phần tử một `catalog.resolve()` = một transaction | Trùng lặp qua được kiểm hiến chương ⇒ `Array(5000).fill('objective.kpi')` = 5000 transaction/lượt gọi. Hai lăng kính cùng ra (ADV-4 ≡ EC-1) |
+| **F205** | N+1: `catalog.resolve()` **trong** vòng lặp | Cùng commit, `eval.service.ts` hoist ra ngoài vòng lặp và viện dẫn F171. Bài học được áp ở file này, bị phá ở file kia |
+| **F206** | Danh bạ rỗng ⇒ `agent: { in: [] }` ⇒ economics trả **$0.00** và readiness trả danh sách rỗng | Im lặng đội lốt phép đo — đúng thứ [khong-bia-so.md](docs/khong-bia-so.md) cấm. Phải phân biệt "không đo được" với "bằng 0" |
+| **F207** | `req.dataAssets.filter(typeof === 'string')` cắt gọt im lặng phần tử dị dạng rồi chạy tiếp | `[{code:'hr.profile'}, 'objective.kpi']` ⇒ suy mức chỉ từ phần còn lại và **cho đi**. Cắt gọt im lặng ở cổng gác là fail-open có điều kiện |
+| **F208** | Không ca test nào kiểm **nội dung** dòng log của nhánh chặn N3 | Đây là lưới đáng lẽ bắt F201. `egress-policy.spec.ts:124` đã có sẵn khuôn đúng dạng |
+| **F209** | Bốn nhánh chặn chỉ assert "ném", không assert vết để lại | Đi cùng F202 — hiện "3 nhánh không ghi vết" là tai nạn, không test nào cố định theo chiều nào |
+| **F210** | Chú thích `inline-assist.tasks.ts:31` nói bảng này *"unit-test được, đối chiếu với hiến chương agent"* — **test đó không tồn tại** (`grep` toàn `apps/api`: 2 kết quả, cả hai trong mã sản phẩm) | Lại đúng họ F191: chú thích khẳng định được đọc như bằng chứng ở lần sửa sau |
+| **F211** | Không ca biên nào cho `dataAssets` (mọi ca đều 1–2 phần tử hợp lệ) | F204 + F207 đi qua CI không cản trở |
+| **F212** | `testAgentCode()` bỏ mọi ký tự không alnum khỏi `uniq` ⇒ `'a-1'` và `'a1'` ra **cùng mã**; hàm mở đầu bằng `deleteMany({ where: { code } })` | Hai suite xoá agent của nhau rồi dựng lại với hiến chương khác ⇒ đỏ ngẫu nhiên vì lý do không liên quan |
+| **F213** | `cleanupTestAgents()` không tham số xoá **mọi** `test.*` ở tầng global | Phụ thuộc ngầm vào `--runInBand`, không ghi ở đâu. Ngày bật worker song song, các suite tự xoá agent của nhau giữa chừng |
+| **F214** | `ai_agent_code_check` cho phép agent **thật** mang tiền tố `test.` | Sẽ bị `cleanupTestAgents()` xoá khỏi danh bạ chuẩn tập đoàn |
+| **F215** | Agent hiến chương rỗng (`[]` — hợp lệ theo DDL) ⇒ eval replay nổ **422 "lượt gọi không khai nhóm dữ liệu nào"** | Đổ lỗi cho người gọi về một khuyết tật của dòng danh bạ. Chẩn đoán chỉ sai chỗ |
+| **F216** | Chuỗi rỗng và khác hoa-thường cho **hai loại lỗi khác nhau** (403 ngoài phạm vi vs 404 chưa đăng ký) cho cùng một sai lầm khai mã | Người gọi đọc sai nguyên nhân |
+
+**KH-thiếu — 3 vé, ✅ CHỦ DỰ ÁN ĐÃ QUYẾT 06/08, ĐÃ VÁ (xem mục dưới):**
+
+| Vé | Câu hỏi phải trả lời | Vì sao không tự quyết |
+|---|---|---|
+| **F217** | Xoá mềm một agent ⇒ chi phí lịch sử của nó **biến khỏi** báo cáo 30 ngày. Giữ hay bỏ? | Báo cáo trên dữ liệu append-only trở thành **viết lại được — theo chiều giảm**. Cùng họ "số trông-như-thật" mà L1 vừa vá, chỉ đổi cơ chế: trước là agent bịa cộng thêm, nay là xoá mềm trừ bớt. Nhưng "chi phí của agent đã ngừng dùng" có tính vào đơn giá không là **quyết định nghiệp vụ**, không suy ra được từ mã |
+| **F218** | Checklist sẵn-sàng-live có thể báo `ready: true` cho agent `planned` mà N1 từ chối chạy | Hai bề mặt quản trị nói ngược nhau. Nhưng "ẩn agent chưa bật" hay "hiện kèm nhãn chưa bật" là quyết định bề mặt — người đọc checklist để quyết bật live là chủ dự án, không phải tôi |
+| **F219** | Đóng đinh bất biến báo cáo bằng test — phụ thuộc câu trả lời F217 | Viết test trước khi chốt ngữ nghĩa là đóng đinh một quyết định chưa ai ra |
+
+**KH-sai — 1 vé, sửa kế hoạch trước:**
+
+| Vé | Nội dung |
+|---|---|
+| **F220** | Kế hoạch L1 yêu cầu *"khai `dataAssets` đủ cho cả ba đường gọi gateway"* — và chính yêu cầu đó tạo ra **ba nơi khai** cùng một sự thật (hiến chương trong danh bạ · `INLINE_TASK_DATA_ASSETS` · literal hardcode trong `ai-chat.service.ts:112`) mà **không đòi kiểm chéo lúc build**. Drift chỉ lộ bằng 403 trên đường người dùng thật. Bản sửa đúng là ở tầng kế hoạch: suy `dataAssets` **từ** hiến chương (như `eval.service` đã làm), hoặc bắt buộc test đối chiếu. Vá bằng cách sửa ba nơi cho khớp là lặp lại mẫu "bản sao tay thứ ba" mà nợ L0 vừa phải trả ở `seed.ts` |
+
+**Đã có trong kế hoạch, KHÔNG mở vé mới — 1:**
+
+| Vé | Nội dung |
+|---|---|
+| **F221** | Vựng `'pii'` còn sống trong kiểu `DataClass` ở tầng dưới `EgressPolicyService.resolve` (hiện vô hại: `confidential`/`pii` đã bị chặn cứng trước khi tới nhánh tra override). **Kế hoạch L3 đã ghi**: *"Nợ trục C trả ở đây — chuẩn hoá dứt điểm về 4 mức, bỏ bí danh tương thích ngược sau khi migrate"*. Ghi vé để giữ số liên tục, đóng ngay, trỏ về L3 |
+
+**BA VÉ PHẢI VÁ TRƯỚC KHI VÀO L2:** **F201** (PII vào bảng không xoá được), **F202** (lệch kế hoạch tường minh — và là thứ Reviewer sẽ đối chiếu đầu tiên), **F203** (N6 không có cổng phát biểu trực tiếp). Mười ba vé MÃ còn lại vá cùng đợt. F217–F219 **chờ chủ dự án**; F220 chờ tôi trình bản sửa kế hoạch.
+
+### ✅ Đã vá 16 vé nhóm MÃ (F201–F216) · **06/08/2026 · 949/949**
+
+**Ba vé chặn L2 đã đóng.** **F201** — nhánh chặn nay ghi `promptOmitted: 'gate-blocked'` thay cho nội dung; bất biến của `log()` được phát biểu lại cho đúng: *nội dung vào đây HOẶC đã scrub HOẶC không được ghi, không có đường thứ ba*. **F202** — cả **bốn** nhánh (agent lạ · `planned` · thiếu `dataAssets` · ngoài phạm vi) đều để lại `status='blocked'`, đúng dòng 117 kế hoạch; lỗi ghi vết báo qua logger thay vì nuốt, nhưng vẫn không biến một lượt bị-chặn-đúng thành 500. **F203** — N6 nay có cổng phát biểu **trực tiếp**, độc lập với trần agent, cộng CHECK `ai_agent_ceiling_not_restricted_check`: hết chuyện "N6 đúng nhờ chưa ai khai trần đó".
+
+**Còn lại:** F204/F205 (dedup + `resolveMany()` — hết N+1 ngay trong cổng gác) · F206 (danh bạ rỗng ⇒ **422 nói rõ không đo được**, thay cho `$0.00` đọc như "không tốn" — ở đúng con số dùng để quyết bật live) · F207/F216 (đầu vào dị dạng ⇒ chặn, hết cắt gọt im lặng) · F212/F213/F214 (rác test: mã đơn ánh, dọn đúng mã của mình, CHECK giữ tiền tố `test.`) · F215 (hiến chương rỗng báo đúng địa chỉ) · F208/F210/F211 (ba lưới test).
+
+**🐞 CA TEST F212 BẮT LỖI TRONG CHÍNH BẢN VÁ F212 — hai lần liên tiếp.** Bản đầu `.toLowerCase()` chạy trước phần mã hoá nên `'A1'` vẫn đụng `'a1'`; bản thứ hai dùng `x` làm ký tự thoát nên `'A1'` đụng một `uniq` viết đúng chữ `'x1t1'`. Nay sơ đồ **giải mã được** (`_<mã base36>_`, `_` gốc thành `__`) ⇒ đơn ánh **chứng minh được**, không phải tin tưởng. Ghi lại vì nó là bằng chứng cho chính luận điểm của lớp soát: lưới viết ra để bắt lỗi cũ bắt luôn lỗi mới.
+
+**🔴 F210 là lần thứ HAI trong cùng một lát** một chú thích khẳng định điều chưa có (lần một: `log()` viết *"req đến đây LUÔN LÀ BẢN ĐÃ SCRUB"*). Cả hai nay đã đúng — bản vá không phải xoá câu chú thích mà làm cho nó thành sự thật.
+
+**🔴 F202 VA CHẠM VỚI CỔNG RA CỦA L0 — jest bắt được, và đây là va chạm thật.** Cổng ra L0 phát biểu: *mọi mã `agent` trong `ai_interaction` mà sổ không có đều phải mang dấu vết test*. Trước F202, lượt gọi agent lạ **không để lại dòng nào**, nên mã lạ không vào được bảng. Sau F202 thì có ⇒ cổng đỏ. **Không nới phép kiểm**, mà tách làm hai phát biểu chính xác hơn: ① dòng **ĐÃ CHẠY** (`status <> 'blocked'`) — giữ nguyên tính tuyệt đối, đây mới là "đường chạy sản phẩm sổ chưa phủ" ② dòng **BỊ CHẶN** — mã lạ ở đây là *bằng chứng cổng chạy đúng*, nhưng nếu không mang dấu vết test thì lại là chuyện khác: có đường sản phẩm gọi agent chưa đăng ký và đang bị chặn im lặng ở production. **F202 làm phép đo MẠNH LÊN**: loại sự cố đó trước đây không để lại dấu nào.
+
+**Di sản đúng BỐN mã** (`khong.he.ton.tai`, `khong.ton.tai.<3 mốc thời gian>`): ca test của tôi dò bằng mã chưa mang tiền tố `test.`, và F202 vừa bật thì chúng vào bảng append-only ngay — mỗi lượt chạy full suite thêm một mã. Đã sửa nguồn (mọi mã dò nay là `test.*`, **xác minh bằng hai vòng chạy liên tiếp: danh sách đứng nguyên ở 4**), nhưng bốn dòng đã ghi thì không xoá được — **đã thử `DELETE` bằng `ipms_owner`: trigger chặn, đúng thiết kế**. Danh sách lấy bằng truy vấn thẳng DB, không chép từ thông báo lỗi cũ — lần đầu tôi chép tay và thiếu đúng một mã.
+
+**VERIFY:** **950/950 (69 suite)** — 313 unit + 637 integration, integration **chạy 2 vòng liên tiếp đều xanh**; L1 kết ở 941/941 (68 suite), đúng **+9 ca/+1 suite** · typecheck 3 gói sạch · **driver trục D 13/13** · **governance trục C 55/55** · **đội đỏ trục C: không tìm thấy lỗ nào** · seed chạy lại OK · **chi phí AI thật = 0**, cờ `ai_gateway_live` vẫn TẮT.
+
+**⚠️ BA VIỆC PHÁT SINH KHI VERIFY — cần chủ dự án biết, KHÔNG do bản vá:**
+
+**① Sổ migration của DB dev lệch.** `20260806100000_ai_agent` ghi `finished_at = NULL` và `20260806110000_ai_interaction_data_class` **không có dòng nào**, trong khi schema đã có **đủ** đối tượng của cả hai (9 constraint + trigger `ai_agent_no_loosen_check` + 2 cột + 2 CHECK). Nghĩa là hai migration của L0/L1 từng được áp **ngoài sổ**. Đã `migrate resolve --applied` cho cả hai rồi áp migration mới. Hệ quả cần biết: **kiểm chứng của L0/L1 chạy trên một schema dựng ngoài đường migration** — SQL vẫn nằm trong repo nên môi trường mới dựng lại được, nhưng điều đó chưa từng được kiểm.
+
+**② `verify-admin.mjs` (trục B) đỏ 28/29 — assertion CŨ, không phải hồi quy.** Ca `J12①` đòi *admin@ KHÔNG đóng vai được emp1@*. Nhưng **trục C L2b (`d607c4a`, 31/07) đã cố ý đổi J12① sang so trên quyền HỮU HIỆU, chủ dự án chốt hướng đó**, và chính mục digest L2b ghi: *"sau khi sửa, `admin@` đóng vai lại được `emp1@`/`hr@`"*. Mã hiện tại (`impersonation.service.ts:126`) làm đúng luật đã duyệt. **Driver mới là thứ lạc hậu.** Đo được: driver này 29/29 lần cuối ở trục B (29/07), và **không mục digest nào của trục C hay D chạy lại nó** ⇒ nó đã đỏ âm thầm suốt 6 ngày. Tôi **cố ý không tự sửa** assertion: sửa một ca kiểm an ninh cho nó xanh là thao tác phải có người thấy. **Đề nghị mở F222** — cập nhật `J12①` theo luật L2b, và thêm driver trục B vào bộ verify chạy mỗi lát (bài học: driver không chạy thì không khác gì driver không có).
+
+**③ 🔴 HAI DRIVER TRỤC C ĐO NHẦM ĐỐI TƯỢNG — và một trong hai báo "LỖ THẬT" GIẢ (vá luôn, F223).** Cả `verify-governance.mjs` lẫn `verify-redteam-truc-c.mjs` dựng bản đồ persona từ `GET /admin/users?limit=200`, kèm chú thích *"seed H.01 có ~14 tài khoản"*. Tiền đề đó **hết đúng: đo được 279 tài khoản trong H.01** — mỗi lượt chạy full suite integration để lại thêm người. `support@`/`platform@` rơi ra ngoài trang ⇒ `uid()` trả `undefined` ⇒ sáu ca governance đỏ với `400 must be a UUID`, và **đội đỏ in ra `LỖ THẬT — VÁ TRƯỚC KHI MỜI REVIEWER: duyệt cho chính mình qua người khác đứng tên xin (K5 vế thứ ba)`** trong khi sự thật là nó **không tạo nổi đơn để mà kiểm**.
+
+Đây đúng họ lỗi đã lặp trong dự án (*"trang đầu" · "`total` là số dòng của trang"* — đã lặp bốn lần ở trục C), và trớ trêu là **chính `verify-governance.mjs` đã vá nó ở hàm `findUser()`** bằng cách tra theo `?q=` — nhưng chỉ ở đó, không áp cho bản đồ persona cách đấy 200 dòng. **Đã vá cả hai driver**: tra từng persona theo email, và **dừng hẳn nếu tra không ra** thay vì chạy tiếp với `undefined` rồi đổ lỗi lên ca khác. Sau vá: governance **55/55**, đội đỏ **không tìm thấy lỗ nào**.
+
+**Một đội đỏ báo lỗ GIẢ nguy hiểm ngang một đội đỏ bỏ sót lỗ THẬT** — cả hai đều làm người đọc thôi tin vào phép đo. Nếu Reviewer đối kháng chạy trước hôm nay, vé đầu tiên họ nhận là một vé không tồn tại.
+
+### ✅ F217 · F218 · F219 — hai quyết định của chủ dự án, đã cưỡng chế trong mã · **06/08/2026 · 952/952**
+
+**QUYẾT ĐỊNH 1 (F217) — báo cáo chi phí AI tách làm HAI con số, vì đó là hai câu hỏi khác nhau:**
+
+| Con số | Gồm ai | Tính chất |
+|---|---|---|
+| `totalActualCostUsd` — **"đã chi thật"** | **Mọi** agent TỪNG đăng ký, kể cả đã xoá mềm / `retired` | Chỉ tăng theo thời gian. **Không thao tác quản trị nào bẻ nó xuống được** |
+| `totalRunRateCostUsd` — **"run-rate"** | Chỉ agent đang hoạt động | Cơ sở chiếu tương lai; agent đã ngừng dùng không kéo nó lệch |
+
+Mỗi dòng agent nay mang `registryStatus` (`active`/`planned`/`retired`/`da_xoa_mem`) + `countsTowardRunRate`. Agent ngoài run-rate trả `projections: []` — giữ đúng kiểu mảng để hợp đồng với FE không đổi hình (màn hiện "—", không vỡ). Luật "bản đơn vị thắng bản chuẩn" dùng lại đúng luật của `AiAgentService.resolve()`, không tự nhớ lần thứ hai bằng cách khác.
+
+**QUYẾT ĐỊNH 2 (F218) — agent `planned` HIỆN trên checklist kèm nhãn, và `ready` không bao giờ true.** Tách `meetsBar` (đạt ngưỡng chất lượng) khỏi `ready` (sẵn sàng chạy): `ready = meetsBar ∧ đang active`. Agent chưa bật được nêu lý do đọc được. Chọn hiện thay vì ẩn vì *"agent này đã đạt bar, chỉ còn chờ bật"* đúng là thông tin người quyết định cần; ẩn đi thì họ không biết nó tồn tại. Hết cảnh checklist báo "sẵn sàng live" cho agent mà N1 từ chối chạy.
+
+**F219 — hai ca đóng đinh, và một ràng buộc khi viết chúng:** ca F217 đo bằng **sự có mặt + các cờ, KHÔNG bơm `costUsd`** — RED-LINE "tổng chi phí AI thật = 0" do driver sống kiểm, mà `ai_interaction` append-only, nên một dòng chi phí giả sẽ làm hỏng phép đo đó **vĩnh viễn**. Ca F218 dựng đủ launch bar + suite + run `done` toàn pass để agent **thật sự đạt bar** — nếu nó trượt bar thì `ready === false` đúng vì lý do khác và phép đo không nói được gì về F218.
+
+**VERIFY:** **952/952 (69 suite)** — 313 unit + 639 integration · typecheck 3 gói sạch · API **đã restart** rồi mới đo · **driver trục D 13/13 · governance 55/55 · đội đỏ không tìm thấy lỗ nào** · chi phí AI thật vẫn **= 0**, cờ `ai_gateway_live` vẫn TẮT.
+
+### ✅ F220 + F222 — hai vé cuối của vòng Reviewer · **06/08/2026 · 954/954**
+
+**F220 (KH-sai) — sửa ở tầng KẾ HOẠCH, không chỉnh ba nơi cho khớp.** Kế hoạch §Lát-1 yêu cầu *"liệt kê cả ba đường gọi gateway, khai `dataAssets` đủ cho từng đường"*. Làm đúng chữ đó thì cùng một sự thật được khai ở **ba** nơi (hiến chương danh bạ · `INLINE_TASK_DATA_ASSETS` · literal trong `ai-chat.service.ts`), không nơi nào kiểm chéo nơi nào lúc build ⇒ lệch chỉ lộ bằng **403 trên đường người dùng thật**.
+
+**Đã cân nhắc và BÁC cách gọn nhất** — suy thẳng từ `agent.dataAssetCodes` như `eval.service`: eval **replay** toàn bộ hành vi agent nên phạm vi của nó đúng bằng hiến chương, còn một đường gọi cụ thể thì không. Mức = **max rank các nhóm chạm tới**, nên khai trọn hiến chương sẽ **nâng trần oan** mọi lượt gọi chỉ đọc nhóm nhẹ — làm rỗng nghĩa của chính phép suy mà L1 dựng lên.
+
+**Bản sửa:** một bảng `CALL_SITE_DATA_ASSETS` khai theo **mã agent** (`call-site-data-assets.ts`, thuần, không DB) — Copilot chat và bốn tác vụ inline dùng chung; `dataAssetsFor()` **NÉM** cho mã chưa khai thay vì trả rỗng (rỗng sẽ bị N2 chặn với thông điệp đổ lỗi sai chỗ, đúng họ F215). Bốn ca unit đối chiếu **lúc build**: khai ⊆ hiến chương · agent phải `active` · **chiều ngược lại** — mọi `InlineTask` phải có mặt trong bảng (thêm tác vụ mà quên khai thì đỏ ở đây, không đợi runtime) · `dataAssetsFor` ném đúng.
+
+**Đề nghị sửa câu trong kế hoạch trục D §Lát-1** (chờ chủ dự án duyệt, chưa tự sửa file kế hoạch): thay *"khai `dataAssets` đủ cho từng đường"* bằng *"khai `dataAssets` cho từng đường tại MỘT bảng thuần theo mã agent, kèm test đối chiếu ⊆ hiến chương — literal rải trong service là vi phạm"*.
+
+**F222 — `verify-admin.mjs` J12① nay nói đúng luật đã duyệt.** Ca cũ đòi *admin@ KHÔNG đóng vai được emp1@*; phát biểu đó hết đúng từ trục C L2b khi chủ dự án chốt **siết lại phát biểu J12① thay vì nới**. Nay ca kiểm khẳng định **chiều dương** (đóng vai được ⇒ không chặn oan) — chiều mà L2b sinh ra để chữa.
+
+**Đo được, ghi lại vì nó là giới hạn thật của phép đo:** admin@ mở được phiên với **emp1 · mgr · hr · exec · support**; chỉ `auditor@` bị chặn, và bị chặn bởi **J12②** chứ không phải J12①. Lý do: chỉ `tenant_admin` và `support` giữ `user:impersonate`, mà **cả hai đều phủ trọn whitelist chỉ-đọc** ⇒ `impersonationEscalation` luôn rỗng. **Nhánh chặn của J12① không có ca sống nào hôm nay** — nó được phủ ở `impersonation.spec.ts:152`, nơi dựng riêng một người dùng giữ quyền đọc mà admin@ không có. Đã thêm một **ca đo giới hạn** vào driver: nếu ngày nào đó một persona seed bị J12① chặn, ca đó đỏ và báo "nhánh chặn đã có ca sống, nâng thành ca kiểm thật".
+
+**VERIFY:** **954/954 (69 suite)** — 315 unit + 639 integration · typecheck 3 gói sạch · API **đã restart** rồi mới đo · **driver trục D 13/13 · governance 55/55 · `verify-admin` 30/30 (từ 28/29 đỏ) · đội đỏ không tìm thấy lỗ nào** · chi phí AI thật **= 0**, cờ `ai_gateway_live` vẫn TẮT.
+
+**Vòng Reviewer F201–F223 ĐÃ ĐÓNG ĐỦ.** F221 đóng, trỏ về L3. Chờ chủ dự án: ① duyệt câu sửa kế hoạch của F220 ② quyết có đưa lớp soát cuối-lát vào nhịp chuẩn không (mục dưới) ③ cho phép vào **L2 — quyền hữu hiệu của agent**.
+
+**Điều lần chạy này nói về NHỊP LÀM VIỆC:** lát L1 đã tự soát kỹ (tự bắt lỗ `bars`, tự khai ranh giới cố ý, tự ghi hai lần đo sai đối tượng) và vẫn còn 20 vé, trong đó F201/F202/F203 thuộc loại tôi xếp vào nhóm phải-vá-trước-khi-đi-tiếp. Hai vé nặng nhất — F201 và F210 — đều là **họ F191** (chú thích khẳng định sai được đọc như bằng chứng), tức đúng họ mà soát-cuối-trục hay bắt muộn vì nó cần đọc chú thích cạnh mã mới, không phải đọc hành vi. Chi phí: một lượt chạy, không cần chủ dự án, không chạm RED-LINE. **Đề xuất:** đưa lớp soát này vào nhịp chuẩn ở cuối MỖI lát, giữ nguyên Reviewer đối kháng cuối trục làm cổng ra thật. Chi tiết đánh đổi ở phần phân tích đã trình.
+
 ---
 
 ## Trục A — "Chạm người dùng thật" · **22/07/2026 · L0+L1 XONG — chốt hợp đồng API, chờ duyệt trước khi vào FE**

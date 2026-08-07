@@ -22,6 +22,7 @@ import { AiGatewayService } from '../../src/modules/ai/ai-gateway.service';
 import type { RequestUser } from '../../src/common/auth/decorators';
 import { registerTestAgent, cleanupTestAgents } from '../helpers/test-agent';
 import { EvalService } from '../../src/modules/ai/eval/eval.service';
+import { EconomicsService } from '../../src/modules/ai/economics/economics.service';
 
 jest.setTimeout(180_000);
 
@@ -74,7 +75,7 @@ describe('[Trục D L1] Trần phân loại thuộc về agent — N1/N2/N3', ()
 
   it('[N1] agent KHÔNG có trong danh bạ ⇒ chặn, không gọi client', async () => {
     await expect(gateway.complete(user, {
-      agent: 'khong.he.ton.tai', prompt: 'x', dataAssets: ['objective.kpi'],
+      agent: 'test.khong.he.ton.tai', prompt: 'x', dataAssets: ['objective.kpi'],
     })).rejects.toThrow(/chưa đăng ký trong danh bạ/);
   });
 
@@ -202,7 +203,7 @@ describe('[Trục D L1] Trần phân loại thuộc về agent — N1/N2/N3', ()
      * Bài học `POST /ai/chat` của trục C: một đường chạy không qua cổng là đủ để vô hiệu cổng.
      * `stream()` là đường của Copilot — đường mà người dùng thật đi nhiều nhất.
      */
-    const it1 = gateway.stream(user, { agent: 'khong.he.ton.tai', prompt: 'x', dataAssets: ['objective.kpi'] });
+    const it1 = gateway.stream(user, { agent: 'test.khong.he.ton.tai', prompt: 'x', dataAssets: ['objective.kpi'] });
     await expect((async () => { for await (const _ of it1) { /* drain */ } })())
       .rejects.toThrow(/chưa đăng ký trong danh bạ/);
 
@@ -249,6 +250,233 @@ describe('[Trục D L1] Trần phân loại thuộc về agent — N1/N2/N3', ()
   });
 
   // ═════════════════════ N6 — restricted không bao giờ vào lớp AI ════════════════════
+
+  // ═════════════ Vá theo Reviewer — F201 · F202/F209 · F203 · F204/F211 · F216 ═════════════
+
+  it('🔒 [F201] nhánh chặn KHÔNG ghi prompt vào `ai_interaction`', async () => {
+    /**
+     * Ba cổng chạy TRƯỚC `pii.scrubRequest` có chủ đích — nên chúng là đường log DUY NHẤT
+     * không đi qua scrub. Bản đầu của L1 truyền thẳng `req` THÔ vào `log()`, tức ghi prompt
+     * chưa khử PII vào một bảng mà trigger chặn cả UPDATE lẫn DELETE: ghi rồi là ở lại.
+     *
+     * Nhánh này lại kích hoạt đúng lúc lượt gọi chạm dữ liệu TRÊN trần agent — tức đường rò
+     * trùng với dữ liệu nhạy cảm nhất, không phải một nhánh hiếm.
+     */
+    const canary = `CCCD 079201234567 canary-${uniq}`;
+    await expect(gateway.complete(user, {
+      agent: AGENT_INTERNAL, prompt: canary, dataAssets: ['review.result'],
+    })).rejects.toThrow();
+
+    const row = await owner.aiInteraction.findFirst({
+      where: { tenantId, agent: AGENT_INTERNAL, status: 'blocked' }, orderBy: { at: 'desc' },
+    });
+    expect(row).not.toBeNull();
+    // Không chỉ "không chứa PII" — không chứa NỘI DUNG. Vết của một lượt bị chặn cần danh
+    // tính + lý do, không cần thứ người ta định gửi đi.
+    expect(JSON.stringify(row!.input)).not.toContain('canary');
+    expect(JSON.stringify(row!.input)).not.toContain('079201234567');
+    expect((row!.input as any).promptOmitted).toBe('gate-blocked');
+    // ĐỐI CHỨNG: lý do vẫn tra được, nếu không thì "không ghi gì" cũng qua được ca này.
+    expect(JSON.stringify(row!.output)).toMatch(/trần|N3/);
+  });
+
+  it('🔒 [F202/F209] CẢ BỐN nhánh chặn đều để lại vết `status=blocked`', async () => {
+    /**
+     * Kế hoạch trục D §Lát-1 yêu cầu tường minh: *"⇒ 422, không gọi client, ghi
+     * `ai_interaction` `status='blocked'` kèm lý do đọc được"*. Bản đầu chỉ ghi cho nhánh
+     * vượt-trần; ba nhánh còn lại ném câm ⇒ dò mã agent là hành vi không để lại dấu.
+     *
+     * Đo bằng ĐẾM TRƯỚC/SAU cho từng nhánh, không đếm tổng một lần — đếm tổng thì một nhánh
+     * ghi hai dòng có thể che một nhánh ghi không dòng nào.
+     */
+    const countFor = async (agent: string) => owner.aiInteraction.count({
+      where: { tenantId, agent, status: 'blocked' },
+    });
+
+    const branches: Array<{ ten: string; agent: string; call: () => Promise<unknown> }> = [
+      {
+        ten: 'N1 — agent lạ', agent: `test.khong.ton.tai.${uniq}`,
+        call: () => gateway.complete(user, {
+          agent: `test.khong.ton.tai.${uniq}`, prompt: 'p', dataAssets: ['objective.kpi'],
+        }),
+      },
+      {
+        ten: 'N1 — agent planned', agent: AGENT_PLANNED,
+        call: () => gateway.complete(user, {
+          agent: AGENT_PLANNED, prompt: 'p', dataAssets: ['objective.kpi'],
+        }),
+      },
+      {
+        ten: 'N2 — không khai dataAssets', agent: AGENT_INTERNAL,
+        call: () => gateway.complete(user, { agent: AGENT_INTERNAL, prompt: 'p', dataAssets: [] }),
+      },
+      {
+        ten: 'N3 — ngoài phạm vi hiến chương', agent: AGENT_CONFIDENTIAL,
+        call: () => gateway.complete(user, {
+          agent: AGENT_CONFIDENTIAL, prompt: 'p', dataAssets: ['task.dictionary'],
+        }),
+      },
+    ];
+
+    expect(branches.length).toBe(4);   // chống assert chạy 0 lần
+    for (const b of branches) {
+      const before = await countFor(b.agent);
+      await expect(b.call()).rejects.toThrow();
+      const after = await countFor(b.agent);
+      expect({ nhanh: b.ten, them: after - before }).toEqual({ nhanh: b.ten, them: 1 });
+    }
+  });
+
+  it('🔒 [F203] N6 chặn TRỰC TIẾP, không nhờ trần agent — và không agent nào đặt được trần `restricted`', async () => {
+    /**
+     * Trước bản vá, N6 đúng chỉ NHỜ MỘT SỰ TÌNH CỜ: chưa ai khai trần `restricted`. Nhưng
+     * `ai_agent_max_data_class_check` CHO PHÉP giá trị đó trong khi
+     * `ai_interaction_no_restricted_check` lại CẤM — hai DDL nói ngược nhau, cây cầu duy nhất
+     * là một unit test trên dữ liệu seed mà `registerTestAgent()` (ghi bằng owner) đi vòng qua.
+     *
+     * Ca này kiểm cả hai tầng mới: cổng phát biểu N6, và CHECK không cho đúc agent như thế.
+     */
+    // ① Agent trần confidential, hiến chương CÓ nhóm restricted ⇒ vẫn chặn vì N6, không vì trần
+    const code = await registerTestAgent(owner, {
+      name: 'n6.direct', uniq, maxDataClass: 'confidential', assets: ['payroll.reward'],
+    });
+    try {
+      await expect(gateway.complete(user, {
+        agent: code, prompt: 'p', dataAssets: ['payroll.reward'],
+      })).rejects.toThrow(/N6/);
+    } finally {
+      await cleanupTestAgents(owner, [code]);
+    }
+
+    // ② Không đúc được agent trần `restricted` — kiểm bằng owner (BỎ QUA RLS) để chắc chắn
+    //    chặn nằm ở tầng CHECK thật, không phải ở tầng ứng dụng.
+    await expect(owner.aiAgent.create({
+      data: {
+        id: uuidv7(), tenantId: null, code: `test.n6.ceiling.${uniq}`,
+        nameVi: '[TEST] trần restricted', purpose: 'phải bị CHECK chặn',
+        ownerRole: 'B3', kind: 'infrastructure', maxDataClass: 'restricted',
+        dataAssetCodes: ['objective.kpi'], permissions: [], hitlMode: 'read_only', status: 'active',
+      },
+    })).rejects.toThrow(/ceiling_not_restricted|constraint/i);
+  });
+
+  it('🔒 [F204/F211/F216] `dataAssets` trùng lặp không nhân số lượt tra sổ; phần tử dị dạng ⇒ chặn', async () => {
+    /**
+     * ① Trùng lặp qua được kiểm hiến chương (mọi bản sao đều hợp lệ), nên không dedup nghĩa
+     *    là NGƯỜI GỌI quyết định số transaction của một lượt gọi.
+     * ② Cắt gọt im lặng phần tử dị dạng là fail-open có điều kiện: hệ thống suy mức từ phần
+     *    sống sót rồi cho đi, trong khi thứ bị bỏ mới là thứ nhạy cảm.
+     */
+    // ① 200 bản sao vẫn chạy, và ghi đúng MỘT mã trong `data_assets` (bằng chứng đã dedup)
+    const res = await gateway.complete(user, {
+      agent: AGENT_INTERNAL, prompt: 'p', dataAssets: Array(200).fill('objective.kpi'),
+    });
+    expect(res.model).toBe('mock');
+    const row = await owner.aiInteraction.findFirst({
+      where: { tenantId, agent: AGENT_INTERNAL, status: 'ok' }, orderBy: { at: 'desc' },
+    });
+    expect(row!.dataAssets).toEqual(['objective.kpi']);
+
+    // ② phần tử không phải chuỗi ⇒ chặn, KHÔNG chạy với phần còn lại
+    await expect(gateway.complete(user, {
+      agent: AGENT_INTERNAL, prompt: 'p',
+      dataAssets: [{ code: 'objective.kpi' } as any, 'objective.kpi'],
+    })).rejects.toThrow(/không phải mã hợp lệ/);
+
+    // ③ [F216] chuỗi rỗng/khoảng trắng là dị dạng — cùng một lỗi khai phải cho cùng một lỗi
+    await expect(gateway.complete(user, {
+      agent: AGENT_INTERNAL, prompt: 'p', dataAssets: ['   '],
+    })).rejects.toThrow(/không phải mã hợp lệ/);
+  });
+
+  // ═══════ F219 — đóng đinh hai ngữ nghĩa báo cáo mà chủ dự án chốt 06/08 ═══════
+
+  it('🔒 [F217] xoá mềm một agent KHÔNG xoá được chi phí lịch sử của nó khỏi "đã chi"', async () => {
+    /**
+     * Trước bản vá, `report()` lọc `deletedAt: null` ⇒ xoá mềm một agent làm mọi lượt gọi lịch
+     * sử của nó biến khỏi báo cáo 30 ngày. Một thao tác quản trị viết lại quá khứ theo chiều
+     * GIẢM, trên dữ liệu vốn append-only — cùng họ "số trông-như-thật" mà L1 vừa vá, chỉ đổi
+     * chiều (trước là agent bịa cộng thêm, sau là xoá mềm trừ bớt).
+     *
+     * Chủ dự án chốt: "đã chi" giữ MỌI agent từng đăng ký; "run-rate" chỉ agent đang hoạt động.
+     *
+     * ⚠️ Ca này đo bằng SỰ CÓ MẶT và các cờ, KHÔNG bơm `costUsd` — RED-LINE "tổng chi phí AI
+     * thật = 0" được driver sống kiểm, và `ai_interaction` là append-only nên một dòng chi phí
+     * giả sẽ làm hỏng phép đo đó VĨNH VIỄN.
+     */
+    const econ = app.get(EconomicsService);
+    const code = await registerTestAgent(owner, { name: 'f217.softdelete', uniq });
+    try {
+      await gateway.complete(user, { agent: code, prompt: 'p', dataAssets: ['objective.kpi'] });
+
+      const truoc: any = await econ.report(user);
+      const eTruoc = truoc.agents.find((a: any) => a.agent === code);
+      expect(eTruoc).toBeDefined();
+      expect(eTruoc.countsTowardRunRate).toBe(true);
+      expect(eTruoc.registryStatus).toBe('active');
+      const soLuot = eTruoc.calls;
+      expect(soLuot).toBeGreaterThan(0);
+
+      // xoá mềm — đúng đường mà một quản trị viên sẽ đi
+      await owner.aiAgent.updateMany({ where: { code }, data: { deletedAt: new Date() } });
+
+      const sau: any = await econ.report(user);
+      const eSau = sau.agents.find((a: any) => a.agent === code);
+      // ① Lịch sử KHÔNG biến mất, và không hụt đi một lượt nào
+      expect(eSau).toBeDefined();
+      expect(eSau.calls).toBe(soLuot);
+      expect(eSau.registryStatus).toBe('da_xoa_mem');
+      // ② Nhưng không còn kéo theo chiếu tương lai
+      expect(eSau.countsTowardRunRate).toBe(false);
+      expect(eSau.projections).toEqual([]);
+      // ③ Và hai tổng nói đúng hai câu chuyện khác nhau
+      expect(sau.totalActualCostUsd).toBeGreaterThanOrEqual(sau.totalRunRateCostUsd);
+    } finally {
+      await owner.aiAgent.deleteMany({ where: { code } });
+    }
+  });
+
+  it('🔒 [F218] agent `planned` ĐẠT BAR vẫn KHÔNG BAO GIỜ `ready: true`', async () => {
+    /**
+     * Ca này chỉ có nghĩa nếu agent THỰC SỰ đạt ngưỡng chất lượng — nếu nó trượt bar thì
+     * `ready === false` đúng vì một lý do khác, và phép đo không nói được gì về F218. Nên
+     * dựng đủ: launch bar dễ + eval suite + một run `done` toàn pass.
+     */
+    const evalSvc = app.get(EvalService);
+    const code = await registerTestAgent(owner, {
+      name: 'f218.planned', uniq, status: 'planned',
+    });
+    const barId = uuidv7();
+    const suiteId = uuidv7();
+    try {
+      await owner.aiLaunchBar.create({
+        data: { id: barId, tenantId, agent: code, minPassRate: '0.5', minCases: 1 },
+      });
+      await owner.aiEvalSuite.create({
+        data: { id: suiteId, tenantId, agent: code, name: `f218-${uniq}` },
+      });
+      await owner.aiEvalRun.create({
+        data: {
+          id: uuidv7(), tenantId, suiteId, status: 'done', model: 'mock',
+          finishedAt: new Date(), summary: { pass: 5, fail: 0, avg_score: 1 } as any,
+        },
+      });
+
+      const rd: any = await evalSvc.readiness({ ...user, permissions: new Set(['ai:eval']) });
+      const e = rd.agents.find((a: any) => a.agent === code);
+      expect(e).toBeDefined();                 // HIỆN, không ẩn — quyết định 06/08
+      expect(e.registryStatus).toBe('planned');
+      expect(e.meetsBar).toBe(true);           // ĐẠT ngưỡng chất lượng…
+      expect(e.ready).toBe(false);             // …nhưng KHÔNG sẵn sàng chạy
+      expect(e.liveQualified).toBe(false);
+      expect(e.reasons.join(' ')).toMatch(/chưa được bật|planned/);
+    } finally {
+      await owner.aiEvalRun.deleteMany({ where: { suiteId } });
+      await owner.aiEvalSuite.deleteMany({ where: { id: suiteId } });
+      await owner.aiLaunchBar.deleteMany({ where: { id: barId } });
+      await cleanupTestAgents(owner, [code]);
+    }
+  });
 
   it('🔒 [N6] KHÔNG lượt gọi nào ghi được `data_class = restricted` — chặn ở CẢ DDL', async () => {
     /**

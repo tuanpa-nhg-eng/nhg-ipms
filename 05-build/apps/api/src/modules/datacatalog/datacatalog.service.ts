@@ -77,6 +77,45 @@ export class DataCatalogService {
   }
 
   /**
+   * [F205] Tra NHIỀU mã trong MỘT lượt. Cùng luật với `resolve()` — bản của đơn vị thắng bản
+   * chuẩn, mã thiếu ⇒ ném — nhưng một truy vấn thay vì một `withTenant` cho mỗi mã.
+   *
+   * Sinh ra vì `ai-gateway` tra sổ trong vòng lặp trên `dataAssets`: N+1 nằm ngay trong cổng
+   * gác, trên đường đi của MỌI lượt gọi AI. Bài học F171 đã được áp ở `eval.service` trong
+   * cùng commit và bị phá ở đây — nên phần tra sổ chuyển hẳn vào sổ, không để chỗ gọi tự lặp.
+   *
+   * Nêu ĐỦ các mã thiếu trong một lần, không dừng ở mã đầu tiên: người khai sửa một lượt.
+   */
+  async resolveMany(tenantId: string, codes: string[]): Promise<Map<string, DataClassification>> {
+    const wanted = [...new Set(codes)];
+    if (wanted.length === 0) return new Map();
+    return this.prisma.withTenant(tenantId, async (tx: TenantTx) => {
+      const rows = await tx.dataAsset.findMany({ where: { code: { in: wanted }, deletedAt: null } });
+      const out = new Map<string, DataClassification>();
+      for (const code of wanted) {
+        const matches = rows.filter((r: { code: string }) => r.code === code);
+        if (matches.length === 0) continue;
+        const row = matches.find((r: { tenantId: string | null }) => r.tenantId !== null) ?? matches[0];
+        const cls = normalizeDataClass(row.classification);
+        if (cls === null) {
+          throw new UnprocessableEntityException(
+            `data_asset '${code}' có mức phân loại không hợp lệ: '${row.classification}'`,
+          );
+        }
+        out.set(code, cls);
+      }
+      const missing = wanted.filter((c) => !out.has(c));
+      if (missing.length > 0) {
+        throw new NotFoundException(
+          `Mã dữ liệu ${missing.map((c) => `'${c}'`).join(', ')} chưa đăng ký trong sổ — đăng ký `
+          + 'trước khi dùng (fail-closed)',
+        );
+      }
+      return out;
+    });
+  }
+
+  /**
    * Đơn vị đặt/siết bản riêng. Chỉ `data_steward` gọi được (guard ở controller).
    *
    * Ràng buộc "không nới lỏng" được kiểm HAI LẦN có chủ đích: ở đây để trả lỗi 422 đọc

@@ -152,6 +152,17 @@ export class EvalService {
     // danh bạ ⇒ `resolve()` ném 404 ngay tại đây — đúng ý: không chạy eval cho một danh tính
     // không tồn tại, vì kết quả sẽ được ghi vào launch bar / qualification của một agent ma.
     const agentDef = await this.agents.resolve(user.tenantId, suite.agent);
+    // [F215] Hiến chương rỗng là khuyết tật của DÒNG DANH BẠ, không phải của lượt gọi. Để nó
+    // đi tiếp thì N2 ở gateway sẽ trả "lượt gọi không khai nhóm dữ liệu nào" — đúng luật, sai
+    // địa chỉ: người đọc lỗi đi sửa chỗ gọi eval, trong khi chỗ phải sửa là hiến chương agent.
+    if (agentDef.dataAssetCodes.length === 0) {
+      throw new UnprocessableEntityException(
+        `Không chạy được eval cho agent '${suite.agent}': hiến chương của nó trong danh bạ `
+        + 'không khai nhóm dữ liệu nào (`dataAssetCodes` rỗng). Lượt replay chạm đúng phạm vi '
+        + 'của agent bị đánh giá, nên phạm vi rỗng nghĩa là không có gì hợp lệ để chạy — khai '
+        + 'phạm vi trong danh bạ (`aiagent:write`) trước.',
+      );
+    }
     const results: Array<{ caseId: string; passed: boolean; score: number; judgeOutput: unknown }> = [];
     for (const c of cases) {
       const input = c.input as { prompt: string; context?: unknown; promptVersion?: string };
@@ -272,9 +283,24 @@ export class EvalService {
        * Ghi lại vì đây là mẫu lặp — **lọc một nguồn trong khi kết quả gộp từ nhiều nguồn**.
        */
       const registered = await tx.aiAgent.findMany({
-        where: { deletedAt: null }, select: { code: true },
+        where: { deletedAt: null }, select: { code: true, status: true, tenantId: true },
       });
-      const registeredCodes = [...new Set(registered.map((a) => a.code))];
+      // [F218] Bản của đơn vị thắng bản chuẩn — cùng luật với `AiAgentService.resolve()`.
+      const trangThai = new Map<string, string>();
+      for (const r of registered) {
+        if (!trangThai.has(r.code) || r.tenantId !== null) trangThai.set(r.code, r.status);
+      }
+      const registeredCodes = [...trangThai.keys()];
+      // [F206] Cùng lý do với `economics.report()`: danh bạ rỗng ⇒ checklist rỗng ⇒ màn
+      // sẵn-sàng-live không có gì màu đỏ, đọc như "mọi thứ ổn". Im lặng đội lốt phép đo, ở
+      // đúng bề mặt dùng để quyết bật live. Nói thẳng là không đo được.
+      if (registeredCodes.length === 0) {
+        throw new UnprocessableEntityException(
+          'Không dựng được checklist sẵn-sàng-live: danh bạ agent (`ai_agent`) rỗng cho đơn vị '
+          + 'này. Checklist lọc theo danh bạ, nên danh bạ rỗng cho ra một danh sách rỗng — đọc '
+          + 'như "không agent nào chưa đạt", trong khi sự thật là chưa đo được gì.',
+        );
+      }
       const bars = await tx.aiLaunchBar.findMany({
         where: { deletedAt: null, agent: { in: registeredCodes } },
       });
@@ -342,8 +368,27 @@ export class EvalService {
         if (bar && rawRate !== null && rawRate < Number(bar.minPassRate)) {
           reasons.push(`pass-rate ${passRate} < ngưỡng ${Number(bar.minPassRate)}`);
         }
-        const ready = !!bar && agentSuites.length > 0 && uncovered === 0
+        /**
+         * [F218 — chủ dự án chốt 06/08] Agent chưa `active` thì KHÔNG BAO GIỜ `ready: true`.
+         *
+         * Trước bản vá, checklist chỉ xét bar + eval, nên một agent `planned` đạt ngưỡng sẽ
+         * hiện "sẵn sàng live" trong khi N1 ở gateway từ chối chạy nó — hai bề mặt quản trị
+         * nói ngược nhau, và bề mặt sai lại đúng là bề mặt người ta đọc để quyết bật live.
+         *
+         * Chọn HIỆN kèm nhãn thay vì ẩn: "agent này đã đạt bar, chỉ còn chờ bật" là thông tin
+         * người quyết định cần; ẩn đi thì họ không biết nó tồn tại.
+         */
+        const trangThaiAgent = trangThai.get(agent) ?? 'khong_trong_danh_ba';
+        const dangBat = trangThaiAgent === 'active';
+        if (!dangBat) {
+          reasons.push(
+            `agent đang ở trạng thái '${trangThaiAgent}' — chưa được bật, gateway sẽ từ chối mọi `
+            + 'lượt gọi (N1). Bật là quyết định của chủ dữ liệu (`aiagent:write`).',
+          );
+        }
+        const datBar = !!bar && agentSuites.length > 0 && uncovered === 0
           && total >= bar.minCases && rawRate !== null && rawRate >= Number(bar.minPassRate);
+        const ready = datBar && dangBat;
 
         // [Lát 4] Model-Qualification Gate — cấm silent-swap
         const servingModel = agentModels.find((m) => m.agent === agent)?.model ?? DEFAULT_MODEL;
@@ -364,6 +409,10 @@ export class EvalService {
         }
         out.push({
           agent,
+          // [F218] Trạng thái danh bạ đi kèm để màn hình gắn nhãn được "chưa bật", và để
+          // `datBar` (đạt ngưỡng chất lượng) không bị đọc nhầm thành "sẵn sàng chạy".
+          registryStatus: trangThaiAgent,
+          meetsBar: datBar,
           bar: bar ? { minPassRate: Number(bar.minPassRate), minCases: bar.minCases, note: bar.note } : null,
           cases: total, pass, fail: total - pass, passRate,
           models: [...models].sort(),

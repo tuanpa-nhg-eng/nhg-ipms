@@ -128,9 +128,26 @@ describe('[Trục D L0] Danh bạ agent AI', () => {
      * mang dấu vết TEST. Nếu một mã KHÔNG khớp mẫu test nào lọt vào đây, nghĩa là có đường
      * chạy sản phẩm mà sổ chưa phủ — và bật N1 ở L1 sẽ gãy đúng đường đó.
      */
+    /**
+     * [F202 — phạm vi phép đo đổi, và đây là chỗ ghi lại vì sao]
+     *
+     * Tới trước F202, một lượt gọi agent LẠ bị N1 ném mà KHÔNG ghi dòng nào ⇒ mã lạ không bao
+     * giờ vào được bảng này. Sau F202 thì có: mọi nhánh chặn đều để lại vết, theo đúng yêu cầu
+     * của kế hoạch. Nghĩa là bảng nay chứa hai loại dòng khác hẳn nhau về ý nghĩa:
+     *
+     *   · `status <> 'blocked'` — lượt gọi ĐÃ CHẠY. Mã lạ ở đây = đường chạy sản phẩm mà sổ
+     *     chưa phủ. Đây đúng là thứ phép đo này sinh ra để bắt, và nó giữ nguyên tính TUYỆT ĐỐI.
+     *   · `status = 'blocked'`  — lượt gọi BỊ TỪ CHỐI. Mã lạ ở đây là BẰNG CHỨNG cổng chạy
+     *     đúng, không phải triệu chứng sổ thiếu. Gộp chung vào một phép đo thì mỗi lần ai đó
+     *     dò một mã bịa, phép đo lại đỏ vì một lý do trái ngược với điều nó muốn nói.
+     *
+     * Nên tách làm hai, và KHÔNG nới cái nào: ca này giữ nguyên cho các lượt đã chạy, ca kế
+     * bên kiểm các lượt bị chặn.
+     */
     const rows: Array<{ agent: string }> = await owner.$queryRawUnsafe(
       `SELECT DISTINCT i.agent FROM ai_interaction i
-        WHERE NOT EXISTS (SELECT 1 FROM ai_agent a WHERE a.tenant_id IS NULL AND a.code = i.agent)`,
+        WHERE i.status <> 'blocked'
+          AND NOT EXISTS (SELECT 1 FROM ai_agent a WHERE a.tenant_id IS NULL AND a.code = i.agent)`,
     );
     /**
      * `test.` — tiền tố DUY NHẤT, có nguyên tắc, do `helpers/test-agent.ts` cấp từ trục D L1.
@@ -143,6 +160,44 @@ describe('[Trục D L0] Danh bạ agent AI', () => {
      */
     const DAU_VET_TEST = /^(test\.|egress-(test|pii|narrowed|internal)-|anthropic-(live|stream)-|inline\.test\.)/;
     const nghi_van = rows.map((r) => r.agent).filter((a) => !DAU_VET_TEST.test(a));
+    expect(nghi_van).toEqual([]);
+  });
+
+  it('🎯 CỔNG RA (2) — mã agent lạ trong các lượt BỊ CHẶN cũng phải mang dấu vết test', async () => {
+    /**
+     * Nửa thứ hai của phép đo, sinh ra cùng F202. Một mã lạ ở đây là bằng chứng cổng N1 chạy
+     * đúng — nhưng nếu nó KHÔNG mang dấu vết test thì lại là chuyện khác hẳn: có đường chạy
+     * sản phẩm đang gọi một agent chưa đăng ký và đang bị chặn im lặng ở production.
+     *
+     * Nghĩa là F202 không chỉ thêm vết, nó còn làm phép đo MẠNH LÊN: loại sự cố đó trước đây
+     * không để lại dấu nào trong bảng, nay nhìn thấy được.
+     *
+     * DI SẢN ĐÚNG BỐN MÃ, sinh trong chính vòng vá F201–F216: ca test của tôi dò bằng mã chưa
+     * mang tiền tố `test.`, và F202 vừa bật thì chúng vào bảng append-only ngay lượt chạy đầu
+     * — mỗi lượt chạy full suite thêm một mã, vì `uniq = Date.now()`. Đã sửa nguồn (mọi mã dò
+     * nay là `test.*`) nên danh sách dừng ở đây; nhưng bốn dòng đã ghi thì không xoá được —
+     * trigger chặn DELETE kể cả `ipms_owner` (đã thử, đúng thiết kế).
+     *
+     * Liệt kê ra đây là cách trung thực để nói "đã biết, đã truy được nguồn", thay vì nới phép
+     * kiểm rộng tới mức không bắt được gì. Danh sách lấy bằng truy vấn thẳng trên DB, KHÔNG
+     * chép từ thông báo lỗi của một lượt chạy cũ — lần đầu tôi chép tay và thiếu đúng một mã.
+     * **KHÔNG được dài thêm:** một mã mới ở đây nghĩa là có đường chạy sản phẩm gọi agent chưa
+     * đăng ký, hoặc có spec vừa dò bằng mã không dấu vết.
+     */
+    const DI_SAN_VONG_VA = new Set([
+      'khong.he.ton.tai',
+      'khong.ton.tai.1786000047654',
+      'khong.ton.tai.1786000910656',
+      'khong.ton.tai.1786001302603',
+    ]);
+    const DAU_VET_TEST = /^(test\.|egress-(test|pii|narrowed|internal)-|anthropic-(live|stream)-|inline\.test\.)/;
+    const rows: Array<{ agent: string }> = await owner.$queryRawUnsafe(
+      `SELECT DISTINCT i.agent FROM ai_interaction i
+        WHERE i.status = 'blocked'
+          AND NOT EXISTS (SELECT 1 FROM ai_agent a WHERE a.tenant_id IS NULL AND a.code = i.agent)`,
+    );
+    const nghi_van = rows.map((r) => r.agent)
+      .filter((a) => !DAU_VET_TEST.test(a) && !DI_SAN_VONG_VA.has(a));
     expect(nghi_van).toEqual([]);
   });
 
