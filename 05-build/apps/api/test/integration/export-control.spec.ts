@@ -404,7 +404,25 @@ describe('[Trục C L1] Kiểm soát xuất dữ liệu', () => {
       });
     } else {
       expect([422, 404]).toContain(res.status);
-      expect(await owner.exportLog.count({ where })).toBe(before);
+      /**
+       * [F229] Nhánh này CHƯA TỪNG CHẠY cho tới 07/08 — DB dev có binding `morning_todos` từ
+       * tháng 7 nên mọi lượt đều rẽ nhánh 201. CI trên DB trắng mới lộ ra nó, và lộ luôn rằng
+       * assertion cũ (`toBe(before)` — "422 thì không ghi vết") đã lạc hậu từ 05/08, khi **F193**
+       * sửa interceptor để nhánh LỖI cũng để lại vết: đường xuất kiểu ĐẨY có thể đã tuồn vài bản
+       * ghi ra ngoài trước khi ném, và một sổ xuất trắng trơn khi đó là đúng thứ lát L1 tồn tại
+       * để loại bỏ.
+       *
+       * Ranh giới là ExportGuard, không phải mã trạng thái HTTP: chưa qua cổng thì không có
+       * `req.ipmsExport` ⇒ không dòng nào (ca "KHÔNG ghi vết khi bị chặn" ở trên giữ nguyên giá
+       * trị); ĐÃ qua cổng mà handler hỏng thì ghi THẬN TRỌNG, số bản ghi KHÔNG XÁC ĐỊNH.
+       *
+       * Đóng đinh cả NỘI DUNG vết chứ không chỉ đếm dòng: một assertion chỉ đếm sẽ xanh cả khi
+       * vết nói sai chuyện — đúng cái bẫy F224 vừa phải vá trong cùng phiên.
+       */
+      expect(await owner.exportLog.count({ where })).toBe(before + 1);
+      const rows = await owner.exportLog.findMany({ where, orderBy: { id: 'desc' }, take: 1 });
+      expect(rows[0]).toMatchObject({ classification: 'internal', recordCount: 0 });
+      expect(rows[0].rule).toContain('KHÔNG HOÀN TẤT');
     }
   });
 });

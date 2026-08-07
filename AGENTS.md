@@ -17,7 +17,7 @@
 - DB: `pnpm db:up` (docker PG16+Redis) · `pnpm db:migrate` · `pnpm db:seed`
 - API dev: `pnpm --filter @ipms/api start:dev` (:4000) — **KHÔNG watch**; sửa mã phải kill PID :4000 rồi chạy lại.
 - Web dev: `cd web && npx next dev -p 3001` — `web/` **không** thuộc pnpm workspace (`05-build/pnpm-workspace.yaml` chỉ có `apps/*`, `packages/*`).
-- Test: `pnpm --filter @ipms/api test` (unit) · `test:integration` (`jest --runInBand`, cần Postgres đang chạy).
+- Test: `pnpm --filter @ipms/api test` (unit) · `test:integration` (`jest --runInBand`, cần Postgres đang chạy). **Bộ integration đòi ĐỦ BA seed nền** (`db:seed` → `seed:taskcatalog` → `seed:perfdemo`); thiếu bất kỳ cái nào là 26–31 ca đỏ trên DB dựng mới (F225/F228).
 - Typecheck: `pnpm -r typecheck` (shared + db + api; web riêng qua `next build`).
 - Driver sống: `node scripts/verify/verify-*.mjs` — đánh vào API :4000 thật đã restart.
 - Seed phụ: `seed:perfdemo` (phòng sống) · `seed:taskcatalog` (815 tác vụ) · `seed:golden`.
@@ -41,6 +41,7 @@
 
 ## Bẫy
 - **Kiểm chứng sai đối tượng = kết quả xanh vô nghĩa.** `ipms_owner` bỏ qua RLS; API dev không watch. Đo bằng `ipms_app` và server đã restart. Xem [kiem-chung-song.md](docs/kiem-chung-song.md).
+- **Suite xanh trên máy này ≠ suite xanh.** DB dev mang dữ liệu tích tụ từ tháng 7 và jest cache quyết định THỨ TỰ suite — CI (DB trắng, cache lạnh) chạy thứ tự khác. Ba lỗi chỉ lộ ở đó: hoá thạch `audit_log` append-only làm assertion bảo mật xanh vĩnh viễn (F224) · suite phụ thuộc dữ liệu do suite khác để lại (F228) · nhánh `else` chưa từng chạy vì DB dev luôn rẽ nhánh kia (F229). Nghi ngờ thì `jest --no-cache` trên DB dựng mới.
 - Test xanh trong khi assert chạy **0 lần** — `expect(length).toBeGreaterThan(0)` trước mọi vòng lặp assert bảo mật.
 - Driver phải quét **đủ mọi vai** được phép mở màn đó, không chỉ vai thuận tay (F176, F177).
 - Lọc một nguồn trong khi kết quả gộp từ nhiều nguồn — bug sống sót qua full suite xanh.

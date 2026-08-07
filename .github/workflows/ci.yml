@@ -69,6 +69,15 @@ jobs:
           DATABASE_URL="$OWNER_DATABASE_URL" pnpm --filter @ipms/db migrate:deploy
           DATABASE_URL="$OWNER_DATABASE_URL" pnpm --filter @ipms/db seed
 
+      # [F228] Thư viện tác vụ là TRẠNG THÁI NỀN, phải dựng trước khi chạy test.
+      # Trước bước này nó chỉ tồn tại nhờ `task-catalog-seed.spec` chạy seed thật và CỐ Ý không
+      # dọn — nên `task-dictionary.spec`, `task-loop.spec`, `export-control.spec` chỉ xanh KHI
+      # suite kia tình cờ chạy trước. Jest sắp thứ tự theo thời lượng lần chạy trước nếu có
+      # cache: máy dev (cache ấm) ra thứ tự may mắn, CI (cache lạnh, sắp theo kích thước tệp)
+      # ra thứ tự khác ⇒ 26 ca đỏ. Dựng nền ở đây thì thứ tự suite thôi quyết định kết quả.
+      - name: Seed thư viện tác vụ (task catalog — trạng thái nền)
+        run: DATABASE_URL="$OWNER_DATABASE_URL" pnpm --filter @ipms/api seed:taskcatalog
+
       # [F225] `perf-readmodels.spec` (31 ca, trục A L1) đòi demo1@…demo6@ — do seed PHỤ này sinh,
       # KHÔNG có trong `db:seed`. Thiếu bước này thì 31 ca đỏ trên mọi DB dựng mới. Máy dev không
       # thấy vì `seed:perfdemo` đã chạy tay hồi 22/07 và dữ liệu nằm lại trong DB dev từ đó.

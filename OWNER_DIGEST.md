@@ -147,11 +147,38 @@ Trên DB dev có **44 dòng hoá thạch** cùng `(action, entityType)` với ac
 
 **Tin tốt kèm theo:** câu hỏi *"chuỗi 29 migration có dựng lại được từ DB trắng không"* — xưa nay là niềm tin — nay là **bằng chứng**. Rủi ro "hôm dựng production mới phát hiện migration gãy" đã đóng.
 
+### 🔁 VÒNG HAI — CI thật bắt tiếp hai thứ mô phỏng cục bộ BỎ SÓT (F228, F229)
+
+Push `baf777d` lên `origin` rồi CI chạy: từ chết ở bước 2/13 sau 42 giây → **qua 11/13 bước**, 2m14s. Tám bước chưa từng chạy nay xanh. Nhưng bước integration đỏ với **ba suite mà DB trắng cục bộ của tôi vẫn xanh 649/649**.
+
+**Tôi đã kiểm chứng sai đối tượng — lần này là tôi.** Tôi dựng DB trắng nhưng vẫn dùng **jest cache của máy này**. Jest sắp thứ tự suite theo thời lượng lần chạy trước khi có cache; máy dev cache ấm ra một thứ tự, CI cache lạnh (sắp theo kích thước tệp) ra thứ tự khác.
+
+**[F228] Bộ test có phụ thuộc THỨ TỰ giữa các suite, không khai ở đâu.** `task-catalog-seed.spec` chạy seed thật (131 cell canonical FIN) và **cố ý không dọn** — chú thích ghi *"thư viện tác vụ là trạng thái nền"*. `task-dictionary.spec` và `task-loop.spec` phụ thuộc trạng thái đó nhưng không tự dựng ⇒ chỉ xanh KHI suite kia tình cờ chạy trước. Tái hiện cục bộ: 3 suite chạy riêng trên DB trắng = **26/47 ca đỏ**. Vá bằng bước CI `seed:taskcatalog` — thư viện tác vụ đúng là trạng thái nền, dựng nó trước thì thứ tự suite thôi quyết định kết quả. *Ghi rõ: khớp nối ngầm giữa các suite VẪN CÒN, chỉ là không còn chịu lực. Muốn dứt điểm thì spec phải tự dựng thứ nó cần — việc riêng.*
+
+**[F229] Một nhánh test CHƯA TỪNG CHẠY, và nó chứa một assertion đã lạc hậu từ 05/08.** `export-control.spec` › *"đường xuất tên vô hại vẫn ghi vết: job morning-todos"* rẽ hai nhánh: 201 khi tenant có binding `morning_todos`, 422 khi chưa. **DB dev có binding từ tháng 7 ⇒ nhánh 422 chưa chạy lần nào.** CI trên DB trắng rẽ vào đó và đỏ: assertion đòi *"422 thì KHÔNG ghi vết"*, thực tế có 1 dòng.
+
+Đọc mã thì nguồn là **F193 — chính bản vá của Reviewer ngày 05/08**: trước đó interceptor chỉ ghi vết ở nhánh thành công; Reviewer chỉ ra đường xuất kiểu **ĐẨY** có thể đã tuồn ba mục ra ngoài rồi mới ném ở mục thứ tư, để lại sổ trắng trơn. Nay nhánh lỗi ghi một dòng `KHÔNG HOÀN TẤT … số bản ghi đã rời hệ KHÔNG XÁC ĐỊNH`, `recordCount 0`. **Assertion cũ không ai cập nhật vì nhánh nó nằm không bao giờ chạy.**
+
+**Kết luận: hành vi ĐÚNG, test lạc hậu.** Ranh giới của F193 là **ExportGuard, không phải mã HTTP**: chưa qua cổng thì không có `req.ipmsExport` ⇒ không dòng nào (ca *"KHÔNG ghi vết khi bị chặn"* giữ nguyên giá trị); đã qua cổng mà handler hỏng thì ghi thận trọng. Nhất quán. Đã cập nhật nhánh `else` và **đóng đinh cả NỘI DUNG vết**, không chỉ đếm dòng — assertion chỉ đếm sẽ xanh cả khi vết nói sai chuyện, đúng bẫy F224 vừa vá cùng phiên.
+
+**❓ MỘT CÂU HỎI QUẢN TRỊ TÔI KHÔNG TỰ QUYẾT — cần chủ dự án:** với ca *"chưa cấu hình binding"*, **chắc chắn không có gì rời hệ**, mà `export_log` — sổ kiểm toán viên đọc như *"những gì ĐÃ RỜI hệ"* — vẫn nhận thêm một dòng. Chính chú thích F193 lập luận `export.blocked` phải nằm ở `audit_log` chứ không phải sổ xuất, vì khi đó không có gì rời hệ; cùng lý lẽ đó áp vào đây thì dòng này thừa. Đánh đổi: lọc bớt thì phải phân biệt "hỏng TRƯỚC khi đẩy" với "hỏng GIỮA chừng" — mà interceptor không biết, trừ khi service tự khai `partialExportCount`. **Giữ nguyên (thận trọng, sổ hơi dư) hay siết (sổ đúng nghĩa, đổi lại service phải khai)?**
+
+### Ba lớp kiểm, mỗi lớp bắt một tầng lỗi lớp trước không thấy
+
+| Lớp | Bắt được | Bỏ sót |
+|---|---|---|
+| Bộ test trên máy dev | — | tất cả |
+| DB trắng, jest cache ấm | F224 (hoá thạch SoD) · F225 (thiếu perfdemo) | phụ thuộc thứ tự suite |
+| **CI thật (DB trắng + cache lạnh)** | **F228** (26 ca) · **F229** (nhánh chưa từng chạy) | ? |
+
+Đây là lập luận thực nghiệm cho việc CI phải xanh và phải chạy mỗi lần push: **nó là môi trường duy nhất không mang theo ký ức của máy dev.** Ba lỗi tìm được hôm nay đều thuộc họ đó, và không lỗi nào bộ test 964/964 nhìn thấy được.
+
 ### Còn nợ, ghi để không trôi
 
 - **CI vẫn không chạm giao diện.** `pnpm -r` chỉ phủ `apps/*` + `packages/*`; `web/` ngoài workspace ⇒ 12.000 dòng giao diện không có typecheck/build/test nào. **Cố ý chưa thêm trong lát này**: `next build` chưa từng chạy trên CI, thêm vào lúc này có thể làm CI đỏ trở lại vì lý do khác và che mất kết quả của bản vá. Việc riêng, làm sau khi CI xanh lần đầu.
 - **Không có linter nào chạy** — cả ba script `lint` là `echo`.
-- **Chưa push.** Bản vá + 6 commit tồn (trục D + bộ chuyển vai) đang nằm trên máy. CI chỉ thật sự chạy sau khi push.
+- **F227** (12 assertion `audit_log` mong manh) và **khớp nối ngầm giữa các suite của F228** vẫn còn — cả hai hiện đo đúng, cần chủ dự án xếp ưu tiên.
+- `personal` chưa nhận được push: cả `Bash(git push personal main)` lẫn `PowerShell(...)` đều bị auto-mode classifier chặn trong phiên 07/08. `origin` đã có.
 
 ---
 
