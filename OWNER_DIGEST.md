@@ -5,6 +5,18 @@
 
 ---
 
+## ✅ BA QUYẾT ĐỊNH CỦA CHỦ DỰ ÁN · 07/08/2026
+
+**① `export_log` — GIỮ THẬN TRỌNG.** Lượt xuất đã qua `ExportGuard` mà handler hỏng thì **vẫn ghi vết**, kể cả khi chắc chắn không có gì rời hệ (ca "chưa cấu hình binding"). Sổ hơi dư còn hơn sổ thiếu một lượt đã tuồn dữ liệu ra. Hành vi F193 giữ nguyên, **không sửa mã**; ca test F229 nay đóng đinh đúng nghĩa đó kèm nội dung vết. **F229 ĐÓNG.**
+
+**② Đích push — chủ dự án cấp toàn quyền.** Hết hỏi lại mỗi lần; mặc định push **cả hai** remote. Không đổi: chỉ commit/push khi có yêu cầu tường minh. Cả hai remote nay ở `c8de9a8`, xác minh bằng `git ls-remote`.
+
+**③ Đăng nhập — ENTRA THẬT, không làm lát auth tạm.** Chốt hướng cho **B1**, chốt chặn nặng nhất của go-live. Hệ quả: **trục F khởi động**, và red-line "tenant Azure" từ chỗ là ghi chú trở thành **đường găng của toàn dự án**.
+
+> **Điều này KHÔNG có nghĩa là phải ngồi chờ Azure.** Đo lại nền: `app_user.entra_oid` (unique) **đã có sẵn trong schema** · `JwtGuard` đã tách `getJwtSecret()` và map claim theo đúng chuẩn Entra (`sub`/`tid`/`oid`/`email`) · TDD §11 đã chốt **OIDC Authorization Code + PKCE**. Phần lớn L0→L3 dựng và kiểm được bằng **IdP giả tự ký JWKS**; chỉ lượt nối thật mới cần tenant. Kế hoạch trục F: `02-dac-ta/NHG_iPMS_Ke_Hoach_Truc_F_Dang_Nhap_Doanh_Nghiep.md` — **chờ chủ dự án duyệt trước khi viết dòng mã nào** (đúng nhịp AGENTS.md).
+
+---
+
 > ## ✅ **CI XANH LẦN ĐẦU TRONG LỊCH SỬ DỰ ÁN — 07/08/2026, run `31163834035`, commit `f0b04b2`**
 > 13/13 bước · 2m20s · **unit 315/315 (27 suite) + integration 649/649 (43 suite)** chạy trên DB dựng từ số không mỗi lượt.
 > Trước đó: **7/7 lượt đỏ** từ 19/07 tới 05/08, chết ở bước 2 sau 42 giây. Vé đã đóng: **F224–F226, F228, F229**.
