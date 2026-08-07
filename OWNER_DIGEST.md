@@ -5,6 +5,156 @@
 
 ---
 
+# 🚦 ĐÁNH GIÁ GO-LIVE TOÀN DỰ ÁN · **07/08/2026**
+
+> Chủ dự án yêu cầu đánh giá lại toàn bộ dự án để go-live. **Kết luận: chưa go-live được — và khoảng cách KHÔNG nằm ở tính năng, nó nằm ở vận hành.** Mục này là ảnh chụp trạng thái chính xác tại 07/08/2026 để tra cứu về sau.
+
+## Cách đo
+
+Không tin digest. Mọi con số dưới đây tôi tự chạy lại trên máy này trong phiên 07/08, mốc mã `30f515f`.
+
+| Phép kiểm | Kết quả 07/08 | Khớp digest? |
+|---|---|---|
+| `pnpm -r typecheck` (shared + db + api) | sạch | ✅ |
+| Unit `@ipms/api` | **315/315 · 27 suite** | ✅ |
+| Integration `--runInBand` | **649/649 · 43 suite** (402s) | ✅ |
+| **Tổng** | **964/964 · 70 suite** | ✅ đúng con số L2 |
+
+**Phần đã xây là thật, digest không thổi phồng.** 106 commit · ~67.500 dòng TS máy chủ + ~12.000 dòng giao diện · 89 bảng · 198 index · 29 module API · 36 màn.
+
+## Năm chốt chặn — không vượt được cái nào thì không go-live
+
+### 🔴 B1 · Không có đường đăng nhập nào ở production
+
+Không phải "thiếu SSO" — là **không có auth**. Toàn hệ đúng 3 route công khai (`auth/health`, `config/brand/resolve`, `auth/dev-token`); cửa duy nhất cấp token là `auth.controller.ts:57`, và nó tự đóng khi `NODE_ENV=production`. Bỏ cờ đó ⇒ cửa mở và **cấp token cho bất kỳ email nào có trong DB, không cần mật khẩu**. Không có trạng thái thứ ba.
+
+`jwt.guard.ts:37` vẫn HS256 + `DEV_JWT_SECRET` dùng chung — chưa JWKS, chưa issuer/audience, chưa refresh, chưa logout phía máy chủ. Kế hoạch của chính dự án xếp việc này vào **trục F** và ghi nó **kẹt red-line: cần tenant Azure**.
+
+**Hệ quả:** không có phương án go-live hẹp nào né được việc này. Dù chỉ mở Từ điển Tác vụ cho 20 người, vẫn phải có auth thật trước.
+
+### 🔴 B2 · Không có hạ tầng để triển khai
+
+**0 Dockerfile · 0 compose production · 0 IaC · 0 script deploy · 0 staging.** Toàn bộ `05-build/infra/` đúng một tệp `dev-init.sql`. API chạy `ts-node --transpile-only`, web chạy `next dev` — chưa từng có lượt `node dist/main.js` nào được kiểm chứng. Ngân sách §5 đã tính hạ tầng ~720 trđ/năm ở full scale, nhưng đó là giấy: chưa ai chọn nơi chạy.
+
+### 🔴 B3 · CI đỏ 7/7 lượt — và chưa từng xanh
+
+Đây là phát hiện làm suy yếu **mọi** con số verify trong digest, vì nó nói rằng chúng chỉ đúng trên một máy.
+
+7/7 lượt chạy từ **19/07 tới 05/08** đều fail, chết ở bước thứ hai sau 42 giây:
+`##[error]packages/db build: src/index.ts(45,12): error TS7006: Parameter 'tx' implicitly has an 'any' type.`
+
+Nguyên nhân: CI chạy `pnpm --filter @ipms/db build` mà **không `prisma generate` trước**. Prisma Client là mã sinh ra, không nằm trong git; thiếu nó thì `prisma.$transaction((tx) => …)` mất kiểu. Máy dev xanh vì client đã sinh sẵn trong `node_modules` từ lâu.
+
+Hệ quả dây chuyền — CI **chưa bao giờ** chạy tới: typecheck · lint · unit · tạo role `ipms_app` · `migrate:deploy` trên DB trắng · seed · 649 test RLS.
+
+**✅ ĐÃ VÁ trong cùng phiên 07/08** (xem mục cuối). Và tôi đã dựng DB trắng để trả lời câu hỏi mà CI lẽ ra phải trả lời — kết quả ở mục "Bản vá CI" bên dưới.
+
+**Kèm theo:** 6 commit chưa push (toàn bộ trục D + bộ chuyển vai). Toàn bộ tài sản dự án đang nằm trên một laptop Windows/OneDrive.
+
+### 🔴 B4 · Chưa có dữ liệu thật, và chưa có đường nạp dữ liệu thật
+
+Mục tiêu ~15.000 user; hiện có **6 nhân viên demo** trong H.01. DB dev cho thấy đúng tình trạng: 34 tenant · 321 person — gần như toàn bộ là rác test tích tụ. Không có đường nạp hàng loạt (chỉ `POST /persons` từng người), không import HEMIS/OneOffice, không đồng bộ nhân sự, không offboarding (**F121** vẫn treo: nhân viên chuyển phòng thì grant phòng cũ còn sống).
+
+### 🔴 B5 · Vận hành = 0
+
+Backup/restore/DR: **không có** (dữ liệu trong docker volume trên laptop) · log tập trung: **không có** (chỉ Nest `Logger` ra stdout) · metric/trace/alert: **không có** · runbook: **không có** (`docs/` 10 tệp, không tệp nào về triển khai) · rate limit / helmet / security header: **không có** · health check chỉ trả `ok`, không kiểm DB/Redis.
+
+## Bảy rủi ro cao — không chặn, nhưng phải có đáp án trước khi mở cho người thật
+
+**① Quy mô chưa từng được thử.** Không một phép đo tải nào. Mã đang cắt cứng: roster đội **500**, từ điển **2.000 dòng**, chưa phân trang phía máy chủ, từ điển tải nguyên tập rồi lọc ở trình duyệt. 15.000 user là bài toán khác hẳn 6 user.
+
+**② Token trong `sessionStorage`** — XSS lấy được token 8 giờ. Khi làm auth thật nên chuyển httpOnly cookie / BFF, không bê nguyên mô hình hiện tại.
+
+**③ 19 lỗ hổng phụ thuộc production**: API 17 (7 cao — `multer`, `lodash`, `js-yaml` qua NestJS 10 + Swagger), web 2 cao (`postcss`). Nền tảng chậm 1–2 thế hệ: **NestJS 10.4 → 11.1 · Next 14.2 → 16.3 · Prisma 5.22 → 7.9**.
+
+**④ Test và driver ghi vào bảng nghiệp vụ.** Đo được: **32/36 dòng `feature_flag` là rác driver** (`drv.l2.*`); 17.219 `ai_interaction`; 47.330 `audit_log`, trong đó 4 mã agent bịa **không xoá được** (append-only). ⇒ **DB dev không dùng làm nền production được**, phải dựng từ trắng.
+
+**⑤ Sáu năng lực quản trị chỉ có API, chưa có màn hình:** lưu trữ & xoá NĐ13 (`/retention`) · ngoại lệ chính sách · cờ rủi ro · sổ xuất dữ liệu · sổ đăng ký dữ liệu · console nền tảng B3 (`/platform/*` = 0/36 màn).
+
+**⑥ NĐ13 mới tuân thủ một phần** — `cold_archive` chưa thực thi được, chỉ 2 nhóm dữ liệu có bộ thực thi xoá.
+
+**⑦ Reviewer đối kháng trục D chưa chạy** (A/B/C đều đã có verdict độc lập), và trục D còn L3→L7.
+
+**⑧ CI không chạm giao diện.** `pnpm -r` chỉ phủ `apps/*` + `packages/*`; `web/` ngoài workspace ⇒ 12.000 dòng giao diện **không có** typecheck/build/test nào trong CI. Và cả ba script `lint` đều là `echo` — **không có linter nào chạy trong dự án**.
+
+## Một chỗ cần chủ dự án xác nhận
+
+Báo cáo `08-to-trinh/NHG_iPMS_Bao_Cao_Tien_Do_20260805.html` trình lãnh đạo ghi Từ điển Tác vụ **"go-live đợt 1 — 135 tác vụ khối Tài chính đã đưa vào sử dụng"**. Tôi không tìm thấy môi trường nào để việc đó xảy ra: không hạ tầng, không auth, không host. **Nếu thực tế có người đang dùng hằng ngày thì nó chạy ở đâu?** Nếu "go-live" ở đó nghĩa là *dữ liệu đã chuẩn hoá xong và sẵn sàng*, câu chữ nên siết lại trước khi lãnh đạo đọc thành nghĩa mạnh hơn.
+
+## Kết luận
+
+Phần khó nhất — nghiệp vụ, phân quyền, cách ly đa đơn vị, lớp quản trị dữ liệu — đã xây xong và có 964 phép kiểm đứng sau. Nhưng dự án dồn **toàn bộ** nỗ lực vào chiều sâu sản phẩm và **gần như không có gì** ở chiều vận hành. **Một sản phẩm tốt chưa có nhà để ở.**
+
+Lý do có thể chẩn đoán được: nhịp lát-cắt + Reviewer đối kháng rất kỷ luật, nhưng **không trục nào phụ trách vận hành** — nó rơi vào khoảng trống giữa các trục.
+
+| Nhóm việc | Nội dung | Chặn bởi |
+|---|---|---|
+| **Trục F — Đăng nhập thật** | Entra/OIDC + JWKS, hoặc lát auth tạm | **Tenant Azure — chờ chủ dự án** |
+| **Trục Ops — CHƯA CÓ TRONG LỘ TRÌNH** | CI · Dockerfile · staging · production · backup/DR · log/metric/alert · runbook | **Chọn nơi chạy — chờ chủ dự án** |
+| **Trục Data** | Import nhân sự thật · onboarding tenant · offboarding (F121) · dựng DB sạch | Sau F + Ops |
+
+Song song, không chặn: siết quy mô · nâng NestJS/Next/Prisma vá 19 CVE · 6 màn quản trị · phủ CI cho `web/` · Reviewer đối kháng trục D.
+
+## Ba quyết định đang chờ chủ dự án
+
+1. **Đăng nhập** — chờ tenant Azure của B3 (bao lâu?), hay làm **lát auth tạm** (mật khẩu + OTP, khoá theo tenant) để pilot chạy trước rồi thay bằng Entra sau?
+2. **Nơi chạy** — Data Center NHG hay cloud? Quyết định này định hình toàn bộ trục Ops.
+3. **Phạm vi pilot đợt một** — bao nhiêu người, đơn vị nào, mở màn nào? Quyết định "siết quy mô" là làm ngay hay làm sau.
+
+---
+
+## 🔧 BẢN VÁ CI · 07/08/2026 · **CI xanh được rồi — và đường đi tới đó lộ ra một lỗ đo lường**
+
+> Chủ dự án chỉ đạo vá CI ngay trong phiên đánh giá. **Vé mới: F224–F227** (tiếp sau F223).
+
+### Vá xong ba thứ, không phải một
+
+**① `prisma generate` — nguyên nhân làm CI chết ở bước 2.** Cố ý **không** gộp vào script `build` của `@ipms/db`: trên Windows `prisma generate` fail khi có tiến trình node giữ `query_engine-windows.dll` (AGENTS.md §Bẫy) — gộp vào build là mang bẫy đó vào mọi lượt build local để đổi lấy một dòng ở CI.
+
+**② `.github/workflows/ci.yml` vào bộ lọc `paths`** — bộ lọc cũ chỉ nhận `05-build/**`, nên **chính bản vá này sẽ không được chạy**. Sửa quy trình kiểm mà quy trình không chạy thì bản sửa không được kiểm chứng. Thêm `workflow_dispatch` để chạy tay, khỏi phải đẻ commit giả.
+
+**③ [F225] thêm bước `seed:perfdemo`.** Vá xong ① thì CI **vẫn đỏ**, chỉ dời sang bước cuối: `perf-readmodels.spec` (31 ca, trục A L1) đòi `demo1@`…`demo6@` do **seed PHỤ** sinh, không có trong `db:seed`. Máy dev không thấy vì `seed:perfdemo` chạy tay hồi 22/07 và dữ liệu nằm lại từ đó.
+
+### 🔴 F224 — một ca kiểm BẢO MẬT đã xanh 10 ngày mà không đo gì
+
+Dựng DB trắng để kiểm thì lộ ra: **964/964 là thuộc tính của một cái MÁY, không phải của kho mã.** Kho mã sạch + DB dựng đúng tài liệu ⇒ **618/649**, 2 suite đỏ. 31 ca là F225 ở trên. Ca thứ 32 nặng hơn nhiều:
+
+`library.spec` › `[F91] SoD: người giữ taskcell:author import as_canonical → 409 + audit incident`.
+
+**Cơ chế ĐÚNG** — đo trên DB trắng: sự cố có được ghi, `sod.violation_blocked · library_import_run · actor authcur@`. F117 giữ nguyên giá trị. **Phép đo mới là thứ đã chết**, do hai lỗi cộng lại: ① tra `actorUserId: admin.userId` — nhưng người vi phạm là `authorCurator`, không phải admin ② không neo vào lượt chạy nào, mà `audit_log` **append-only**.
+
+Trên DB dev có **44 dòng hoá thạch** cùng `(action, entityType)` với actor `admin@`, ghi **09/07–22/07** — thời god-account còn chạy import. **Trục B đập god-account ngày 28/07 làm actor đổi sang `authcur@`, nhưng phép tra vẫn trỏ vào hoá thạch** ⇒ xanh vĩnh viễn, **kể cả nếu hôm nay hệ ngừng ghi vết hoàn toàn**. Nay: đúng người vi phạm **+ bắt buộc là dòng MỚI** (`id > lastIdBefore`) — hoá thạch không thoả được nữa.
+
+Đây là họ lỗi thứ **năm** của dự án về *phép đo bị đánh lừa* (F163 đếm lượt eval · F191 ghi chú sai về NULL · F206 danh bạ rỗng ⇒ $0.00 · L6 `total` là số dòng trang · nay hoá thạch append-only). Điểm mới đáng ghi: **chính tính append-only — một bất biến bảo mật — là thứ giữ cho phép đo sai sống mãi.** Bảng không xoá được thì bằng chứng giả cũng không xoá được.
+
+**[F226]** thông điệp lỗi của `perf-readmodels` bảo chạy `pnpm db:seed`, nhưng `db:seed` **không bao giờ** tạo `demo1@` — người gặp lỗi chạy đúng lệnh vô ích rồi kẹt. Đã nói đúng cả hai lệnh.
+
+**[F227] — GHI VÉ, CHƯA VÁ, cần chủ dự án xếp ưu tiên.** Quét toàn bộ: còn **12 assertion khác trên `audit_log`** không neo `entityId` cũng không neo dòng mới (`admin.role_grant_denied` ×3 · `admin.impersonation_denied` ×3 · `policy.denied` · `policy.exception_denied` · `export.blocked` · `retention` ×2 · `kpi-scorecard`). **Cả 12 hiện ĐANG đo đúng** — xanh trên DB trắng, tức mã hôm nay thật sự ghi vết. Chúng không sai, chúng **mong manh**: ngày nào mã ngừng ghi một vết, ca tương ứng vẫn xanh nếu DB có dòng cũ cùng actor. F91 sập bẫy vì cộng thêm lỗi thứ hai (tra nhầm người). Không tự vá vì chúng đang đúng và việc này ngoài phạm vi "vá CI".
+
+### Kiểm chứng — chạy đúng chuỗi lệnh CI sẽ chạy, trên DB dựng mới hoàn toàn
+
+| Bước | Kết quả |
+|---|---|
+| YAML hợp lệ · 13 bước · đúng thứ tự | ✅ |
+| `prisma generate` → `build` (shared + db) | ✅ |
+| `pnpm -r typecheck` | ✅ sạch |
+| `pnpm -r lint` | ✅ — **nhưng là 3 lệnh `echo`, không kiểm gì** |
+| Unit | ✅ **315/315 · 27 suite** |
+| `dev-init.sql` → `migrate:deploy` **trên DB trắng** | ✅ **cả 29 migration áp sạch từ số không** |
+| `db:seed` → `seed:perfdemo` | ✅ idempotent |
+| **Integration trên chính DB trắng đó** | ✅ **649/649 · 43 suite** |
+| Hai spec đã vá, chạy lại trên **DB dev** (nơi có hoá thạch) | ✅ 41/41 — xanh cả hai phía |
+
+**Tin tốt kèm theo:** câu hỏi *"chuỗi 29 migration có dựng lại được từ DB trắng không"* — xưa nay là niềm tin — nay là **bằng chứng**. Rủi ro "hôm dựng production mới phát hiện migration gãy" đã đóng.
+
+### Còn nợ, ghi để không trôi
+
+- **CI vẫn không chạm giao diện.** `pnpm -r` chỉ phủ `apps/*` + `packages/*`; `web/` ngoài workspace ⇒ 12.000 dòng giao diện không có typecheck/build/test nào. **Cố ý chưa thêm trong lát này**: `next build` chưa từng chạy trên CI, thêm vào lúc này có thể làm CI đỏ trở lại vì lý do khác và che mất kết quả của bản vá. Việc riêng, làm sau khi CI xanh lần đầu.
+- **Không có linter nào chạy** — cả ba script `lint` là `echo`.
+- **Chưa push.** Bản vá + 6 commit tồn (trục D + bộ chuyển vai) đang nằm trên máy. CI chỉ thật sự chạy sau khi push.
+
+---
+
 ## Trục D — "Lớp AI có danh tính" · **05/08/2026 · L0 XONG — danh bạ agent dựng xong, 927/927**
 
 > Kế hoạch L0–L7: `02-dac-ta/NHG_iPMS_Ke_Hoach_Truc_D_Lop_AI_Co_Danh_Tinh.md` (⚠️ `02-dac-ta/` gitignore toàn thư mục — chỉ trên đĩa). Duyệt 05/08. Vé Reviewer từ **F201**. Bất biến **N1–N10** (bỏ `L` vì đụng "Lát", bỏ `M` vì đụng mã module BRD). Baseline `b4570ac` 896/896.
