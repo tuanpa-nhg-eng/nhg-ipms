@@ -345,6 +345,20 @@ describe('Phase 3 lát 4f — BU Authoring Gate', () => {
   });
 
   it('[F91] SoD: người giữ taskcell:author import as_canonical → 409 + audit incident', async () => {
+    /**
+     * [F224] Ca này TỪNG xanh mà không đo gì. Hai lỗi cộng lại:
+     *  ① tra `actorUserId: admin.userId` — nhưng người vi phạm là `authorCurator`, không phải admin;
+     *  ② không neo vào lượt chạy nào, mà `audit_log` là APPEND-ONLY.
+     * Trên DB dev có 44 dòng (sod.violation_blocked · library_import_run · actor admin@) ghi hồi
+     * 09–22/07, thời còn god-account chạy import. Từ 28/07 (trục B) actor đổi sang authcur@, nhưng
+     * phép tra vẫn trỏ vào hoá thạch cũ ⇒ xanh vĩnh viễn, kể cả nếu hôm nay hệ ngừng ghi vết hẳn.
+     * Trên DB trắng thì đỏ — đó là cách nó bị bắt. Nay: đúng người vi phạm + phải là dòng MỚI.
+     */
+    const lastIdBefore = (await owner.auditLog.findFirst({
+      where: { tenantId: admin.id, action: 'sod.violation_blocked' },
+      orderBy: { id: 'desc' }, select: { id: true },
+    }))?.id ?? BigInt(0);
+
     const r = await api().post('/api/v1/library/import').set(as(authorCurator)).send({
       mode: 'as_canonical', rows: [cellPayload(code('EVIL'))],
     });
@@ -352,7 +366,8 @@ describe('Phase 3 lát 4f — BU Authoring Gate', () => {
     const incident = await owner.auditLog.findFirst({
       where: {
         tenantId: admin.id, action: 'sod.violation_blocked', entityType: 'library_import_run',
-        actorUserId: admin.userId,
+        actorUserId: authorCurator.userId,
+        id: { gt: lastIdBefore },
       },
       orderBy: { id: 'desc' },
     });

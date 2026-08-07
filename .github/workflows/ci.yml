@@ -3,9 +3,13 @@ name: CI — iPMS monorepo
 on:
   push:
     branches: [main]
-    paths: ['05-build/**']
+    # Chính tệp này PHẢI nằm trong bộ lọc: sửa quy trình kiểm mà quy trình không chạy
+    # thì bản sửa không được kiểm chứng — đúng kiểu lỗi đã để CI đỏ 7/7 lượt không ai thấy.
+    paths: ['05-build/**', '.github/workflows/ci.yml']
   pull_request:
-    paths: ['05-build/**']
+    paths: ['05-build/**', '.github/workflows/ci.yml']
+  # Chạy tay — để kiểm được CI mà không cần đẻ một commit giả vào 05-build/.
+  workflow_dispatch:
 
 defaults:
   run:
@@ -38,6 +42,19 @@ jobs:
         with: { node-version: 22, cache: pnpm, cache-dependency-path: 05-build/pnpm-lock.yaml }
 
       - run: pnpm install --frozen-lockfile
+
+      # Prisma Client là mã SINH RA, không nằm trong git và pnpm không chạy postinstall của
+      # @prisma/client. Thiếu bước này, `packages/db` biên dịch với PrismaClient KHÔNG có kiểu
+      # ⇒ TS7006 "Parameter 'tx' implicitly has an 'any' type" ở src/index.ts — đúng lỗi đã làm
+      # CI đỏ 7/7 lượt (19/07→05/08/2026) trong khi máy dev vẫn xanh, vì ở đó client đã được
+      # sinh sẵn trong node_modules từ lâu.
+      #
+      # CỐ Ý không gộp vào script `build` của @ipms/db: trên Windows `prisma generate` fail khi
+      # có tiến trình node đang giữ query_engine-windows.dll (AGENTS.md §Bẫy). Gộp vào build là
+      # mang cái bẫy đó vào mọi lượt build local để đổi lấy một dòng ở đây.
+      - name: Generate Prisma Client
+        run: pnpm --filter @ipms/db generate
+
       - run: pnpm --filter @ipms/shared --filter @ipms/db build
       - run: pnpm -r typecheck
       - run: pnpm -r lint
@@ -51,6 +68,12 @@ jobs:
         run: |
           DATABASE_URL="$OWNER_DATABASE_URL" pnpm --filter @ipms/db migrate:deploy
           DATABASE_URL="$OWNER_DATABASE_URL" pnpm --filter @ipms/db seed
+
+      # [F225] `perf-readmodels.spec` (31 ca, trục A L1) đòi demo1@…demo6@ — do seed PHỤ này sinh,
+      # KHÔNG có trong `db:seed`. Thiếu bước này thì 31 ca đỏ trên mọi DB dựng mới. Máy dev không
+      # thấy vì `seed:perfdemo` đã chạy tay hồi 22/07 và dữ liệu nằm lại trong DB dev từ đó.
+      - name: Seed dữ liệu "phòng sống" (perfdemo)
+        run: DATABASE_URL="$OWNER_DATABASE_URL" pnpm --filter @ipms/api seed:perfdemo
 
       - name: Integration tests — tenant isolation (RLS)
         run: pnpm --filter @ipms/api test:integration

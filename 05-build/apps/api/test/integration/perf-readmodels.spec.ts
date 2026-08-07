@@ -45,7 +45,14 @@ describe('[Trục A L1] Read-model vòng đời hiệu suất', () => {
       const user = await owner.appUser.findFirst({
         where: { tenantId: tenant!.id, email: { startsWith: emailPrefix }, status: 'active' },
       });
-      if (!user) throw new Error(`User ${emailPrefix} @ ${tenantCode} chưa seed — chạy pnpm db:seed`);
+      // [F226] Nói ĐÚNG lệnh phải chạy. `demo1@`…`demo6@` do seed PHỤ `seed:perfdemo` sinh,
+      // KHÔNG phải `db:seed` — thông điệp cũ chỉ sai địa chỉ, người gặp lỗi chạy đúng lệnh vô ích.
+      if (!user) {
+        throw new Error(
+          `User ${emailPrefix} @ ${tenantCode} chưa seed — chạy `
+          + `pnpm --filter @ipms/db seed && pnpm --filter @ipms/api seed:perfdemo`,
+        );
+      }
       const token = jwt.sign(
         { sub: user.id, tid: tenant!.id, email: user.email, person_id: user.personId ?? undefined },
         getJwtSecret(), { expiresIn: '1h' },
